@@ -10,6 +10,9 @@ import difflib
 import math
 from contextlib import asynccontextmanager
 
+# Import models and utilities
+from shared import FoodLogEntry, DataValidator
+
 # Set up logger - reduced for faster startup
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -386,7 +389,7 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
             "carbs_g": entry.actual_nutrition.carbs_g,
             "fat_g": entry.actual_nutrition.fat_g,
             "notes": entry.notes,
-            "created_at": entry.created_at or datetime.datetime.now(datetime.UTC),
+            "created_at": entry.created_at or datetime.datetime.utcnow(),
         },
     )
     db.commit()

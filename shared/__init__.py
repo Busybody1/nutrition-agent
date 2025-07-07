@@ -22,6 +22,7 @@ from .models import (
     ConversationState,
     FoodItem,
     FoodLog,
+    FoodLogEntry,
     User,
     WorkoutLog,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "User",
     "FoodItem",
     "FoodLog",
+    "FoodLogEntry",
     "WorkoutLog",
     "ActivityLog",
     "ConversationState",
