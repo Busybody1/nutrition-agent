@@ -214,7 +214,8 @@ class Settings(BaseModel):
 
         # Initialize sub-settings with mapped data
         # logger.info("Initializing DatabaseSettings...")
-        self._database = DatabaseSettings()
+        import os
+        self._database = DatabaseSettings.model_validate(os.environ)
         # logger.info("Initializing RedisSettings...")
         self._redis = RedisSettings()
         # logger.info("Initializing LLMSettings...")
