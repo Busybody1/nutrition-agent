@@ -168,10 +168,11 @@ def detailed_health_check():
         }
 
 
+# --- Update all queries to use 'foods' instead of 'food_items' ---
 @app.get("/foods/count")
 def food_count(db=Depends(get_nutrition_db)):
     try:
-        result = db.execute(text("SELECT COUNT(*) FROM food_items")).scalar()
+        result = db.execute(text("SELECT COUNT(*) FROM foods")).scalar()
         return {"food_count": result}
     except Exception as e:
         logger.error(f"Error getting food count: {e}")
@@ -343,8 +344,8 @@ def search_food_by_name(db, name: str):
     rows = db.execute(
         text(
             """
-        SELECT id, name, brand, calories, protein_g, carbs_g, fat_g, category, created_at
-        FROM food_items
+        SELECT id, name, brand_id, calories, category_id, created_at
+        FROM foods
         WHERE LOWER(name) LIKE :name
         ORDER BY name
         LIMIT 20
@@ -359,7 +360,7 @@ def get_food_nutrition(db, food_id: Any):
     row = db.execute(
         text(
             """
-        SELECT * FROM food_items WHERE id = :food_id
+        SELECT * FROM foods WHERE id = :food_id
         """
         ),
         {"food_id": food_id},
@@ -425,8 +426,8 @@ def search_food_fuzzy(db, name: str):
     rows = db.execute(
         text(
             """
-        SELECT id, name, brand, calories, protein_g, carbs_g, fat_g, category, created_at
-        FROM food_items
+        SELECT id, name, brand_id, calories, category_id, created_at
+        FROM foods
         ORDER BY name
         LIMIT 1000
         """
@@ -535,8 +536,8 @@ def find_suitable_foods(
     """Find foods suitable for a specific meal type and calorie target."""
     # Build query based on restrictions
     query = """
-    SELECT id, name, brand, calories, protein_g, carbs_g, fat_g, category, created_at
-    FROM food_items
+    SELECT id, name, brand_id, calories, category_id, created_at
+    FROM foods
     WHERE calories BETWEEN :min_calories AND :max_calories
     """
 
@@ -547,9 +548,9 @@ def find_suitable_foods(
 
     # Add dietary restrictions
     if "vegetarian" in dietary_restrictions:
-        query += " AND category NOT IN ('meat', 'fish', 'poultry')"
+        query += " AND category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry'))"
     if "vegan" in dietary_restrictions:
-        query += " AND category NOT IN ('meat', 'fish', 'poultry', 'dairy', 'eggs')"
+        query += " AND category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry', 'dairy', 'eggs'))"
 
     query += " ORDER BY calories LIMIT 20"
 
@@ -732,9 +733,9 @@ def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
             rows = db.execute(
                 text(
                     """
-                SELECT id, name, brand, calories, protein_g, carbs_g, fat_g, category, created_at
-                FROM food_items
-                WHERE LOWER(name) LIKE :pattern OR LOWER(brand) LIKE :pattern OR LOWER(category) LIKE :pattern
+                SELECT id, name, brand_id, calories, category_id, created_at
+                FROM foods
+                WHERE LOWER(name) LIKE :pattern OR LOWER(brand_id) LIKE :pattern OR LOWER(category_id) LIKE :pattern
                 ORDER BY 
                     CASE 
                         WHEN LOWER(name) = :exact THEN 1
@@ -883,8 +884,8 @@ def get_meal_suggestions(
     foods = db.execute(
         text(
             f"""
-        SELECT id, name, brand, calories, protein_g, carbs_g, fat_g, category
-        FROM food_items 
+        SELECT id, name, brand_id, calories, category_id
+        FROM foods 
         WHERE id IN ({placeholders})
         """
         ),
