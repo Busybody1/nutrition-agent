@@ -18,10 +18,7 @@ from .database import (
     init_database,
 )
 from .models import (
-    ActivityLog,
-    ConversationState,
     FoodItem,
-    FoodLog,
     FoodLogEntry,
     User,
     WorkoutLog,
@@ -55,11 +52,8 @@ __all__ = [
     # Models
     "User",
     "FoodItem",
-    "FoodLog",
     "FoodLogEntry",
     "WorkoutLog",
-    "ActivityLog",
-    "ConversationState",
     
     # Utilities
     "setup_logging",
