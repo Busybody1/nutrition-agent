@@ -135,21 +135,27 @@ def health_check():
 def detailed_health_check():
     """Detailed health check with database testing."""
     try:
-        # Test database connections
-        nutrition_engine = get_nutrition_engine()
+        # Test main database connection (for writes)
         fitness_engine = get_fitness_engine()
-        
-        with nutrition_engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        
         with fitness_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        
+        # Test nutrition database connection (for reads) - optional
+        nutrition_status = "not_configured"
+        try:
+            nutrition_engine = get_nutrition_engine()
+            with nutrition_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            nutrition_status = "connected"
+        except Exception as e:
+            logger.warning(f"Nutrition database not accessible: {e}")
+            nutrition_status = "unavailable"
         
         return {
             "status": "healthy", 
             "agent": "nutrition",
-            "nutrition_database": "connected",
-            "fitness_database": "connected",
+            "main_database": "connected",
+            "nutrition_database": nutrition_status,
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
     except Exception as e:

@@ -338,7 +338,7 @@ async def init_database():
 
 
 def get_nutrition_db_engine():
-    """Get nutrition database engine with lazy initialization."""
+    """Get nutrition database engine for reading nutrition data."""
     try:
         settings = get_settings()
         if settings.multi_db.nutrition_db_uri:
