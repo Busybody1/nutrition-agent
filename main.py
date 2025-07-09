@@ -218,7 +218,17 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
     if not rows:
         return {"error": "Food not found"}
 
-    food_row = rows[0]
+    # Convert rows to dictionaries properly
+    converted_rows = []
+    for row in rows:
+        if hasattr(row, '_mapping'):
+            converted_rows.append(dict(row._mapping))
+        else:
+            # Handle tuple case
+            columns = ['food_id', 'food_name', 'description', 'serving_size', 'serving_unit', 'serving', 'created_at', 'brand_id', 'brand_name', 'category_id', 'category_name', 'nutrient_id', 'nutrient_name', 'nutrient_unit', 'amount']
+            converted_rows.append(dict(zip(columns, row)))
+
+    food_row = converted_rows[0]
     nutrients = [
         {
             "id": r["nutrient_id"],
@@ -226,7 +236,7 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
             "unit": r["nutrient_unit"],
             "amount": r["amount"],
         }
-        for r in rows
+        for r in converted_rows
         if r["nutrient_id"] is not None
     ]
 
