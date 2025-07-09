@@ -186,11 +186,15 @@ def food_count(db=Depends(get_nutrition_db)):
 @app.get("/foods/{food_id}")
 def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
     rows = db.execute(
-        """
+        text(
+            """
         SELECT
           f.id AS food_id,
           f.name AS food_name,
           f.description,
+          f.serving_size,
+          f.serving_unit,
+          f.serving,
           f.created_at,
           b.id AS brand_id,
           b.name AS brand_name,
@@ -206,7 +210,8 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
         LEFT JOIN food_nutrients fn ON f.id = fn.food_id
         LEFT JOIN nutrients n ON fn.nutrient_id = n.id
         WHERE f.id = :food_id
-        """,
+        """
+        ),
         {"food_id": food_id},
     ).fetchall()
 
@@ -229,6 +234,9 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
         "id": food_row["food_id"],
         "name": food_row["food_name"],
         "description": food_row["description"],
+        "serving_size": food_row["serving_size"],
+        "serving_unit": food_row["serving_unit"],
+        "serving": food_row["serving"],
         "created_at": food_row["created_at"],
         "brand": {"id": food_row["brand_id"], "name": food_row["brand_name"]}
         if food_row["brand_id"]
@@ -299,7 +307,9 @@ def execute_tool(
             raise HTTPException(
                 status_code=400, detail="Missing 'food_id' or 'quantity_g' parameter."
             )
-        return calculate_calories(db_nutrition, food_id, quantity_g)
+        # Get food data first, then calculate
+        food_data = get_food_nutrition(db_nutrition, food_id)
+        return calculate_calories({"food": food_data, "quantity_g": quantity_g})
 
     elif tool == "get_meal_suggestions":
         user_id = params.get("user_id")
@@ -321,7 +331,7 @@ def execute_tool(
         target_value = params.get("target_value")
         if not user_id or not goal_type or not target_value:
             raise HTTPException(status_code=400, detail="Missing required parameters.")
-        return track_nutrition_goals(db_shared, user_id, goal_type, target_value)
+        return track_nutrition_goals({"user_id": user_id, "goal_type": goal_type, "target_value": target_value}, db_shared)
 
     elif tool == "meal-plan":
         return create_meal_plan(params, db_nutrition)
@@ -348,7 +358,7 @@ def search_food_by_name(db, name: str):
     rows = db.execute(
         text(
             """
-        SELECT id, name, brand_id, calories, category_id, created_at
+        SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
         FROM foods
         WHERE LOWER(name) LIKE :name
         ORDER BY name
@@ -378,12 +388,28 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
     # Validate nutrition data
     if not DataValidator.validate_nutrition_data(entry.actual_nutrition.model_dump()):
         raise HTTPException(status_code=400, detail="Invalid nutrition data")
-    # Insert log
+    
+    # Get food details to capture serving information
+    food_details = None
+    try:
+        from shared.database import get_nutrition_db_engine
+        nutrition_engine = get_nutrition_db_engine()
+        with nutrition_engine.connect() as conn:
+            food_row = conn.execute(
+                text("SELECT serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+                {"food_id": entry.food_item_id}
+            ).fetchone()
+            if food_row:
+                food_details = dict(food_row)
+    except Exception as e:
+        logger.warning(f"Could not fetch food serving details: {e}")
+    
+    # Insert log with serving details
     db.execute(
         text(
             """
-        INSERT INTO food_log_entries (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, notes, created_at)
-        VALUES (:id, :user_id, :food_item_id, :quantity_g, :meal_type, :consumed_at, :calories, :protein_g, :carbs_g, :fat_g, :notes, :created_at)
+        INSERT INTO food_logs (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at)
+        VALUES (:id, :user_id, :food_item_id, :quantity_g, :meal_type, :consumed_at, :calories, :protein_g, :carbs_g, :fat_g, :serving_size, :serving_unit, :serving, :notes, :created_at)
         """
         ),
         {
@@ -399,19 +425,26 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
             "protein_g": entry.actual_nutrition.protein_g,
             "carbs_g": entry.actual_nutrition.carbs_g,
             "fat_g": entry.actual_nutrition.fat_g,
+            "serving_size": food_details.get("serving_size") if food_details else None,
+            "serving_unit": food_details.get("serving_unit") if food_details else None,
+            "serving": food_details.get("serving") if food_details else None,
             "notes": entry.notes,
-            "created_at": entry.created_at or datetime.datetime.utcnow(),
+            "created_at": datetime.datetime.utcnow(),
         },
     )
     db.commit()
-    return {"status": "success"}
+    return {"status": "success", "message": "Food logged successfully"}
 
 
 def get_user_calorie_history(db, user_id: Any):
     rows = db.execute(
         text(
             """
-        SELECT * FROM food_log_entries WHERE user_id = :user_id ORDER BY consumed_at DESC LIMIT 100
+        SELECT id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at
+        FROM food_logs 
+        WHERE user_id = :user_id 
+        ORDER BY consumed_at DESC 
+        LIMIT 100
         """
         ),
         {"user_id": user_id},
@@ -430,7 +463,7 @@ def search_food_fuzzy(db, name: str):
     rows = db.execute(
         text(
             """
-        SELECT id, name, brand_id, calories, category_id, created_at
+        SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
         FROM foods
         ORDER BY name
         LIMIT 1000
@@ -540,23 +573,22 @@ def find_suitable_foods(
     """Find foods suitable for a specific meal type and calorie target."""
     # Build query based on restrictions
     query = """
-    SELECT id, name, brand_id, calories, category_id, created_at
+    SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
     FROM foods
-    WHERE calories BETWEEN :min_calories AND :max_calories
     """
 
-    params = {
-        "min_calories": target_calories * 0.7,
-        "max_calories": target_calories * 1.3,
-    }
+    params = {}
 
     # Add dietary restrictions
     if "vegetarian" in dietary_restrictions:
-        query += " AND category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry'))"
+        query += " WHERE category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry'))"
     if "vegan" in dietary_restrictions:
-        query += " AND category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry', 'dairy', 'eggs'))"
+        if "WHERE" in query:
+            query += " AND category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry', 'dairy', 'eggs'))"
+        else:
+            query += " WHERE category_id NOT IN (SELECT id FROM categories WHERE name IN ('meat', 'fish', 'poultry', 'dairy', 'eggs'))"
 
-    query += " ORDER BY calories LIMIT 20"
+    query += " ORDER BY name LIMIT 20"
 
     try:
         rows = db.execute(text(query), params).fetchall()
@@ -737,9 +769,9 @@ def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
             rows = db.execute(
                 text(
                     """
-                SELECT id, name, brand_id, calories, category_id, created_at
+                SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
                 FROM foods
-                WHERE LOWER(name) LIKE :pattern OR LOWER(brand_id) LIKE :pattern OR LOWER(category_id) LIKE :pattern
+                WHERE LOWER(name) LIKE :pattern
                 ORDER BY 
                     CASE 
                         WHEN LOWER(name) = :exact THEN 1
@@ -848,7 +880,7 @@ def get_meal_suggestions(
         text(
             """
         SELECT food_item_id, COUNT(*) as frequency
-        FROM food_log_entries 
+        FROM food_logs 
         WHERE user_id = :user_id 
         AND consumed_at > NOW() - INTERVAL '30 days'
         GROUP BY food_item_id
@@ -864,7 +896,7 @@ def get_meal_suggestions(
         text(
             """
         SELECT food_item_id, COUNT(*) as frequency
-        FROM food_log_entries 
+        FROM food_logs 
         WHERE meal_type = :meal_type
         AND consumed_at > NOW() - INTERVAL '7 days'
         GROUP BY food_item_id
@@ -888,7 +920,7 @@ def get_meal_suggestions(
     foods = db.execute(
         text(
             f"""
-        SELECT id, name, brand_id, calories, category_id
+        SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
         FROM foods 
         WHERE id IN ({placeholders})
         """
@@ -899,9 +931,11 @@ def get_meal_suggestions(
     suggestions = []
     for food in foods:
         food_dict = dict(food)
-        # Calculate suggested portion based on target calories
+        # Calculate suggested portion based on target calories (default 100g)
         if target_calories:
-            suggested_quantity = min(200, (target_calories / food["calories"]) * 100)
+            # Use a default calorie value since we don't have calories in the nutrition DB
+            default_calories = 100  # Default calories per 100g
+            suggested_quantity = min(200, (target_calories / default_calories) * 100)
             food_dict["suggested_quantity_g"] = round(suggested_quantity, 0)
         else:
             food_dict["suggested_quantity_g"] = 100
