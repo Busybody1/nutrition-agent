@@ -179,9 +179,9 @@ class FeatureFlags(BaseModel):
 
 
 class MultiDatabaseSettings(BaseModel):
-    nutrition_db_uri: Optional[str] = Field(default=None)
-    workout_db_uri: Optional[str] = Field(default=None)
-    model_config = ConfigDict(env_prefix="", extra="ignore")
+    nutrition_db_uri: Optional[str] = Field(default=None, alias="NUTRITION_DB_URI")
+    workout_db_uri: Optional[str] = Field(default=None, alias="WORKOUT_DB_URI")
+    model_config = ConfigDict(env_prefix="", extra="ignore", populate_by_name=True)
 
 
 class Settings(BaseModel):
@@ -231,7 +231,7 @@ class Settings(BaseModel):
         # logger.info("Initializing FeatureFlags...")
         self._features = FeatureFlags()
         # logger.info("Initializing MultiDatabaseSettings...")
-        self._multi_db = MultiDatabaseSettings.model_validate(multi_db_data)
+        self._multi_db = MultiDatabaseSettings.model_validate(os.environ)
         
         # logger.info("Settings initialization complete")
 
@@ -324,11 +324,6 @@ def get_settings() -> Settings:
         "rate_limit_requests_per_hour": "RATE_LIMIT_REQUESTS_PER_HOUR",
     }
 
-    multi_db_mappings = {
-        "nutrition_db_uri": "NUTRITION_DB_URI",
-        "workout_db_uri": "WORKOUT_DB_URI",
-    }
-
     # Create settings with mapped environment variables
     settings_data = {
         "environment": env_vars.get("ENVIRONMENT", "development"),
@@ -336,7 +331,6 @@ def get_settings() -> Settings:
         "cors_origins": env_vars.get("CORS_ORIGINS", "http://localhost:3000"),
         "_llm_data": _map_env_to_fields(env_vars, llm_mappings),
         "_security_data": _map_env_to_fields(env_vars, security_mappings),
-        "_multi_db_data": _map_env_to_fields(env_vars, multi_db_mappings),
     }
 
     settings = Settings.model_validate(settings_data)
