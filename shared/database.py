@@ -340,14 +340,14 @@ async def init_database():
 def get_nutrition_db_engine():
     """Get nutrition database engine for reading nutrition data."""
     try:
-    settings = get_settings()
-    if settings.multi_db.nutrition_db_uri:
+        settings = get_settings()
+        if settings.multi_db.nutrition_db_uri:
             db_url = settings.multi_db.nutrition_db_uri
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
             return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
-    else:
-        # Fallback to main database if nutrition_db_uri is not provided
+        else:
+            # Fallback to main database if nutrition_db_uri is not provided
             db_url = settings.database.url
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
@@ -361,14 +361,14 @@ def get_nutrition_db_engine():
 def get_workout_db_engine():
     """Get workout database engine with lazy initialization."""
     try:
-    settings = get_settings()
-    if settings.multi_db.workout_db_uri:
+        settings = get_settings()
+        if settings.multi_db.workout_db_uri:
             db_url = settings.multi_db.workout_db_uri
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
             return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
-    else:
-        # Fallback to main database if workout_db_uri is not provided
+        else:
+            # Fallback to main database if workout_db_uri is not provided
             db_url = settings.database.url
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
@@ -382,8 +382,7 @@ def get_workout_db_engine():
 def get_fitness_db_engine():
     """Get fitness database engine with lazy initialization."""
     try:
-    from .config import get_settings
-
+        from .config import get_settings
         settings = get_settings()
         db_url = settings.database.url
         if db_url.startswith("postgres://"):
