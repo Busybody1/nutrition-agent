@@ -367,7 +367,17 @@ def search_food_by_name(db, name: str):
         ),
         {"name": f"%{name.lower()}%"},
     ).fetchall()
-    return [dict(row) for row in rows]
+    
+    # Convert rows to dictionaries properly
+    result = []
+    for row in rows:
+        if hasattr(row, '_mapping'):
+            result.append(dict(row._mapping))
+        else:
+            # Handle tuple case
+            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+            result.append(dict(zip(columns, row)))
+    return result
 
 
 def get_food_nutrition(db, food_id: Any):
@@ -381,7 +391,14 @@ def get_food_nutrition(db, food_id: Any):
     ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Food not found")
-    return dict(row)
+    
+    # Convert row to dictionary properly
+    if hasattr(row, '_mapping'):
+        return dict(row._mapping)
+    else:
+        # Handle tuple case - we need to get column names
+        columns = [desc[0] for desc in db.execute(text("SELECT * FROM foods LIMIT 0")).cursor.description]
+        return dict(zip(columns, row))
 
 
 def log_food_to_calorie_log(db, entry: FoodLogEntry):
@@ -400,7 +417,8 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
                 {"food_id": entry.food_item_id}
             ).fetchone()
             if food_row:
-                food_details = dict(food_row)
+                # Convert Row to dict
+                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['serving_size', 'serving_unit', 'serving'], food_row))
     except Exception as e:
         logger.warning(f"Could not fetch food serving details: {e}")
     
@@ -437,19 +455,33 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
 
 
 def get_user_calorie_history(db, user_id: Any):
-    rows = db.execute(
-        text(
+    try:
+        rows = db.execute(
+            text(
+                """
+            SELECT id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at
+            FROM food_logs 
+            WHERE user_id = :user_id 
+            ORDER BY consumed_at DESC 
+            LIMIT 100
             """
-        SELECT id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at
-        FROM food_logs 
-        WHERE user_id = :user_id 
-        ORDER BY consumed_at DESC 
-        LIMIT 100
-        """
-        ),
-        {"user_id": user_id},
-    ).fetchall()
-    return [dict(row) for row in rows]
+            ),
+            {"user_id": user_id},
+        ).fetchall()
+        
+        # Convert rows to dictionaries properly
+        result = []
+        for row in rows:
+            if hasattr(row, '_mapping'):
+                result.append(dict(row._mapping))
+            else:
+                # Handle tuple case
+                columns = ['id', 'user_id', 'food_item_id', 'quantity_g', 'meal_type', 'consumed_at', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'serving_size', 'serving_unit', 'serving', 'notes', 'created_at']
+                result.append(dict(zip(columns, row)))
+        return result
+    except Exception as e:
+        logger.error(f"Error getting user calorie history: {e}")
+        return []
 
 
 # --- Advanced Nutrition Features ---
@@ -471,7 +503,15 @@ def search_food_fuzzy(db, name: str):
         )
     ).fetchall()
 
-    foods = [dict(row) for row in rows]
+    # Convert rows to dictionaries properly
+    foods = []
+    for row in rows:
+        if hasattr(row, '_mapping'):
+            foods.append(dict(row._mapping))
+        else:
+            # Handle tuple case
+            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+            foods.append(dict(zip(columns, row)))
 
     # Use difflib for fuzzy matching
     matches = []
@@ -592,7 +632,17 @@ def find_suitable_foods(
 
     try:
         rows = db.execute(text(query), params).fetchall()
-        return [dict(row) for row in rows]
+        
+        # Convert rows to dictionaries properly
+        result = []
+        for row in rows:
+            if hasattr(row, '_mapping'):
+                result.append(dict(row._mapping))
+            else:
+                # Handle tuple case
+                columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+                result.append(dict(zip(columns, row)))
+        return result
     except Exception as e:
         # Log the error and raise it instead of returning dummy data
         raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
@@ -792,7 +842,13 @@ def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
                 },
             ).fetchall()
 
-            results.extend([dict(row) for row in rows])
+            # Convert rows to dictionaries properly
+            for row in rows:
+                if hasattr(row, '_mapping'):
+                    results.append(dict(row._mapping))
+                else:
+                    columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+                    results.append(dict(zip(columns, row)))
 
         # Remove duplicates and limit results
         seen_ids = set()
@@ -907,8 +963,23 @@ def get_meal_suggestions(
         {"meal_type": meal_type},
     ).fetchall()
 
+    # Convert rows to dictionaries properly
+    recent_foods_dict = []
+    for row in recent_foods:
+        if hasattr(row, '_mapping'):
+            recent_foods_dict.append(dict(row._mapping))
+        else:
+            recent_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
+
+    popular_foods_dict = []
+    for row in popular_foods:
+        if hasattr(row, '_mapping'):
+            popular_foods_dict.append(dict(row._mapping))
+        else:
+            popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
+
     # Combine and get food details
-    food_ids = list(set([f["food_item_id"] for f in recent_foods + popular_foods]))
+    food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
 
     if not food_ids:
         return {"suggestions": [], "message": "No food preferences found"}
@@ -928,9 +999,15 @@ def get_meal_suggestions(
         params,
     ).fetchall()
 
+    # Convert rows to dictionaries properly
     suggestions = []
     for food in foods:
-        food_dict = dict(food)
+        if hasattr(food, '_mapping'):
+            food_dict = dict(food._mapping)
+        else:
+            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
+            food_dict = dict(zip(columns, food))
+        
         # Calculate suggested portion based on target calories (default 100g)
         if target_calories:
             # Use a default calorie value since we don't have calories in the nutrition DB
