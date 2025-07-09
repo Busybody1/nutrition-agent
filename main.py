@@ -96,6 +96,9 @@ def get_db():
         raise HTTPException(status_code=503, detail="Database service unavailable")
 
 
+# --- Dependency functions ---
+# Use nutrition DB for food reference data only
+
 def get_nutrition_db():
     try:
         session_local = get_nutrition_session_local()
@@ -108,18 +111,19 @@ def get_nutrition_db():
         logger.error(f"Nutrition database connection error: {e}")
         raise HTTPException(status_code=503, detail="Nutrition database service unavailable")
 
-
-def get_fitness_db():
+# Use shared DB for all user-specific data (logs, goals, history, etc.)
+def get_shared_db():
     try:
-        session_local = get_fitness_session_local()
+        from shared.database import get_fitness_db_engine
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_fitness_db_engine())
         db = session_local()
         try:
             yield db
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Fitness database connection error: {e}")
-        raise HTTPException(status_code=503, detail="Fitness database service unavailable")
+        logger.error(f"Shared database connection error: {e}")
+        raise HTTPException(status_code=503, detail="Shared database service unavailable")
 
 
 @app.get("/health")
@@ -250,7 +254,7 @@ class ExecuteToolRequest(BaseModel):
 def execute_tool(
     request: ExecuteToolRequest,
     db_nutrition=Depends(get_nutrition_db),
-    db_fitness=Depends(get_fitness_db),
+    db_shared=Depends(get_shared_db),
 ):
     tool = request.tool
     params = request.params
@@ -273,13 +277,13 @@ def execute_tool(
             entry = FoodLogEntry(**params)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid log entry: {e}")
-        return log_food_to_calorie_log(db_fitness, entry)
+        return log_food_to_calorie_log(db_shared, entry)
 
     elif tool == "get_user_calorie_history":
         user_id = params.get("user_id")
         if not user_id:
             raise HTTPException(status_code=400, detail="Missing 'user_id' parameter.")
-        return get_user_calorie_history(db_fitness, user_id)
+        return get_user_calorie_history(db_shared, user_id)
 
     # Advanced Features
     elif tool == "search_food_fuzzy":
@@ -309,7 +313,7 @@ def execute_tool(
         user_id = params.get("user_id")
         if not user_id:
             raise HTTPException(status_code=400, detail="Missing 'user_id' parameter.")
-        return get_nutrition_recommendations(db_nutrition, user_id)
+        return get_nutrition_recommendations(db_shared, user_id)
 
     elif tool == "track_nutrition_goals":
         user_id = params.get("user_id")
@@ -317,7 +321,7 @@ def execute_tool(
         target_value = params.get("target_value")
         if not user_id or not goal_type or not target_value:
             raise HTTPException(status_code=400, detail="Missing required parameters.")
-        return track_nutrition_goals(db_fitness, user_id, goal_type, target_value)
+        return track_nutrition_goals(db_shared, user_id, goal_type, target_value)
 
     elif tool == "meal-plan":
         return create_meal_plan(params, db_nutrition)
@@ -332,7 +336,7 @@ def execute_tool(
         return fuzzy_search_food(params, db_nutrition)
 
     elif tool == "nutrition-goals":
-        return track_nutrition_goals(params, db_fitness)
+        return track_nutrition_goals(params, db_shared)
 
     else:
         raise HTTPException(status_code=400, detail="Unknown tool.")
@@ -776,7 +780,7 @@ def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
 
 
 @app.post("/nutrition-goals")
-def track_nutrition_goals(request: Dict[str, Any], db=Depends(get_fitness_db)):
+def track_nutrition_goals(request: Dict[str, Any], db=Depends(get_shared_db)):
     """Track and analyze progress towards nutrition goals."""
     try:
         user_id = request.get("user_id")
