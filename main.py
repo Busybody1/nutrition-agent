@@ -114,8 +114,8 @@ def get_nutrition_db():
 # Use shared DB for all user-specific data (logs, goals, history, etc.)
 def get_shared_db():
     try:
-        from shared.database import get_fitness_db_engine
-        session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_fitness_db_engine())
+        from shared.database import get_nutrition_db_engine
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_nutrition_db_engine())
         db = session_local()
         try:
             yield db
@@ -333,7 +333,7 @@ def execute_tool(
         user_id = params.get("user_id")
         if not user_id:
             raise HTTPException(status_code=400, detail="Missing 'user_id' parameter.")
-        return get_nutrition_recommendations(db_shared, user_id)
+        return get_nutrition_recommendations({"user_id": user_id, "user_profile": {}}, db_shared)
 
     elif tool == "track_nutrition_goals":
         user_id = params.get("user_id")
@@ -539,7 +539,7 @@ def search_food_fuzzy(db, name: str):
 
 
 @app.post("/meal-plan")
-def create_meal_plan(request: Dict[str, Any], db=Depends(get_nutrition_db)):
+def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
     """Create a personalized meal plan based on user goals and preferences."""
     try:
         user_id = request.get("user_id")
@@ -547,12 +547,12 @@ def create_meal_plan(request: Dict[str, Any], db=Depends(get_nutrition_db)):
         meal_count = request.get("meal_count", 3)
         dietary_restrictions = request.get("dietary_restrictions", [])
 
-        # Get user's food preferences and history
-        user_history = get_user_calorie_history(db, user_id)
+        # Get user's food preferences and history from shared database
+        user_history = get_user_calorie_history(db_shared, user_id)
 
         # Simple meal planning algorithm
         meal_plan = generate_meal_plan(
-            db, daily_calories, meal_count, dietary_restrictions, user_history
+            db_nutrition, daily_calories, meal_count, dietary_restrictions, user_history
         )
 
         return {
@@ -668,6 +668,15 @@ def calculate_calories(request: Dict[str, Any]):
         if not food_data:
             raise HTTPException(status_code=400, detail="Food data required")
 
+        # Validate food data has required fields
+        required_fields = ["calories", "protein_g", "carbs_g", "fat_g"]
+        missing_fields = [field for field in required_fields if field not in food_data]
+        if missing_fields:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Food data missing required fields: {missing_fields}"
+            )
+
         # Calculate nutrition based on quantity
         calories = (food_data.get("calories", 0) * quantity_g) / 100
         protein_g = (food_data.get("protein_g", 0) * quantity_g) / 100
@@ -684,15 +693,17 @@ def calculate_calories(request: Dict[str, Any]):
                 "fat_g": round(fat_g, 1),
             },
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
-            status_code=400, detail=f"Failed to calculate calories: {e}"
+            status_code=400, detail=f"Failed to calculate calories: {str(e)}"
         )
 
 
 @app.post("/nutrition-recommendations")
 def get_nutrition_recommendations(
-    request: Dict[str, Any], db=Depends(get_nutrition_db)
+    request: Dict[str, Any], db=Depends(get_shared_db)
 ):
     """Get personalized nutrition recommendations based on user data."""
     try:
