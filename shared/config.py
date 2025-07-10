@@ -18,40 +18,29 @@ logger = logging.getLogger(__name__)
 class DatabaseSettings(BaseModel):
     """Database configuration settings."""
 
-    host: str = Field(default="localhost", alias="POSTGRES_HOST")
+    host: str = Field(default=None, alias="POSTGRES_HOST")
     port: int = Field(default=5432, alias="POSTGRES_PORT")
-    database: str = Field(default="fitness_ai_framework", alias="POSTGRES_DB")
-    username: str = Field(default="fitness_user", alias="POSTGRES_USER")
-    password: str = Field(default="fitness_password", alias="POSTGRES_PASSWORD")
-    database_url: Optional[str] = Field(default=None, alias="DATABASE_URL")
+    database: str = Field(default=None, alias="POSTGRES_DB")
+    username: str = Field(default=None, alias="POSTGRES_USER")
+    password: str = Field(default=None, alias="POSTGRES_PASSWORD")
 
     # Connection pooling
     pool_size: int = Field(default=10, alias="DB_POOL_SIZE")
     max_overflow: int = Field(default=20, alias="DB_MAX_OVERFLOW")
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        # Reduced logging for faster startup
-        # logger.info(f"DatabaseSettings initialized with database_url: {self.database_url}")
-        # logger.info(f"DatabaseSettings host: {self.host}, port: {self.port}, database: {self.database}")
-
     @property
     def url(self) -> str:
         """Get database URL for SQLAlchemy."""
-        # If DATABASE_URL is provided, use it directly
-        if self.database_url:
-            # Reduced logging for faster startup
-            # logger.info(f"Using DATABASE_URL: {self.database_url}")
-            # Handle both postgres:// and postgresql:// URLs
-            if self.database_url.startswith("postgres://"):
-                converted_url = self.database_url.replace("postgres://", "postgresql://", 1)
-                # logger.info(f"Converted postgres:// to postgresql://: {converted_url}")
-                return converted_url
-            return self.database_url
-        # Otherwise, construct from individual components
-        constructed_url = f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
-        # logger.info(f"Constructed database URL: {constructed_url}")
-        return constructed_url
+        # For Heroku, prefer DATABASE_URL if available
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            return database_url
+        
+        # Fallback to individual components
+        if not all([self.host, self.database, self.username, self.password]):
+            raise ValueError("Database configuration incomplete. Set DATABASE_URL or all individual database fields.")
+        
+        return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
 
     model_config = ConfigDict(env_prefix="", extra="ignore", populate_by_name=True)
 
@@ -59,7 +48,7 @@ class DatabaseSettings(BaseModel):
 class RedisSettings(BaseModel):
     """Redis configuration settings."""
 
-    host: str = Field(default="localhost", alias="REDIS_HOST")
+    host: str = Field(default=None, alias="REDIS_HOST")
     port: int = Field(default=6379, alias="REDIS_PORT")
     password: Optional[str] = Field(default=None, alias="REDIS_PASSWORD")
     db: int = Field(default=0, alias="REDIS_DB")
@@ -72,6 +61,15 @@ class RedisSettings(BaseModel):
     @property
     def url(self) -> str:
         """Get Redis URL."""
+        # For Heroku, prefer REDIS_URL if available
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            return redis_url
+        
+        # Fallback to individual components
+        if not self.host:
+            raise ValueError("Redis configuration incomplete. Set REDIS_URL or REDIS_HOST.")
+        
         if self.password:
             return f"redis://:{self.password}@{self.host}:{self.port}/{self.db}"
         return f"redis://{self.host}:{self.port}/{self.db}"
@@ -106,18 +104,12 @@ class ServiceSettings(BaseModel):
     vision_port: int = Field(default=8003, alias="VISION_AGENT_PORT")
     activity_port: int = Field(default=8004, alias="ACTIVITY_AGENT_PORT")
 
-    # Service URLs for inter-service communication
-    supervisor_url: str = Field(
-        default="http://localhost:8000", alias="SUPERVISOR_AGENT_URL"
-    )
-    nutrition_url: str = Field(
-        default="http://localhost:8001", alias="NUTRITION_AGENT_URL"
-    )
-    workout_url: str = Field(default="http://localhost:8002", alias="WORKOUT_AGENT_URL")
-    vision_url: str = Field(default="http://localhost:8003", alias="VISION_AGENT_URL")
-    activity_url: str = Field(
-        default="http://localhost:8004", alias="ACTIVITY_AGENT_URL"
-    )
+    # Service URLs for inter-service communication - NO localhost defaults
+    supervisor_url: str = Field(default=None, alias="SUPERVISOR_AGENT_URL")
+    nutrition_url: str = Field(default=None, alias="NUTRITION_AGENT_URL")
+    workout_url: str = Field(default=None, alias="WORKOUT_AGENT_URL")
+    vision_url: str = Field(default=None, alias="VISION_AGENT_URL")
+    activity_url: str = Field(default=None, alias="ACTIVITY_AGENT_URL")
 
     # Request timeout
     request_timeout_seconds: int = Field(default=30, alias="REQUEST_TIMEOUT_SECONDS")
@@ -191,8 +183,8 @@ class Settings(BaseModel):
     environment: str = Field(default="development")
     debug: bool = Field(default=True)
 
-    # CORS settings
-    cors_origins: List[str] = Field(default=["http://localhost:3000"])
+    # CORS settings - NO localhost defaults for Heroku
+    cors_origins: List[str] = Field(default=[])
 
     @field_validator("cors_origins", mode="before")
     @classmethod

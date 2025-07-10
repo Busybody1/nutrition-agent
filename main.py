@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 
 # Lazy database initialization
 _nutrition_engine = None
@@ -114,6 +115,15 @@ async def lifespan(app: FastAPI):
     logger.info("Nutrition agent shutting down")
 
 app = FastAPI(title="Nutrition Agent", lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In a production environment, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def get_db():
