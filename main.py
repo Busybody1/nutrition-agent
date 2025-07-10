@@ -68,7 +68,8 @@ def get_nutrition_session_local():
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"
             logger.error(f"Failed to create nutrition session local: {error_msg}")
-            raise
+            # Don't raise here, let the dependency function handle it
+            return None
     return _NutritionSessionLocal
 
 def get_fitness_session_local():
@@ -82,7 +83,8 @@ def get_fitness_session_local():
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"
             logger.error(f"Failed to create fitness session local: {error_msg}")
-            raise
+            # Don't raise here, let the dependency function handle it
+            return None
     return _FitnessSessionLocal
 
 def get_session_local():
@@ -134,6 +136,8 @@ def get_nutrition_db():
     try:
         logger.info("Attempting to connect to nutrition database...")
         session_local = get_nutrition_session_local()
+        if session_local is None:
+            raise Exception("Failed to create nutrition session local")
         db = session_local()
         logger.info("Successfully connected to nutrition database")
         try:
@@ -151,7 +155,8 @@ def get_shared_db():
     try:
         logger.info("Attempting to connect to shared database...")
         from shared.database import get_fitness_db_engine
-        session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_fitness_db_engine())
+        engine = get_fitness_db_engine()
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         db = session_local()
         logger.info("Successfully connected to shared database")
         try:
