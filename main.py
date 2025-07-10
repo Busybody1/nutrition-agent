@@ -416,14 +416,13 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
     if not DataValidator.validate_nutrition_data(entry.actual_nutrition.model_dump()):
         raise HTTPException(status_code=400, detail="Invalid nutrition data")
     
-    # Get food details to capture serving information
+    # Get food details to capture serving information (only if foods table exists)
     food_details = None
     try:
-        # Use the nutrition database to get food details
-        from shared.database import get_nutrition_db_engine
-        nutrition_engine = get_nutrition_db_engine()
-        with nutrition_engine.connect() as conn:
-            food_row = conn.execute(
+        # Check if foods table exists in this database
+        result = db.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'")).fetchone()
+        if result:
+            food_row = db.execute(
                 text("SELECT serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": entry.food_item_id}
             ).fetchone()
