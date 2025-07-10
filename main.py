@@ -108,22 +108,24 @@ def get_nutrition_db():
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Nutrition database connection error: {e}")
-        raise HTTPException(status_code=503, detail="Nutrition database service unavailable")
+        import traceback
+        logger.error(f"Nutrition database connection error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=503, detail=f"Nutrition database service unavailable: {e}")
 
 # Use shared DB for all user-specific data (logs, goals, history, etc.)
 def get_shared_db():
     try:
-        from shared.database import get_nutrition_db_engine
-        session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_nutrition_db_engine())
+        from shared.database import get_fitness_db_engine
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_fitness_db_engine())
         db = session_local()
         try:
             yield db
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Shared database connection error: {e}")
-        raise HTTPException(status_code=503, detail="Shared database service unavailable")
+        import traceback
+        logger.error(f"Shared database connection error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=503, detail=f"Shared database service unavailable: {e}")
 
 
 @app.get("/health")

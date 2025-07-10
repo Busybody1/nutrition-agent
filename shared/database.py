@@ -345,15 +345,18 @@ def get_nutrition_db_engine():
             db_url = settings.multi_db.nutrition_db_uri
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
+            logger.info(f"Using nutrition database: {db_url}")
             return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
         else:
             # Fallback to main database if nutrition_db_uri is not provided
             db_url = settings.database.url
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
+            logger.info(f"Using main database for nutrition: {db_url}")
             return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
     except Exception as e:
-        logger.error(f"Failed to create nutrition database engine: {e}")
+        import traceback
+        logger.error(f"Failed to create nutrition database engine: {e}\n{traceback.format_exc()}")
         # Return a dummy engine for fallback
         return create_engine("sqlite:///:memory:")
 
@@ -387,8 +390,10 @@ def get_fitness_db_engine():
         db_url = settings.database.url
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
+        logger.info(f"Using fitness database: {db_url}")
         return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)  # Uses the main DB config (Fitness AI Agent DB)
     except Exception as e:
-        logger.error(f"Failed to create fitness database engine: {e}")
+        import traceback
+        logger.error(f"Failed to create fitness database engine: {e}\n{traceback.format_exc()}")
         # Return a dummy engine for fallback
         return create_engine("sqlite:///:memory:")
