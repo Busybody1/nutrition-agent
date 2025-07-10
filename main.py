@@ -344,13 +344,13 @@ def execute_tool(
         return track_nutrition_goals({"user_id": user_id, "goal_type": goal_type, "target_value": target_value}, db_shared)
 
     elif tool == "meal-plan":
-        return create_meal_plan(params, db_nutrition)
+        return create_meal_plan(params, db_nutrition, db_shared)
 
     elif tool == "calculate-calories":
         return calculate_calories(params)
 
     elif tool == "nutrition-recommendations":
-        return get_nutrition_recommendations(params, db_nutrition)
+        return get_nutrition_recommendations(params, db_shared)
 
     elif tool == "fuzzy-search":
         return fuzzy_search_food(params, db_nutrition)
@@ -419,6 +419,7 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
     # Get food details to capture serving information
     food_details = None
     try:
+        # Use the nutrition database to get food details
         from shared.database import get_nutrition_db_engine
         nutrition_engine = get_nutrition_db_engine()
         with nutrition_engine.connect() as conn:
@@ -431,6 +432,7 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
                 food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['serving_size', 'serving_unit', 'serving'], food_row))
     except Exception as e:
         logger.warning(f"Could not fetch food serving details: {e}")
+        # Continue without serving details
     
     # Insert log with serving details
     db.execute(
