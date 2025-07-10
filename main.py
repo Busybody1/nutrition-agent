@@ -75,6 +75,15 @@ async def lifespan(app: FastAPI):
     # Startup - minimal initialization to avoid boot timeout
     logger.info("Starting nutrition-agent...")
     
+    # Initialize database tables
+    try:
+        from shared.database import init_database
+        await init_database()
+        logger.info("Database tables initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        # Continue startup even if DB init fails
+    
     yield
     
     # Shutdown

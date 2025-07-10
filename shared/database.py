@@ -246,16 +246,17 @@ async def init_database():
         Column("is_verified", Boolean, default=False),
     )
 
-    food_items = Table(
-        "food_items",
+    # Create 'foods' table (not 'food_items') as expected by nutrition agent
+    foods = Table(
+        "foods",
         metadata,
         Column("id", PGUUID, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("brand", String(255)),
-        Column("barcode", String(100)),
-        Column("category", String(100), nullable=False),
-        Column("subcategory", String(100)),
-        Column("serving_size_g", Float, nullable=False),
+        Column("brand_id", String(255)),
+        Column("category_id", String(100), nullable=False),
+        Column("serving_size", Float, nullable=False),
+        Column("serving_unit", String(50), nullable=False),
+        Column("serving", String(100)),
         Column("calories", Float, nullable=False),
         Column("protein_g", Float, nullable=False),
         Column("carbs_g", Float, nullable=False),
@@ -268,6 +269,7 @@ async def init_database():
         Column("updated_at", DateTime, nullable=False),
     )
 
+    # Create 'food_logs' table with additional serving columns
     food_logs = Table(
         "food_logs",
         metadata,
@@ -281,6 +283,9 @@ async def init_database():
         Column("protein_g", Float, nullable=False),
         Column("carbs_g", Float, nullable=False),
         Column("fat_g", Float, nullable=False),
+        Column("serving_size", Float),  # Additional serving columns
+        Column("serving_unit", String(50)),
+        Column("serving", String(100)),
         Column("notes", Text),
         Column("created_at", DateTime, nullable=False),
     )
@@ -308,11 +313,11 @@ async def init_database():
         text("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
     )
     engine.execute(
-        text("CREATE INDEX IF NOT EXISTS idx_food_items_name ON food_items(name)")
+        text("CREATE INDEX IF NOT EXISTS idx_foods_name ON foods(name)")
     )
     engine.execute(
         text(
-            "CREATE INDEX IF NOT EXISTS idx_food_items_category ON food_items(category)"
+            "CREATE INDEX IF NOT EXISTS idx_foods_category_id ON foods(category_id)"
         )
     )
     engine.execute(
