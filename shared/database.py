@@ -346,22 +346,30 @@ def get_nutrition_db_engine():
     """Get nutrition database engine for reading nutrition data."""
     try:
         settings = get_settings()
+        logger.info(f"Getting nutrition database settings...")
+        logger.info(f"Multi DB settings: {settings.multi_db}")
+        
         if settings.multi_db.nutrition_db_uri:
             db_url = settings.multi_db.nutrition_db_uri
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
-            logger.info(f"Using nutrition database: {db_url}")
-            return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
+            logger.info(f"Using nutrition database: {db_url[:50]}...")
+            engine = create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
+            logger.info("Successfully created nutrition database engine")
+            return engine
         else:
             # Fallback to main database if nutrition_db_uri is not provided
             db_url = settings.database.url
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
-            logger.info(f"Using main database for nutrition: {db_url}")
-            return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
+            logger.info(f"Using main database for nutrition: {db_url[:50]}...")
+            engine = create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
+            logger.info("Successfully created main database engine for nutrition")
+            return engine
     except Exception as e:
         import traceback
-        logger.error(f"Failed to create nutrition database engine: {e}\n{traceback.format_exc()}")
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"Failed to create nutrition database engine: {error_msg}\n{traceback.format_exc()}")
         # Return a dummy engine for fallback
         return create_engine("sqlite:///:memory:")
 
@@ -392,13 +400,19 @@ def get_fitness_db_engine():
     try:
         from .config import get_settings
         settings = get_settings()
+        logger.info(f"Getting fitness database settings...")
+        logger.info(f"Database settings: {settings.database}")
+        
         db_url = settings.database.url
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
-        logger.info(f"Using fitness database: {db_url}")
-        return create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)  # Uses the main DB config (Fitness AI Agent DB)
+        logger.info(f"Using fitness database: {db_url[:50]}...")
+        engine = create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)  # Uses the main DB config (Fitness AI Agent DB)
+        logger.info("Successfully created fitness database engine")
+        return engine
     except Exception as e:
         import traceback
-        logger.error(f"Failed to create fitness database engine: {e}\n{traceback.format_exc()}")
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"Failed to create fitness database engine: {error_msg}\n{traceback.format_exc()}")
         # Return a dummy engine for fallback
         return create_engine("sqlite:///:memory:")

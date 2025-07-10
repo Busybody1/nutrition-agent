@@ -31,10 +31,13 @@ def get_nutrition_engine():
     global _nutrition_engine
     if _nutrition_engine is None:
         try:
+            logger.info("Creating nutrition database engine...")
             from shared.database import get_nutrition_db_engine
             _nutrition_engine = get_nutrition_db_engine()
+            logger.info("Successfully created nutrition database engine")
         except Exception as e:
-            logger.error(f"Failed to create nutrition database engine: {e}")
+            error_msg = str(e) if e else "Unknown error"
+            logger.error(f"Failed to create nutrition database engine: {error_msg}")
             from sqlalchemy import create_engine
             _nutrition_engine = create_engine("sqlite:///:memory:")
     return _nutrition_engine
@@ -43,10 +46,13 @@ def get_fitness_engine():
     global _fitness_engine
     if _fitness_engine is None:
         try:
+            logger.info("Creating fitness database engine...")
             from shared.database import get_fitness_db_engine
             _fitness_engine = get_fitness_db_engine()
+            logger.info("Successfully created fitness database engine")
         except Exception as e:
-            logger.error(f"Failed to create fitness database engine: {e}")
+            error_msg = str(e) if e else "Unknown error"
+            logger.error(f"Failed to create fitness database engine: {error_msg}")
             from sqlalchemy import create_engine
             _fitness_engine = create_engine("sqlite:///:memory:")
     return _fitness_engine
@@ -54,13 +60,29 @@ def get_fitness_engine():
 def get_nutrition_session_local():
     global _NutritionSessionLocal
     if _NutritionSessionLocal is None:
-        _NutritionSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_nutrition_engine())
+        try:
+            logger.info("Creating nutrition session local...")
+            engine = get_nutrition_engine()
+            _NutritionSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+            logger.info("Successfully created nutrition session local")
+        except Exception as e:
+            error_msg = str(e) if e else "Unknown error"
+            logger.error(f"Failed to create nutrition session local: {error_msg}")
+            raise
     return _NutritionSessionLocal
 
 def get_fitness_session_local():
     global _FitnessSessionLocal
     if _FitnessSessionLocal is None:
-        _FitnessSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_fitness_engine())
+        try:
+            logger.info("Creating fitness session local...")
+            engine = get_fitness_engine()
+            _FitnessSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+            logger.info("Successfully created fitness session local")
+        except Exception as e:
+            error_msg = str(e) if e else "Unknown error"
+            logger.error(f"Failed to create fitness session local: {error_msg}")
+            raise
     return _FitnessSessionLocal
 
 def get_session_local():
@@ -110,31 +132,37 @@ def get_db():
 
 def get_nutrition_db():
     try:
+        logger.info("Attempting to connect to nutrition database...")
         session_local = get_nutrition_session_local()
         db = session_local()
+        logger.info("Successfully connected to nutrition database")
         try:
             yield db
         finally:
             db.close()
     except Exception as e:
         import traceback
-        logger.error(f"Nutrition database connection error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=503, detail=f"Nutrition database service unavailable: {e}")
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"Nutrition database connection error: {error_msg}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=503, detail=f"Nutrition database service unavailable: {error_msg}")
 
 # Use shared DB for all user-specific data (logs, goals, history, etc.)
 def get_shared_db():
     try:
+        logger.info("Attempting to connect to shared database...")
         from shared.database import get_fitness_db_engine
         session_local = sessionmaker(autocommit=False, autoflush=False, bind=get_fitness_db_engine())
         db = session_local()
+        logger.info("Successfully connected to shared database")
         try:
             yield db
         finally:
             db.close()
     except Exception as e:
         import traceback
-        logger.error(f"Shared database connection error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=503, detail=f"Shared database service unavailable: {e}")
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"Shared database connection error: {error_msg}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=503, detail=f"Shared database service unavailable: {error_msg}")
 
 
 @app.get("/health")
@@ -178,6 +206,63 @@ def detailed_health_check():
         return {
             "status": "degraded", 
             "agent": "nutrition",
+            "error": str(e),
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+
+@app.get("/debug/database")
+def debug_database():
+    """Debug database connections and configurations."""
+    try:
+        import os
+        from shared.config import get_settings
+        
+        # Get environment variables
+        database_url = os.getenv('DATABASE_URL')
+        nutrition_db_uri = os.getenv('NUTRITION_DB_URI')
+        
+        # Get settings
+        settings = get_settings()
+        
+        # Test connections
+        fitness_status = "unknown"
+        nutrition_status = "unknown"
+        
+        try:
+            fitness_engine = get_fitness_engine()
+            with fitness_engine.connect() as conn:
+                result = conn.execute(text("SELECT 1")).scalar()
+                fitness_status = f"connected (test result: {result})"
+        except Exception as e:
+            fitness_status = f"failed: {str(e)}"
+        
+        try:
+            nutrition_engine = get_nutrition_engine()
+            with nutrition_engine.connect() as conn:
+                result = conn.execute(text("SELECT 1")).scalar()
+                nutrition_status = f"connected (test result: {result})"
+        except Exception as e:
+            nutrition_status = f"failed: {str(e)}"
+        
+        return {
+            "environment": {
+                "DATABASE_URL": database_url[:50] + "..." if database_url and len(database_url) > 50 else database_url,
+                "NUTRITION_DB_URI": nutrition_db_uri[:50] + "..." if nutrition_db_uri and len(nutrition_db_uri) > 50 else nutrition_db_uri,
+            },
+            "settings": {
+                "database_url": settings.database.url[:50] + "..." if len(settings.database.url) > 50 else settings.database.url,
+                "multi_db": {
+                    "nutrition_db_uri": settings.multi_db.nutrition_db_uri[:50] + "..." if settings.multi_db.nutrition_db_uri and len(settings.multi_db.nutrition_db_uri) > 50 else settings.multi_db.nutrition_db_uri,
+                }
+            },
+            "connections": {
+                "fitness_database": fitness_status,
+                "nutrition_database": nutrition_status,
+            },
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
             "error": str(e),
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
