@@ -1026,13 +1026,13 @@ def calculate_goal_progress(
     history: List[Dict], goal_type: str, target_value: float
 ) -> Dict:
     """Calculate progress towards a specific nutrition goal."""
-    if goal_type == "daily_calories":
+    if goal_type == "daily_calories" or goal_type == "calories":
         current_value = sum(entry.get("calories", 0) for entry in history)
-    elif goal_type == "daily_protein":
+    elif goal_type == "daily_protein" or goal_type == "protein":
         current_value = sum(entry.get("protein_g", 0) for entry in history)
-    elif goal_type == "daily_carbs":
+    elif goal_type == "daily_carbs" or goal_type == "carbs":
         current_value = sum(entry.get("carbs_g", 0) for entry in history)
-    elif goal_type == "daily_fat":
+    elif goal_type == "daily_fat" or goal_type == "fat":
         current_value = sum(entry.get("fat_g", 0) for entry in history)
     else:
         raise ValueError(f"Unknown goal type: {goal_type}")

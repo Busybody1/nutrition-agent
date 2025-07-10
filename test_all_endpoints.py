@@ -51,6 +51,7 @@ class NutritionAgentTester:
                 logger.error(f"✗ {method} {endpoint} - {response.status_code} ({duration:.2f}s)")
                 logger.error(f"  Response: {result['response']}")
             
+            self.test_results.append(result)
             return result
             
         except Exception as e:
@@ -66,6 +67,7 @@ class NutritionAgentTester:
                 "response": None
             }
             logger.error(f"✗ {method} {endpoint} - ERROR ({duration:.2f}s): {e}")
+            self.test_results.append(result)
             return result
     
     def run_all_tests(self):
