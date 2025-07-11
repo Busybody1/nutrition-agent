@@ -18,8 +18,26 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+# Environment variable validation
+def validate_environment():
+    """Validate required environment variables."""
+    required_vars = [
+        "DATABASE_URL",
+        "GROQ_API_KEY"
+    ]
+    
+    missing_vars = []
+    for var in required_vars:
+        if not os.getenv(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
 from fastapi import FastAPI, Depends, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # Lazy database initialization
 _nutrition_engine = None
@@ -100,14 +118,18 @@ async def lifespan(app: FastAPI):
     # Startup - minimal initialization to avoid boot timeout
     logger.info("Starting nutrition-agent...")
     
-    # Initialize database tables
     try:
+        # Validate environment variables
+        validate_environment()
+        logger.info("Environment variables validated successfully")
+        
+        # Initialize database tables
         from shared.database import init_database
         await init_database()
         logger.info("Database tables initialized successfully")
     except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        # Continue startup even if DB init fails
+        logger.error(f"Startup failed: {e}")
+        raise
     
     yield
     
@@ -124,6 +146,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 def get_db():
@@ -179,6 +204,25 @@ def get_shared_db():
         logger.error(f"Shared database connection error: {error_msg}\n{traceback.format_exc()}")
         raise HTTPException(status_code=503, detail=f"Shared database service unavailable: {error_msg}")
 
+
+@app.get("/")
+def read_root():
+    """Serve the test interface at root URL for easy Heroku access."""
+    try:
+        from fastapi.responses import FileResponse
+        return FileResponse("static/test_interface.html")
+    except FileNotFoundError:
+        return {
+            "message": "Nutrition Agent is running!",
+            "version": "1.0.0",
+            "status": "running",
+            "endpoints": {
+                "health": "/health",
+                "foods_count": "/foods/count",
+                "execute_tool": "/execute-tool",
+                "test_interface": "/static/test_interface.html",
+            },
+        }
 
 @app.get("/health")
 def health_check():

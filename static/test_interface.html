@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrition Agent - Test Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #ff9a9e;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #ff9a9e;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .response.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .response.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .response.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e1e5e9;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            border-bottom-color: #ff9a9e;
+            color: #ff9a9e;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .food-item {
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .food-item:hover {
+            border-color: #ff9a9e;
+            box-shadow: 0 2px 8px rgba(255, 154, 158, 0.2);
+        }
+
+        .nutrition-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .nutrition-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .nutrition-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #ff9a9e;
+        }
+
+        .nutrition-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥗 Nutrition Agent Test Interface</h1>
+            <p>Test all nutrition tracking functionality and provide feedback</p>
+        </div>
+
+        <div class="content">
+            <div class="tabs">
+                <div class="tab active" onclick="showTab('health')">Health Check</div>
+                <div class="tab" onclick="showTab('food')">Food Search</div>
+                <div class="tab" onclick="showTab('logging')">Food Logging</div>
+                <div class="tab" onclick="showTab('analysis')">Nutrition Analysis</div>
+                <div class="tab" onclick="showTab('feedback')">Feedback & Bugs</div>
+            </div>
+
+            <!-- Health Check Tab -->
+            <div id="health" class="tab-content active">
+                <div class="section">
+                    <h2>🔍 Health Check</h2>
+                    <p>Check the status of the Nutrition Agent and its database connections.</p>
+                    <button class="btn" onclick="checkHealth()">Check Health</button>
+                    <div id="healthResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>📊 Database Status</h2>
+                    <p>Check database connectivity and food count.</p>
+                    <button class="btn" onclick="checkDatabase()">Check Database</button>
+                    <div id="databaseResponse" class="response"></div>
+                </div>
+            </div>
+
+            <!-- Food Search Tab -->
+            <div id="food" class="tab-content">
+                <div class="section">
+                    <h2>🔍 Search Food</h2>
+                    <p>Search for food items in the nutrition database.</p>
+                    <div class="form-group">
+                        <label for="searchQuery">Food Name:</label>
+                        <input type="text" id="searchQuery" placeholder="e.g., apple, chicken breast, rice">
+                    </div>
+                    <button class="btn" onclick="searchFood()">Search Food</button>
+                    <div id="searchResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🍎 Get Food Details</h2>
+                    <p>Get detailed nutrition information for a specific food item.</p>
+                    <div class="form-group">
+                        <label for="foodId">Food ID:</label>
+                        <input type="number" id="foodId" placeholder="Enter food ID">
+                    </div>
+                    <button class="btn" onclick="getFoodDetails()">Get Details</button>
+                    <div id="foodDetailsResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🔍 Fuzzy Search</h2>
+                    <p>Search for food items with fuzzy matching.</p>
+                    <div class="form-group">
+                        <label for="fuzzyQuery">Search Query:</label>
+                        <input type="text" id="fuzzyQuery" placeholder="e.g., apel, chiken, rize">
+                    </div>
+                    <button class="btn" onclick="fuzzySearch()">Fuzzy Search</button>
+                    <div id="fuzzyResponse" class="response"></div>
+                </div>
+            </div>
+
+            <!-- Food Logging Tab -->
+            <div id="logging" class="tab-content">
+                <div class="section">
+                    <h2>📝 Log Food</h2>
+                    <p>Log food consumption for a user.</p>
+                    <div class="form-group">
+                        <label for="logUserId">User ID:</label>
+                        <input type="text" id="logUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="logFoodId">Food ID:</label>
+                        <input type="number" id="logFoodId" placeholder="Enter food ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="logQuantity">Quantity (grams):</label>
+                        <input type="number" id="logQuantity" value="100" placeholder="Enter quantity in grams">
+                    </div>
+                    <div class="form-group">
+                        <label for="logMealType">Meal Type:</label>
+                        <select id="logMealType">
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner">Dinner</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="logFood()">Log Food</button>
+                    <div id="logFoodResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>📊 Get Calorie History</h2>
+                    <p>Get calorie consumption history for a user.</p>
+                    <div class="form-group">
+                        <label for="historyUserId">User ID:</label>
+                        <input type="text" id="historyUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <button class="btn" onclick="getCalorieHistory()">Get History</button>
+                    <div id="historyResponse" class="response"></div>
+                </div>
+            </div>
+
+            <!-- Nutrition Analysis Tab -->
+            <div id="analysis" class="tab-content">
+                <div class="section">
+                    <h2>🍽️ Create Meal Plan</h2>
+                    <p>Generate a personalized meal plan.</p>
+                    <div class="form-group">
+                        <label for="mealCalories">Daily Calories:</label>
+                        <input type="number" id="mealCalories" value="2000" placeholder="Enter daily calorie target">
+                    </div>
+                    <div class="form-group">
+                        <label for="mealCount">Meals per Day:</label>
+                        <input type="number" id="mealCount" value="3" min="1" max="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="dietaryRestrictions">Dietary Restrictions:</label>
+                        <input type="text" id="dietaryRestrictions" placeholder="e.g., vegetarian, gluten-free">
+                    </div>
+                    <button class="btn" onclick="createMealPlan()">Create Meal Plan</button>
+                    <div id="mealPlanResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>📈 Nutrition Recommendations</h2>
+                    <p>Get personalized nutrition recommendations.</p>
+                    <div class="form-group">
+                        <label for="recUserId">User ID:</label>
+                        <input type="text" id="recUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="recGoal">Goal:</label>
+                        <select id="recGoal">
+                            <option value="weight_loss">Weight Loss</option>
+                            <option value="weight_gain">Weight Gain</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="muscle_gain">Muscle Gain</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="getRecommendations()">Get Recommendations</button>
+                    <div id="recommendationsResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🎯 Track Nutrition Goals</h2>
+                    <p>Track progress towards nutrition goals.</p>
+                    <div class="form-group">
+                        <label for="goalUserId">User ID:</label>
+                        <input type="text" id="goalUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="goalType">Goal Type:</label>
+                        <select id="goalType">
+                            <option value="calories">Calories</option>
+                            <option value="protein">Protein</option>
+                            <option value="carbs">Carbohydrates</option>
+                            <option value="fat">Fat</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="goalTarget">Target Value:</label>
+                        <input type="number" id="goalTarget" value="2000" placeholder="Enter target value">
+                    </div>
+                    <button class="btn" onclick="trackGoals()">Track Goals</button>
+                    <div id="goalsResponse" class="response"></div>
+                </div>
+            </div>
+
+            <!-- Feedback Tab -->
+            <div id="feedback" class="tab-content">
+                <div class="section">
+                    <h2>💬 Feedback & Bug Report</h2>
+                    <p>Help us improve the Nutrition Agent by providing feedback or reporting issues.</p>
+                    
+                    <div class="form-group">
+                        <label for="feedbackType">Type:</label>
+                        <select id="feedbackType">
+                            <option value="bug">🐛 Bug Report</option>
+                            <option value="feature">💡 Feature Request</option>
+                            <option value="improvement">🔧 Improvement</option>
+                            <option value="general">💬 General Feedback</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feedbackTitle">Title:</label>
+                        <input type="text" id="feedbackTitle" placeholder="Brief description of the issue or feedback">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feedbackDescription">Description:</label>
+                        <textarea id="feedbackDescription" rows="6" placeholder="Please provide detailed information about the issue, steps to reproduce, expected behavior, and actual behavior."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feedbackSeverity">Severity:</label>
+                        <select id="feedbackSeverity">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feedbackEmail">Email (optional):</label>
+                        <input type="email" id="feedbackEmail" placeholder="your.email@example.com">
+                    </div>
+
+                    <button class="btn" onclick="submitFeedback()">Submit Feedback</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function makeRequest(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                const response = await fetch(endpoint, options);
+                const result = await response.json();
+                
+                return {
+                    success: response.ok,
+                    data: result,
+                    status: response.status
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    error: error.message,
+                    status: 0
+                };
+            }
+        }
+
+        function displayResponse(elementId, response, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.className = `response ${type}`;
+            element.textContent = JSON.stringify(response, null, 2);
+        }
+
+        async function checkHealth() {
+            const response = await makeRequest('/health');
+            displayResponse('healthResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function checkDatabase() {
+            const response = await makeRequest('/foods/count');
+            displayResponse('databaseResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function searchFood() {
+            const query = document.getElementById('searchQuery').value;
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'search_food_by_name',
+                params: { name: query }
+            });
+            displayResponse('searchResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function getFoodDetails() {
+            const foodId = document.getElementById('foodId').value;
+            const response = await makeRequest(`/foods/${foodId}`);
+            displayResponse('foodDetailsResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function fuzzySearch() {
+            const query = document.getElementById('fuzzyQuery').value;
+            const response = await makeRequest('/fuzzy-search', 'POST', {
+                query: query
+            });
+            displayResponse('fuzzyResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function logFood() {
+            const userId = document.getElementById('logUserId').value;
+            const foodId = document.getElementById('logFoodId').value;
+            const quantity = document.getElementById('logQuantity').value;
+            const mealType = document.getElementById('logMealType').value;
+
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'log_food_to_calorie_log',
+                params: {
+                    user_id: userId,
+                    food_item_id: parseInt(foodId),
+                    quantity_g: parseFloat(quantity),
+                    meal_type: mealType
+                }
+            });
+            displayResponse('logFoodResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function getCalorieHistory() {
+            const userId = document.getElementById('historyUserId').value;
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'get_user_calorie_history',
+                params: { user_id: userId }
+            });
+            displayResponse('historyResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function createMealPlan() {
+            const calories = document.getElementById('mealCalories').value;
+            const mealCount = document.getElementById('mealCount').value;
+            const restrictions = document.getElementById('dietaryRestrictions').value;
+
+            const response = await makeRequest('/meal-plan', 'POST', {
+                daily_calories: parseInt(calories),
+                meal_count: parseInt(mealCount),
+                dietary_restrictions: restrictions.split(',').map(r => r.trim()).filter(r => r)
+            });
+            displayResponse('mealPlanResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function getRecommendations() {
+            const userId = document.getElementById('recUserId').value;
+            const goal = document.getElementById('recGoal').value;
+
+            const response = await makeRequest('/nutrition-recommendations', 'POST', {
+                user_id: userId,
+                goal: goal
+            });
+            displayResponse('recommendationsResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function trackGoals() {
+            const userId = document.getElementById('goalUserId').value;
+            const goalType = document.getElementById('goalType').value;
+            const target = document.getElementById('goalTarget').value;
+
+            const response = await makeRequest('/nutrition-goals', 'POST', {
+                user_id: userId,
+                goal_type: goalType,
+                target_value: parseFloat(target)
+            });
+            displayResponse('goalsResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function submitFeedback() {
+            const feedback = {
+                type: document.getElementById('feedbackType').value,
+                title: document.getElementById('feedbackTitle').value,
+                description: document.getElementById('feedbackDescription').value,
+                severity: document.getElementById('feedbackSeverity').value,
+                email: document.getElementById('feedbackEmail').value,
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent
+            };
+
+            console.log('Feedback submitted:', feedback);
+            alert('Thank you for your feedback! It has been recorded.');
+            
+            // Clear form
+            document.getElementById('feedbackTitle').value = '';
+            document.getElementById('feedbackDescription').value = '';
+            document.getElementById('feedbackEmail').value = '';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkHealth();
+        });
+    </script>
+</body>
+</html> 
