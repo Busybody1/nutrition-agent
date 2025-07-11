@@ -70,10 +70,25 @@ def get_fitness_engine():
             _fitness_engine = get_fitness_db_engine()
             logger.info("Successfully created fitness database engine")
         except Exception as e:
+            import traceback
             error_msg = str(e) if e else "Unknown error"
-            logger.error(f"Failed to create fitness database engine: {error_msg}")
-            from sqlalchemy import create_engine
-            _fitness_engine = create_engine("sqlite:///:memory:")
+            logger.error(f"Failed to create fitness database engine: {error_msg}\n{traceback.format_exc()}")
+            # Try to create engine directly using DATABASE_URL
+            try:
+                import os
+                from sqlalchemy import create_engine
+                database_url = os.getenv('DATABASE_URL')
+                if database_url:
+                    if database_url.startswith("postgres://"):
+                        database_url = database_url.replace("postgres://", "postgresql://", 1)
+                    _fitness_engine = create_engine(database_url, pool_pre_ping=True, pool_recycle=3600)
+                    logger.info("Created fitness database engine using DATABASE_URL directly")
+                else:
+                    _fitness_engine = create_engine("sqlite:///:memory:")
+                    logger.warning("No DATABASE_URL found, using in-memory SQLite")
+            except Exception as fallback_error:
+                logger.error(f"Fallback engine creation also failed: {fallback_error}")
+                _fitness_engine = create_engine("sqlite:///:memory:")
     return _fitness_engine
 
 def get_nutrition_session_local():
@@ -189,9 +204,11 @@ def get_nutrition_db():
 def get_shared_db():
     try:
         logger.info("Attempting to connect to shared database...")
-        from shared.database import get_fitness_db_engine
-        engine = get_fitness_db_engine()
+        # Use the same engine as get_fitness_engine() for consistency
+        engine = get_fitness_engine()
+        logger.info("Got fitness engine, creating session maker...")
         session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        logger.info("Created session maker, creating session...")
         db = session_local()
         logger.info("Successfully connected to shared database")
         try:
@@ -269,6 +286,63 @@ def detailed_health_check():
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
 
+
+@app.get("/test/database")
+def test_database():
+    """Test database connections and basic operations."""
+    try:
+        results = {}
+        
+        # Test shared database (DATABASE_URL)
+        try:
+            engine = get_fitness_engine()
+            with engine.connect() as conn:
+                # Test basic connection
+                result = conn.execute(text("SELECT 1")).scalar()
+                results["shared_db_connection"] = f"success (result: {result})"
+                
+                # Test if food_logs table exists
+                table_result = conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
+                if table_result:
+                    results["shared_db_food_logs_table"] = "exists"
+                else:
+                    results["shared_db_food_logs_table"] = "missing"
+                    
+        except Exception as e:
+            results["shared_db_connection"] = f"failed: {str(e)}"
+            results["shared_db_food_logs_table"] = "unknown"
+        
+        # Test nutrition database (NUTRITION_DB_URI)
+        try:
+            engine = get_nutrition_engine()
+            with engine.connect() as conn:
+                # Test basic connection
+                result = conn.execute(text("SELECT 1")).scalar()
+                results["nutrition_db_connection"] = f"success (result: {result})"
+                
+                # Test if foods table exists
+                table_result = conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'")).fetchone()
+                if table_result:
+                    results["nutrition_db_foods_table"] = "exists"
+                else:
+                    results["nutrition_db_foods_table"] = "missing"
+                    
+        except Exception as e:
+            results["nutrition_db_connection"] = f"failed: {str(e)}"
+            results["nutrition_db_foods_table"] = "unknown"
+        
+        return {
+            "status": "test_completed",
+            "results": results,
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "test_failed",
+            "error": str(e),
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+
 @app.get("/debug/database")
 def debug_database():
     """Debug database connections and configurations."""
@@ -318,6 +392,46 @@ def debug_database():
                 "fitness_database": fitness_status,
                 "nutrition_database": nutrition_status,
             },
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/debug/schema")
+def debug_schema():
+    """Debug database schema to check if tables exist."""
+    try:
+        # Test shared database schema
+        shared_tables = []
+        try:
+            engine = get_fitness_engine()
+            with engine.connect() as conn:
+                # Get list of tables
+                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"))
+                tables = [row[0] for row in result.fetchall()]
+                shared_tables = tables
+        except Exception as e:
+            shared_tables = f"Error: {str(e)}"
+        
+        # Test nutrition database schema
+        nutrition_tables = []
+        try:
+            engine = get_nutrition_engine()
+            with engine.connect() as conn:
+                # Get list of tables
+                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"))
+                tables = [row[0] for row in result.fetchall()]
+                nutrition_tables = tables
+        except Exception as e:
+            nutrition_tables = f"Error: {str(e)}"
+        
+        return {
+            "shared_database_tables": shared_tables,
+            "nutrition_database_tables": nutrition_tables,
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
     except Exception as e:
@@ -571,6 +685,16 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
     if not DataValidator.validate_nutrition_data(entry.actual_nutrition.model_dump()):
         raise HTTPException(status_code=400, detail="Invalid nutrition data")
     
+    # Check if food_logs table exists
+    try:
+        result = db.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
+        if not result:
+            logger.error("food_logs table does not exist in the database")
+            raise HTTPException(status_code=500, detail="Database schema not properly initialized. Please contact administrator.")
+    except Exception as e:
+        logger.error(f"Error checking if food_logs table exists: {e}")
+        raise HTTPException(status_code=500, detail="Database connection error")
+    
     # Get food details to capture serving information (only if foods table exists)
     food_details = None
     try:
@@ -589,39 +713,50 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
         # Continue without serving details
     
     # Insert log with serving details
-    db.execute(
-        text(
+    try:
+        db.execute(
+            text(
+                """
+            INSERT INTO food_logs (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at)
+            VALUES (:id, :user_id, :food_item_id, :quantity_g, :meal_type, :consumed_at, :calories, :protein_g, :carbs_g, :fat_g, :serving_size, :serving_unit, :serving, :notes, :created_at)
             """
-        INSERT INTO food_logs (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at)
-        VALUES (:id, :user_id, :food_item_id, :quantity_g, :meal_type, :consumed_at, :calories, :protein_g, :carbs_g, :fat_g, :serving_size, :serving_unit, :serving, :notes, :created_at)
-        """
-        ),
-        {
-            "id": str(entry.id),
-            "user_id": str(entry.user_id),
-            "food_item_id": str(entry.food_item_id),
-            "quantity_g": entry.quantity_g,
-            "meal_type": entry.meal_type.value
-            if hasattr(entry.meal_type, "value")
-            else entry.meal_type,
-            "consumed_at": entry.consumed_at,
-            "calories": entry.actual_nutrition.calories,
-            "protein_g": entry.actual_nutrition.protein_g,
-            "carbs_g": entry.actual_nutrition.carbs_g,
-            "fat_g": entry.actual_nutrition.fat_g,
-            "serving_size": food_details.get("serving_size") if food_details else None,
-            "serving_unit": food_details.get("serving_unit") if food_details else None,
-            "serving": food_details.get("serving") if food_details else None,
-            "notes": entry.notes,
-            "created_at": datetime.datetime.utcnow(),
-        },
-    )
-    db.commit()
-    return {"status": "success", "message": "Food logged successfully"}
+            ),
+            {
+                "id": str(entry.id),
+                "user_id": str(entry.user_id),
+                "food_item_id": str(entry.food_item_id),
+                "quantity_g": entry.quantity_g,
+                "meal_type": entry.meal_type.value
+                if hasattr(entry.meal_type, "value")
+                else entry.meal_type,
+                "consumed_at": entry.consumed_at,
+                "calories": entry.actual_nutrition.calories,
+                "protein_g": entry.actual_nutrition.protein_g,
+                "carbs_g": entry.actual_nutrition.carbs_g,
+                "fat_g": entry.actual_nutrition.fat_g,
+                "serving_size": food_details.get("serving_size") if food_details else None,
+                "serving_unit": food_details.get("serving_unit") if food_details else None,
+                "serving": food_details.get("serving") if food_details else None,
+                "notes": entry.notes,
+                "created_at": datetime.datetime.utcnow(),
+            },
+        )
+        db.commit()
+        return {"status": "success", "message": "Food logged successfully"}
+    except Exception as e:
+        logger.error(f"Error inserting food log: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to log food: {str(e)}")
 
 
 def get_user_calorie_history(db, user_id: Any):
     try:
+        # Check if food_logs table exists
+        result = db.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
+        if not result:
+            logger.warning("food_logs table does not exist, returning empty history")
+            return []
+        
         rows = db.execute(
             text(
                 """
