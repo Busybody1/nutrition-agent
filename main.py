@@ -1579,18 +1579,40 @@ def search_food_fuzzy(db, name: str):
     name = DataValidator.sanitize_string(name)
     logger.info(f"Fuzzy searching for food with name: '{name}'")
 
-    # Increase sample size for better fuzzy matching
-    query = """
+    # First try exact and partial matches to get immediate results
+    exact_query = """
     SELECT DISTINCT
         f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at
     FROM foods f
     WHERE f.name IS NOT NULL AND f.name != ''
+    AND (LOWER(f.name) = LOWER(:name) OR LOWER(f.name) LIKE LOWER(:name_pattern))
     ORDER BY f.name
-    LIMIT 100
+    LIMIT 50
     """
     
-    rows = db.execute(text(query)).fetchall()
-    logger.info(f"Retrieved {len(rows)} foods for fuzzy matching")
+    exact_rows = db.execute(text(exact_query), {
+        "name": name,
+        "name_pattern": f"%{name}%"
+    }).fetchall()
+    
+    logger.info(f"Found {len(exact_rows)} exact/partial matches for '{name}'")
+    
+    # If we found exact matches, use those
+    if exact_rows:
+        rows = exact_rows
+    else:
+        # Fallback to broader search - get more foods for fuzzy matching
+        broader_query = """
+        SELECT DISTINCT
+            f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at
+        FROM foods f
+        WHERE f.name IS NOT NULL AND f.name != ''
+        ORDER BY f.name
+        LIMIT 500
+        """
+        
+        rows = db.execute(text(broader_query)).fetchall()
+        logger.info(f"Retrieved {len(rows)} foods for broader fuzzy matching")
     
     # Convert rows to list of foods
     foods = []
@@ -1651,15 +1673,33 @@ def search_food_fuzzy(db, name: str):
     for food in foods:
         if not food["name"]:
             continue
-        similarity = difflib.SequenceMatcher(
-            None, name.lower(), food["name"].lower()
-        ).ratio()
+        
+        # Check for exact match first (highest priority)
+        if food["name"].lower() == name.lower():
+            similarity = 1.0
+        # Check for contains match (high priority)
+        elif name.lower() in food["name"].lower():
+            similarity = 0.8
+        # Check for starts with match (medium priority)
+        elif food["name"].lower().startswith(name.lower()):
+            similarity = 0.7
+        # Check for ends with match (medium priority)
+        elif food["name"].lower().endswith(name.lower()):
+            similarity = 0.6
+        # Use difflib for fuzzy matching (lower priority)
+        else:
+            similarity = difflib.SequenceMatcher(
+                None, name.lower(), food["name"].lower()
+            ).ratio()
+        
         logger.debug(f"Food '{food['name']}' similarity: {similarity}")
-        if similarity > 0.12:  # Lower threshold for more results
+        
+        # Lower threshold for more results, but prioritize exact/partial matches
+        if similarity > 0.1:  # Lower threshold for more results
             food["similarity"] = similarity
             matches.append(food)
 
-    logger.info(f"Found {len(matches)} foods with similarity > 0.12")
+    logger.info(f"Found {len(matches)} foods with similarity > 0.1")
 
     # Sort by similarity and return top 40
     matches.sort(key=lambda x: x["similarity"], reverse=True)
@@ -2654,6 +2694,92 @@ def debug_foods(db=Depends(get_nutrition_db)):
             "sample_foods": foods,
             "total_foods": len(foods),
             "message": "Sample of foods from database"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+@app.get("/debug/search-test")
+def debug_search_test(query: str = "apple", db=Depends(get_nutrition_db)):
+    """Debug endpoint to test search functionality with a specific query."""
+    try:
+        # Test exact match query
+        exact_query = """
+        SELECT DISTINCT
+            f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at
+        FROM foods f
+        WHERE f.name IS NOT NULL AND f.name != ''
+        AND (LOWER(f.name) = LOWER(:name) OR LOWER(f.name) LIKE LOWER(:name_pattern))
+        ORDER BY f.name
+        LIMIT 10
+        """
+        
+        exact_rows = db.execute(text(exact_query), {
+            "name": query,
+            "name_pattern": f"%{query}%"
+        }).fetchall()
+        
+        # Test broader query
+        broader_query = """
+        SELECT DISTINCT
+            f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at
+        FROM foods f
+        WHERE f.name IS NOT NULL AND f.name != ''
+        ORDER BY f.name
+        LIMIT 20
+        """
+        
+        broader_rows = db.execute(text(broader_query)).fetchall()
+        
+        # Convert to lists
+        exact_matches = []
+        for row in exact_rows:
+            if hasattr(row, '_mapping'):
+                exact_matches.append(dict(row._mapping))
+            else:
+                columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+                exact_matches.append(dict(zip(columns, row)))
+        
+        broader_matches = []
+        for row in broader_rows:
+            if hasattr(row, '_mapping'):
+                broader_matches.append(dict(row._mapping))
+            else:
+                columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+                broader_matches.append(dict(zip(columns, row)))
+        
+        # Test similarity calculations
+        similarity_tests = []
+        for food in broader_matches[:5]:  # Test first 5 foods
+            food_name = food['name'].lower()
+            query_lower = query.lower()
+            
+            # Calculate different similarity metrics
+            exact_match = food_name == query_lower
+            contains = query_lower in food_name
+            starts_with = food_name.startswith(query_lower)
+            ends_with = food_name.endswith(query_lower)
+            difflib_similarity = difflib.SequenceMatcher(None, query_lower, food_name).ratio()
+            
+            similarity_tests.append({
+                "food_name": food['name'],
+                "exact_match": exact_match,
+                "contains": contains,
+                "starts_with": starts_with,
+                "ends_with": ends_with,
+                "difflib_similarity": round(difflib_similarity, 3)
+            })
+        
+        return {
+            "status": "success",
+            "query": query,
+            "exact_matches_count": len(exact_matches),
+            "exact_matches": exact_matches,
+            "broader_matches_count": len(broader_matches),
+            "broader_matches": broader_matches[:5],  # Show first 5
+            "similarity_tests": similarity_tests
         }
     except Exception as e:
         return {
