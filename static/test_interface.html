@@ -235,6 +235,13 @@
                     <button class="btn" onclick="checkDatabase()">Check Database</button>
                     <div id="databaseResponse" class="response"></div>
                 </div>
+
+                <div class="section">
+                    <h2>🔍 Debug Foods</h2>
+                    <p>Check sample food data from the database.</p>
+                    <button class="btn" onclick="debugFoods()">Debug Foods</button>
+                    <div id="debugFoodsResponse" class="response"></div>
+                </div>
             </div>
 
             <!-- Food Search Tab -->
@@ -480,11 +487,14 @@
             const element = document.getElementById(elementId);
             element.className = `response ${type}`;
             
-            // Check if this is a search response with structured data
-            if (response.data && Array.isArray(response.data)) {
-                // Format search results with nutrients array
+            // Show pretty-printed JSON for Search Food and Fuzzy Search
+            if (elementId === 'searchResponse' && response.data && Array.isArray(response.data)) {
+                element.textContent = JSON.stringify(response.data, null, 2);
+            } else if (elementId === 'fuzzyResponse' && response.data && response.data.results && Array.isArray(response.data.results)) {
+                element.textContent = JSON.stringify(response.data.results, null, 2);
+            } else if (response.data && Array.isArray(response.data)) {
+                // Default: formatted text for other array responses
                 const formattedResults = response.data.map(food => {
-                    // Handle nutrients array format
                     let nutritionText = '';
                     if (food.nutrients && Array.isArray(food.nutrients)) {
                         const nutritionItems = food.nutrients.map(nutrient => 
@@ -492,18 +502,15 @@
                         ).join('\n');
                         nutritionText = `\n  🥗 Nutrients:\n${nutritionItems}`;
                     }
-                    
                     return `📦 ${food.name || 'Unknown Food'}\n` +
                            `   ID: ${food.id}\n` +
                            `   Serving: ${food.serving_size || 'N/A'} ${food.serving_unit || 'g'}\n` +
                            nutritionText;
                 }).join('\n\n');
-                
                 element.textContent = `Found ${response.data.length} foods:\n\n${formattedResults}`;
             } else if (response.data && response.data.results && Array.isArray(response.data.results)) {
-                // Handle fuzzy search response format
+                // Default: formatted text for other fuzzy search responses
                 const formattedResults = response.data.results.map(food => {
-                    // Handle nutrients array format
                     let nutritionText = '';
                     if (food.nutrients && Array.isArray(food.nutrients)) {
                         const nutritionItems = food.nutrients.map(nutrient => 
@@ -511,15 +518,12 @@
                         ).join('\n');
                         nutritionText = `\n  🥗 Nutrients:\n${nutritionItems}`;
                     }
-                    
                     const similarity = food.similarity ? ` (Similarity: ${(food.similarity * 100).toFixed(1)}%)` : '';
-                    
                     return `📦 ${food.name || 'Unknown Food'}${similarity}\n` +
                            `   ID: ${food.id}\n` +
                            `   Serving: ${food.serving_size || 'N/A'} ${food.serving_unit || 'g'}\n` +
                            nutritionText;
                 }).join('\n\n');
-                
                 element.textContent = `Found ${response.data.results.length} foods:\n\n${formattedResults}`;
             } else {
                 element.textContent = JSON.stringify(response, null, 2);
@@ -534,6 +538,11 @@
         async function checkDatabase() {
             const response = await makeRequest('/foods/count');
             displayResponse('databaseResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function debugFoods() {
+            const response = await makeRequest('/debug/foods');
+            displayResponse('debugFoodsResponse', response, response.success ? 'success' : 'error');
         }
 
         async function searchFood() {

@@ -1300,6 +1300,8 @@ def convert_uuid_to_nutrition_id(food_uuid: str) -> int:
 
 def search_food_by_name(db, name: str):
     name = DataValidator.sanitize_string(name)
+    logger.info(f"Searching for food with name: '{name}'")
+    
     rows = db.execute(
         text(
             """
@@ -1313,6 +1315,8 @@ def search_food_by_name(db, name: str):
         {"name": f"%{name.lower()}%"},
     ).fetchall()
     
+    logger.info(f"Found {len(rows)} foods matching '{name}'")
+    
     # Convert rows to structured format with nutrients array
     result = []
     for row in rows:
@@ -1322,6 +1326,8 @@ def search_food_by_name(db, name: str):
             # Handle tuple case
             columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
             food_data = dict(zip(columns, row))
+        
+        logger.info(f"Processing food: ID={food_data['id']}, Name='{food_data['name']}'")
         
         # Get nutrition data for this food
         try:
@@ -1350,7 +1356,10 @@ def search_food_by_name(db, name: str):
                     "amount": nutrient['amount'] or 0,
                 })
             
+            logger.info(f"Found {len(nutrients)} nutrients for food {food_data['id']}")
+            
         except Exception as e:
+            logger.error(f"Error getting nutrition data for food {food_data['id']}: {e}")
             # If nutrition data can't be retrieved, set empty nutrients array
             nutrients = []
         
@@ -1368,6 +1377,8 @@ def search_food_by_name(db, name: str):
         }
         
         result.append(food_object)
+    
+    logger.info(f"Returning {len(result)} structured food objects")
     return result
 
 
@@ -1566,74 +1577,96 @@ def get_user_calorie_history(db, user_id: Any):
 def search_food_fuzzy(db, name: str):
     """Search food with fuzzy matching for better results."""
     name = DataValidator.sanitize_string(name)
+    logger.info(f"Fuzzy searching for food with name: '{name}'")
 
-    # Optimized query: Get foods with nutrition data in a single query
+    # Increase sample size for better fuzzy matching
     query = """
     SELECT DISTINCT
-        f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at,
-        n.id as nutrient_id, n.name as nutrient_name, fn.amount, n.unit as nutrient_unit
+        f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at
     FROM foods f
-    LEFT JOIN food_nutrients fn ON f.id = fn.food_id
-    LEFT JOIN nutrients n ON fn.nutrient_id = n.id
+    WHERE f.name IS NOT NULL AND f.name != ''
     ORDER BY f.name
-    LIMIT 500
+    LIMIT 100
     """
     
     rows = db.execute(text(query)).fetchall()
+    logger.info(f"Retrieved {len(rows)} foods for fuzzy matching")
     
-    # Group foods by their ID and collect nutrients
-    foods_dict = {}
+    # Convert rows to list of foods
+    foods = []
     for row in rows:
         if hasattr(row, '_mapping'):
-            row_data = dict(row._mapping)
+            food_data = dict(row._mapping)
         else:
-            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at', 'nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit']
-            row_data = dict(zip(columns, row))
+            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
+            food_data = dict(zip(columns, row))
         
-        food_id = row_data['id']
+        # Get nutrition data for this food
+        try:
+            nutrition_rows = db.execute(
+                text("""
+                    SELECT n.id as nutrient_id, n.name as nutrient_name, fn.amount, n.unit as nutrient_unit
+                    FROM food_nutrients fn
+                    JOIN nutrients n ON fn.nutrient_id = n.id
+                    WHERE fn.food_id = :food_id
+                """),
+                {"food_id": food_data['id']}
+            ).fetchall()
+            
+            # Convert nutrition data to nutrients array
+            nutrients = []
+            for nutrition_row in nutrition_rows:
+                if hasattr(nutrition_row, '_mapping'):
+                    nutrient = dict(nutrition_row._mapping)
+                else:
+                    nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
+                
+                nutrients.append({
+                    "id": nutrient['nutrient_id'],
+                    "name": nutrient['nutrient_name'],
+                    "unit": nutrient['nutrient_unit'],
+                    "amount": nutrient['amount'] or 0,
+                })
+            
+        except Exception as e:
+            logger.warning(f"Error getting nutrition data for food {food_data['id']}: {e}")
+            nutrients = []
         
-        if food_id not in foods_dict:
-            # Initialize food entry
-            foods_dict[food_id] = {
-                "id": food_id,
-                "name": row_data['name'],
-                "brand_id": row_data['brand_id'],
-                "category_id": row_data['category_id'],
-                "serving_size": row_data['serving_size'],
-                "serving_unit": row_data['serving_unit'],
-                "serving": row_data['serving'],
-                "created_at": row_data['created_at'],
-                "nutrients": []
-            }
-        
-        # Add nutrient if it exists
-        if row_data['nutrient_id'] is not None:
-            foods_dict[food_id]["nutrients"].append({
-                "id": row_data['nutrient_id'],
-                "name": row_data['nutrient_name'],
-                "unit": row_data['nutrient_unit'],
-                "amount": row_data['amount'] or 0,
-            })
+        foods.append({
+            "id": food_data['id'],
+            "name": food_data['name'],
+            "brand_id": food_data['brand_id'],
+            "category_id": food_data['category_id'],
+            "serving_size": food_data['serving_size'],
+            "serving_unit": food_data['serving_unit'],
+            "serving": food_data['serving'],
+            "created_at": food_data['created_at'],
+            "nutrients": nutrients
+        })
     
-    # Convert to list and do fuzzy matching
-    foods = list(foods_dict.values())
+    logger.info(f"Processing {len(foods)} foods for fuzzy matching")
     
     # Use difflib for fuzzy matching
     matches = []
     for food in foods:
+        if not food["name"]:
+            continue
         similarity = difflib.SequenceMatcher(
             None, name.lower(), food["name"].lower()
         ).ratio()
-        if similarity > 0.3:  # Threshold for similarity
+        logger.debug(f"Food '{food['name']}' similarity: {similarity}")
+        if similarity > 0.12:  # Lower threshold for more results
             food["similarity"] = similarity
             matches.append(food)
 
-    # Sort by similarity and return top 20
+    logger.info(f"Found {len(matches)} foods with similarity > 0.12")
+
+    # Sort by similarity and return top 40
     matches.sort(key=lambda x: x["similarity"], reverse=True)
     
     # Convert to structured format like search_food_by_name
     structured_matches = []
-    for food in matches[:20]:
+    for food in matches[:40]:
         structured_food = {
             "id": food["id"],
             "name": food["name"],
@@ -1647,7 +1680,7 @@ def search_food_fuzzy(db, name: str):
             "similarity": food["similarity"]
         }
         structured_matches.append(structured_food)
-    
+    logger.info(f"Returning {len(structured_matches)} structured fuzzy matches")
     return structured_matches
 
 
@@ -2577,3 +2610,40 @@ def test_ai_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutritio
     except Exception as e:
         logger.error(f"Error testing AI meal plan: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to test AI meal plan: {e}")
+
+@app.get("/debug/foods")
+def debug_foods(db=Depends(get_nutrition_db)):
+    """Debug endpoint to check food data in the database."""
+    try:
+        # Get a sample of foods to check their names
+        rows = db.execute(
+            text("""
+                SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
+                FROM foods
+                WHERE name IS NOT NULL AND name != ''
+                ORDER BY name
+                LIMIT 10
+            """)
+        ).fetchall()
+        
+        foods = []
+        for row in rows:
+            if hasattr(row, '_mapping'):
+                food_data = dict(row._mapping)
+            else:
+                columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
+                food_data = dict(zip(columns, row))
+            
+            foods.append(food_data)
+        
+        return {
+            "status": "success",
+            "sample_foods": foods,
+            "total_foods": len(foods),
+            "message": "Sample of foods from database"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
