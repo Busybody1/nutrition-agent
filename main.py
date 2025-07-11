@@ -37,7 +37,7 @@ def validate_environment():
     if missing_vars:
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi import FastAPI, Depends, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -2036,19 +2036,29 @@ def generate_nutrition_recommendations(analysis: Dict, user_profile: Dict) -> Li
 
 
 @app.post("/fuzzy-search")
-def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
+async def fuzzy_search_food(request: Request, db=Depends(get_nutrition_db)):
     """Search for foods using fuzzy matching for better results."""
     try:
-        query = request.get("query", "")
-        limit = request.get("limit", 20)
+        # Try to parse JSON body
+        try:
+            data = await request.json()
+        except Exception as e:
+            # Try to parse form data as fallback
+            try:
+                form = await request.form()
+                data = dict(form)
+            except Exception as e2:
+                raw_body = await request.body()
+                logger.error(f"/fuzzy-search: Could not parse request body as JSON or form-data. Raw body: {raw_body}")
+                raise HTTPException(status_code=400, detail="Request body must be a valid JSON object (e.g., { 'query': 'apple' }) or form-data.")
+        
+        query = data.get("query", "")
+        limit = int(data.get("limit", 20))
 
         if not query:
             raise HTTPException(status_code=400, detail="Search query required")
 
-        # Use the updated search_food_fuzzy function that includes nutrition data
         results = search_food_fuzzy(db, query)
-        
-        # Limit results to the requested limit
         limited_results = results[:limit]
 
         return {
@@ -2056,7 +2066,10 @@ def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
             "results": limited_results,
             "count": len(limited_results),
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"/fuzzy-search error: {e}")
         raise HTTPException(status_code=400, detail=f"Search failed: {e}")
 
 
