@@ -308,36 +308,38 @@ async def init_database():
     metadata.create_all(engine)
 
     # Create indexes
-    engine.execute(text("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"))
-    engine.execute(
-        text("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-    )
-    engine.execute(
-        text("CREATE INDEX IF NOT EXISTS idx_foods_name ON foods(name)")
-    )
-    engine.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS idx_foods_category_id ON foods(category_id)"
+    with engine.connect() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"))
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
         )
-    )
-    engine.execute(
-        text("CREATE INDEX IF NOT EXISTS idx_food_logs_user_id ON food_logs(user_id)")
-    )
-    engine.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS idx_food_logs_consumed_at ON food_logs(consumed_at)"
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_foods_name ON foods(name)")
         )
-    )
-    engine.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS idx_workout_logs_user_id ON workout_logs(user_id)"
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_foods_category_id ON foods(category_id)"
+            )
         )
-    )
-    engine.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS idx_workout_logs_started_at ON workout_logs(started_at)"
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_food_logs_user_id ON food_logs(user_id)")
         )
-    )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_food_logs_consumed_at ON food_logs(consumed_at)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_workout_logs_user_id ON workout_logs(user_id)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_workout_logs_started_at ON workout_logs(started_at)"
+            )
+        )
+        conn.commit()
 
     engine.dispose()
 
