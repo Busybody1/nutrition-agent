@@ -1313,7 +1313,7 @@ def search_food_by_name(db, name: str):
         {"name": f"%{name.lower()}%"},
     ).fetchall()
     
-    # Convert rows to dictionaries properly and add nutrition data
+    # Convert rows to structured format with nutrients array
     result = []
     for row in rows:
         if hasattr(row, '_mapping'):
@@ -1327,7 +1327,7 @@ def search_food_by_name(db, name: str):
         try:
             nutrition_rows = db.execute(
                 text("""
-                    SELECT n.name as nutrient_name, fn.amount, n.unit
+                    SELECT n.id as nutrient_id, n.name as nutrient_name, fn.amount, n.unit as nutrient_unit
                     FROM food_nutrients fn
                     JOIN nutrients n ON fn.nutrient_id = n.id
                     WHERE fn.food_id = :food_id
@@ -1335,48 +1335,39 @@ def search_food_by_name(db, name: str):
                 {"food_id": food_data['id']}
             ).fetchall()
             
-            # Convert nutrition data to a dictionary
-            nutrition_data = {}
+            # Convert nutrition data to nutrients array format
+            nutrients = []
             for nutrition_row in nutrition_rows:
                 if hasattr(nutrition_row, '_mapping'):
                     nutrient = dict(nutrition_row._mapping)
                 else:
-                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], nutrition_row))
+                    nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
                 
-                nutrient_name = nutrient['nutrient_name'].lower()
-                amount = nutrient['amount'] or 0
-                
-                # Map nutrient names to our expected fields
-                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
-                    nutrition_data['calories'] = amount
-                elif 'protein' in nutrient_name:
-                    nutrition_data['protein_g'] = amount
-                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
-                    nutrition_data['carbs_g'] = amount
-                elif 'fat' in nutrient_name and 'total' in nutrient_name:
-                    nutrition_data['fat_g'] = amount
-                elif 'fat' in nutrient_name:
-                    nutrition_data['fat_g'] = amount
-            
-            # Set default values if not found
-            nutrition_data.setdefault('calories', 0)
-            nutrition_data.setdefault('protein_g', 0)
-            nutrition_data.setdefault('carbs_g', 0)
-            nutrition_data.setdefault('fat_g', 0)
-            
-            # Add nutrition data to food_data
-            food_data.update(nutrition_data)
+                nutrients.append({
+                    "id": nutrient['nutrient_id'],
+                    "name": nutrient['nutrient_name'],
+                    "unit": nutrient['nutrient_unit'],
+                    "amount": nutrient['amount'] or 0,
+                })
             
         except Exception as e:
-            # If nutrition data can't be retrieved, set defaults
-            food_data.update({
-                'calories': 0,
-                'protein_g': 0,
-                'carbs_g': 0,
-                'fat_g': 0
-            })
+            # If nutrition data can't be retrieved, set empty nutrients array
+            nutrients = []
         
-        result.append(food_data)
+        # Create structured food object similar to get_food_full_view
+        food_object = {
+            "id": food_data['id'],
+            "name": food_data['name'],
+            "serving_size": food_data['serving_size'],
+            "serving_unit": food_data['serving_unit'],
+            "serving": food_data['serving'],
+            "created_at": food_data['created_at'],
+            "brand": {"id": food_data['brand_id'], "name": None} if food_data['brand_id'] else None,
+            "category": {"id": food_data['category_id'], "name": None} if food_data['category_id'] else None,
+            "nutrients": nutrients,
+        }
+        
+        result.append(food_object)
     return result
 
 
@@ -1576,83 +1567,57 @@ def search_food_fuzzy(db, name: str):
     """Search food with fuzzy matching for better results."""
     name = DataValidator.sanitize_string(name)
 
-    # Get all foods for fuzzy matching
-    rows = db.execute(
-        text(
-            """
-        SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
-        FROM foods
-        ORDER BY name
-        LIMIT 1000
-        """
-        )
-    ).fetchall()
-
-    # Convert rows to dictionaries properly and add nutrition data
-    foods = []
+    # Optimized query: Get foods with nutrition data in a single query
+    query = """
+    SELECT DISTINCT
+        f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving, f.created_at,
+        n.id as nutrient_id, n.name as nutrient_name, fn.amount, n.unit as nutrient_unit
+    FROM foods f
+    LEFT JOIN food_nutrients fn ON f.id = fn.food_id
+    LEFT JOIN nutrients n ON fn.nutrient_id = n.id
+    ORDER BY f.name
+    LIMIT 500
+    """
+    
+    rows = db.execute(text(query)).fetchall()
+    
+    # Group foods by their ID and collect nutrients
+    foods_dict = {}
     for row in rows:
         if hasattr(row, '_mapping'):
-            food_data = dict(row._mapping)
+            row_data = dict(row._mapping)
         else:
-            # Handle tuple case
-            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
-            food_data = dict(zip(columns, row))
+            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at', 'nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit']
+            row_data = dict(zip(columns, row))
         
-        # Get nutrition data for this food
-        try:
-            nutrition_rows = db.execute(
-                text("""
-                    SELECT n.name as nutrient_name, fn.amount, n.unit
-                    FROM food_nutrients fn
-                    JOIN nutrients n ON fn.nutrient_id = n.id
-                    WHERE fn.food_id = :food_id
-                """),
-                {"food_id": food_data['id']}
-            ).fetchall()
-            
-            # Convert nutrition data to a dictionary
-            nutrition_data = {}
-            for nutrition_row in nutrition_rows:
-                if hasattr(nutrition_row, '_mapping'):
-                    nutrient = dict(nutrition_row._mapping)
-                else:
-                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], nutrition_row))
-                
-                nutrient_name = nutrient['nutrient_name'].lower()
-                amount = nutrient['amount'] or 0
-                
-                # Map nutrient names to our expected fields
-                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
-                    nutrition_data['calories'] = amount
-                elif 'protein' in nutrient_name:
-                    nutrition_data['protein_g'] = amount
-                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
-                    nutrition_data['carbs_g'] = amount
-                elif 'fat' in nutrient_name and 'total' in nutrient_name:
-                    nutrition_data['fat_g'] = amount
-                elif 'fat' in nutrient_name:
-                    nutrition_data['fat_g'] = amount
-            
-            # Set default values if not found
-            nutrition_data.setdefault('calories', 0)
-            nutrition_data.setdefault('protein_g', 0)
-            nutrition_data.setdefault('carbs_g', 0)
-            nutrition_data.setdefault('fat_g', 0)
-            
-            # Add nutrition data to food_data
-            food_data.update(nutrition_data)
-            
-        except Exception as e:
-            # If nutrition data can't be retrieved, set defaults
-            food_data.update({
-                'calories': 0,
-                'protein_g': 0,
-                'carbs_g': 0,
-                'fat_g': 0
+        food_id = row_data['id']
+        
+        if food_id not in foods_dict:
+            # Initialize food entry
+            foods_dict[food_id] = {
+                "id": food_id,
+                "name": row_data['name'],
+                "brand_id": row_data['brand_id'],
+                "category_id": row_data['category_id'],
+                "serving_size": row_data['serving_size'],
+                "serving_unit": row_data['serving_unit'],
+                "serving": row_data['serving'],
+                "created_at": row_data['created_at'],
+                "nutrients": []
+            }
+        
+        # Add nutrient if it exists
+        if row_data['nutrient_id'] is not None:
+            foods_dict[food_id]["nutrients"].append({
+                "id": row_data['nutrient_id'],
+                "name": row_data['nutrient_name'],
+                "unit": row_data['nutrient_unit'],
+                "amount": row_data['amount'] or 0,
             })
-        
-        foods.append(food_data)
-
+    
+    # Convert to list and do fuzzy matching
+    foods = list(foods_dict.values())
+    
     # Use difflib for fuzzy matching
     matches = []
     for food in foods:
@@ -1665,7 +1630,25 @@ def search_food_fuzzy(db, name: str):
 
     # Sort by similarity and return top 20
     matches.sort(key=lambda x: x["similarity"], reverse=True)
-    return matches[:20]
+    
+    # Convert to structured format like search_food_by_name
+    structured_matches = []
+    for food in matches[:20]:
+        structured_food = {
+            "id": food["id"],
+            "name": food["name"],
+            "serving_size": food["serving_size"],
+            "serving_unit": food["serving_unit"],
+            "serving": food["serving"],
+            "created_at": food["created_at"],
+            "brand": {"id": food["brand_id"], "name": None} if food["brand_id"] else None,
+            "category": {"id": food["category_id"], "name": None} if food["category_id"] else None,
+            "nutrients": food["nutrients"],
+            "similarity": food["similarity"]
+        }
+        structured_matches.append(structured_food)
+    
+    return structured_matches
 
 
 @app.post("/meal-plan")

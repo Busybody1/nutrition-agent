@@ -480,24 +480,47 @@
             const element = document.getElementById(elementId);
             element.className = `response ${type}`;
             
-            // Check if this is a search response with nutrition data
+            // Check if this is a search response with structured data
             if (response.data && Array.isArray(response.data)) {
-                // Format search results with nutrition data
+                // Format search results with nutrients array
                 const formattedResults = response.data.map(food => {
-                    const nutrition = food.calories || food.protein_g || food.carbs_g || food.fat_g ? 
-                        `\n  🥗 Nutrition (per 100g):\n` +
-                        `    Calories: ${food.calories || 0} kcal\n` +
-                        `    Protein: ${food.protein_g || 0}g\n` +
-                        `    Carbs: ${food.carbs_g || 0}g\n` +
-                        `    Fat: ${food.fat_g || 0}g` : '';
+                    // Handle nutrients array format
+                    let nutritionText = '';
+                    if (food.nutrients && Array.isArray(food.nutrients)) {
+                        const nutritionItems = food.nutrients.map(nutrient => 
+                            `    ${nutrient.name}: ${nutrient.amount} ${nutrient.unit}`
+                        ).join('\n');
+                        nutritionText = `\n  🥗 Nutrients:\n${nutritionItems}`;
+                    }
                     
                     return `📦 ${food.name || 'Unknown Food'}\n` +
                            `   ID: ${food.id}\n` +
                            `   Serving: ${food.serving_size || 'N/A'} ${food.serving_unit || 'g'}\n` +
-                           nutrition;
+                           nutritionText;
                 }).join('\n\n');
                 
                 element.textContent = `Found ${response.data.length} foods:\n\n${formattedResults}`;
+            } else if (response.data && response.data.results && Array.isArray(response.data.results)) {
+                // Handle fuzzy search response format
+                const formattedResults = response.data.results.map(food => {
+                    // Handle nutrients array format
+                    let nutritionText = '';
+                    if (food.nutrients && Array.isArray(food.nutrients)) {
+                        const nutritionItems = food.nutrients.map(nutrient => 
+                            `    ${nutrient.name}: ${nutrient.amount} ${nutrient.unit}`
+                        ).join('\n');
+                        nutritionText = `\n  🥗 Nutrients:\n${nutritionItems}`;
+                    }
+                    
+                    const similarity = food.similarity ? ` (Similarity: ${(food.similarity * 100).toFixed(1)}%)` : '';
+                    
+                    return `📦 ${food.name || 'Unknown Food'}${similarity}\n` +
+                           `   ID: ${food.id}\n` +
+                           `   Serving: ${food.serving_size || 'N/A'} ${food.serving_unit || 'g'}\n` +
+                           nutritionText;
+                }).join('\n\n');
+                
+                element.textContent = `Found ${response.data.results.length} foods:\n\n${formattedResults}`;
             } else {
                 element.textContent = JSON.stringify(response, null, 2);
             }
