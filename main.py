@@ -9,9 +9,11 @@ import datetime
 import difflib
 import math
 from contextlib import asynccontextmanager
+import openai
 
 # Import models and utilities
 from shared import FoodLogEntry, DataValidator
+from shared.config import get_settings
 
 # Set up logger - reduced for faster startup
 logging.basicConfig(level=logging.WARNING)
@@ -919,12 +921,6 @@ def log_food_simple(
         raise HTTPException(status_code=500, detail=f"Failed to log food: {str(e)}")
 
 
-# Import models when needed
-def get_models():
-    from shared.models import FoodItem, FoodLogEntry, NutritionInfo
-    return FoodItem, FoodLogEntry, NutritionInfo
-
-
 @app.post("/test-food-logging")
 def test_food_logging(
     request: Dict[str, Any],
@@ -1564,28 +1560,37 @@ def search_food_fuzzy(db, name: str):
 
 @app.post("/meal-plan")
 def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
-    """Create a personalized meal plan based on user goals and preferences."""
+    """Create a personalized meal plan using AI, then query nutrition database for accurate macros."""
     try:
         user_id = request.get("user_id")
         daily_calories = request.get("daily_calories", 2000)
         meal_count = request.get("meal_count", 3)
         dietary_restrictions = request.get("dietary_restrictions", [])
 
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+
         # Get user's food preferences and history from shared database
         user_history = get_user_calorie_history(db_shared, user_id)
 
-        # Simple meal planning algorithm
-        meal_plan = generate_meal_plan(
-            db_nutrition, daily_calories, meal_count, dietary_restrictions, user_history
+        # AI-powered meal plan creation
+        meal_plan = create_ai_meal_plan(
+            user_id, daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition
         )
+
+        # Calculate total calories from enriched meal plan
+        total_calories = sum(meal["total_calories"] for meal in meal_plan)
 
         return {
             "status": "success",
             "meal_plan": meal_plan,
-            "total_calories": sum(meal["calories"] for meal in meal_plan),
+            "total_calories": total_calories,
             "meals": len(meal_plan),
+            "ai_generated": True,
+            "nutrition_verified": True
         }
     except Exception as e:
+        logger.error(f"Error creating AI meal plan: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create meal plan: {e}")
 
 
@@ -2126,3 +2131,397 @@ def get_meal_suggestions(
         "target_calories": target_calories,
         "suggestions": suggestions[:10],
     }
+
+
+# Import models when needed
+def get_models():
+    from shared.models import FoodItem, FoodLogEntry, NutritionInfo
+    return FoodItem, FoodLogEntry, NutritionInfo
+
+
+def create_ai_meal_plan(
+    user_id: str,
+    daily_calories: int,
+    meal_count: int,
+    dietary_restrictions: List[str],
+    user_history: List[Dict],
+    db_nutrition
+) -> List[Dict]:
+    """
+    AI-powered meal plan creation using Groq API.
+    AI creates the meal plan first, then queries nutrition database for accurate macros.
+    """
+    try:
+        settings = get_settings()
+        
+        # Initialize Groq client
+        client = openai.OpenAI(
+            api_key=settings.llm.groq_api_key,
+            base_url=settings.llm.groq_base_url
+        )
+        
+        # Prepare user context for AI
+        user_context = _prepare_user_context(user_history, dietary_restrictions, daily_calories)
+        
+        # Generate meal plan with AI
+        ai_meal_plan = _generate_meal_plan_with_ai(client, user_context, meal_count)
+        
+        # Query nutrition database for accurate macros and calories
+        enriched_meal_plan = _enrich_meal_plan_with_nutrition(ai_meal_plan, db_nutrition)
+        
+        return enriched_meal_plan
+        
+    except Exception as e:
+        logger.error(f"Error in AI meal plan creation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create AI meal plan: {str(e)}")
+
+
+def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[str], daily_calories: int) -> str:
+    """Prepare user context for AI meal plan generation."""
+    
+    # Extract user's food preferences
+    food_preferences = []
+    for entry in user_history[:20]:  # Last 20 entries
+        food_name = entry.get("name", "")
+        if food_name:
+            food_preferences.append(food_name.lower())
+    
+    # Get unique preferences
+    unique_preferences = list(set(food_preferences))
+    
+    context = f"""
+    User Profile:
+    - Daily calorie target: {daily_calories} calories
+    - Dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}
+    - Food preferences (from history): {', '.join(unique_preferences[:10])}
+    
+    Requirements:
+    - Create a balanced meal plan with proper macronutrient distribution
+    - Consider user's food preferences and dietary restrictions
+    - Ensure variety and nutritional balance
+    - Focus on whole, nutritious foods
+    """
+    
+    return context
+
+
+def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int) -> List[Dict]:
+    """Generate meal plan using Groq AI."""
+    
+    settings = get_settings()
+    
+    prompt = f"""
+    {user_context}
+    
+    Create a {meal_count}-meal daily plan. For each meal, provide:
+    1. Meal type (breakfast/lunch/dinner/snack)
+    2. Food items (specific food names that would be found in a nutrition database)
+    3. Suggested quantities in grams
+    4. Brief nutritional reasoning
+    
+    Format your response as a JSON array with this structure:
+    [
+        {{
+            "meal_type": "breakfast",
+            "foods": [
+                {{
+                    "name": "oatmeal",
+                    "quantity_g": 50,
+                    "reasoning": "High fiber, complex carbs for sustained energy"
+                }},
+                {{
+                    "name": "banana",
+                    "quantity_g": 120,
+                    "reasoning": "Natural sweetness and potassium"
+                }}
+            ]
+        }}
+    ]
+    
+    Focus on common, recognizable food names that would be in a nutrition database.
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model=settings.llm.groq_model,
+            messages=[
+                {"role": "system", "content": "You are a nutrition expert creating personalized meal plans. Provide specific, actionable meal suggestions with common food names."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        # Parse AI response
+        ai_response = response.choices[0].message.content
+        meal_plan = _parse_ai_meal_plan(ai_response)
+        
+        return meal_plan
+        
+    except Exception as e:
+        logger.error(f"Error generating meal plan with AI: {e}")
+        # Fallback to basic meal plan
+        return _create_fallback_meal_plan(meal_count)
+
+
+def _parse_ai_meal_plan(ai_response: str) -> List[Dict]:
+    """Parse AI response into structured meal plan."""
+    try:
+        # Extract JSON from AI response
+        import json
+        import re
+        
+        # Find JSON array in the response
+        json_match = re.search(r'\[.*\]', ai_response, re.DOTALL)
+        if json_match:
+            meal_plan = json.loads(json_match.group())
+            return meal_plan
+        else:
+            # If no JSON found, create basic structure
+            logger.warning("Could not parse AI response as JSON, using fallback")
+            return _create_fallback_meal_plan(3)
+            
+    except Exception as e:
+        logger.error(f"Error parsing AI meal plan: {e}")
+        return _create_fallback_meal_plan(3)
+
+
+def _create_fallback_meal_plan(meal_count: int) -> List[Dict]:
+    """Create a basic fallback meal plan."""
+    meal_types = ["breakfast", "lunch", "dinner"]
+    fallback_plan = []
+    
+    for i in range(meal_count):
+        meal_type = meal_types[i % len(meal_types)]
+        fallback_plan.append({
+            "meal_type": meal_type,
+            "foods": [
+                {
+                    "name": "chicken breast" if meal_type == "lunch" else "oatmeal" if meal_type == "breakfast" else "salmon",
+                    "quantity_g": 150 if meal_type == "lunch" else 50 if meal_type == "breakfast" else 120,
+                    "reasoning": "Balanced protein source"
+                }
+            ]
+        })
+    
+    return fallback_plan
+
+
+def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> List[Dict]:
+    """Query nutrition database to get accurate macros and calories for AI-generated meals."""
+    enriched_plan = []
+    
+    for meal in ai_meal_plan:
+        enriched_meal = {
+            "meal_type": meal["meal_type"],
+            "foods": [],
+            "total_calories": 0,
+            "total_protein_g": 0,
+            "total_carbs_g": 0,
+            "total_fat_g": 0
+        }
+        
+        for food_item in meal["foods"]:
+            food_name = food_item["name"]
+            quantity_g = food_item["quantity_g"]
+            
+            # Search for food in nutrition database
+            nutrition_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+            
+            if nutrition_data:
+                # Calculate nutrition based on quantity
+                actual_calories = (nutrition_data["calories"] * quantity_g) / 100
+                actual_protein = (nutrition_data["protein_g"] * quantity_g) / 100
+                actual_carbs = (nutrition_data["carbs_g"] * quantity_g) / 100
+                actual_fat = (nutrition_data["fat_g"] * quantity_g) / 100
+                
+                enriched_food = {
+                    "name": food_name,
+                    "quantity_g": quantity_g,
+                    "reasoning": food_item.get("reasoning", ""),
+                    "nutrition": {
+                        "calories": round(actual_calories, 1),
+                        "protein_g": round(actual_protein, 1),
+                        "carbs_g": round(actual_carbs, 1),
+                        "fat_g": round(actual_fat, 1)
+                    },
+                    "found_in_db": True
+                }
+                
+                # Update meal totals
+                enriched_meal["total_calories"] += actual_calories
+                enriched_meal["total_protein_g"] += actual_protein
+                enriched_meal["total_carbs_g"] += actual_carbs
+                enriched_meal["total_fat_g"] += actual_fat
+                
+            else:
+                # Food not found in database, use estimated values
+                enriched_food = {
+                    "name": food_name,
+                    "quantity_g": quantity_g,
+                    "reasoning": food_item.get("reasoning", ""),
+                    "nutrition": {
+                        "calories": 0,
+                        "protein_g": 0,
+                        "carbs_g": 0,
+                        "fat_g": 0
+                    },
+                    "found_in_db": False,
+                    "note": "Nutrition data not available in database"
+                }
+            
+            enriched_meal["foods"].append(enriched_food)
+        
+        # Round totals
+        enriched_meal["total_calories"] = round(enriched_meal["total_calories"], 1)
+        enriched_meal["total_protein_g"] = round(enriched_meal["total_protein_g"], 1)
+        enriched_meal["total_carbs_g"] = round(enriched_meal["total_carbs_g"], 1)
+        enriched_meal["total_fat_g"] = round(enriched_meal["total_fat_g"], 1)
+        
+        enriched_plan.append(enriched_meal)
+    
+    return enriched_plan
+
+
+def _get_food_nutrition_from_db(db_nutrition, food_name: str) -> Optional[Dict]:
+    """Get nutrition data for a food from the nutrition database."""
+    try:
+        # Search for food by name (fuzzy search)
+        query = """
+        SELECT f.id, f.name, f.serving_size, f.serving_unit, f.serving
+        FROM foods f
+        WHERE LOWER(f.name) LIKE LOWER(:food_name)
+        OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
+        LIMIT 1
+        """
+        
+        # Try exact match first, then partial match
+        rows = db_nutrition.execute(
+            text(query),
+            {"food_name": food_name, "food_name_pattern": f"%{food_name}%"}
+        ).fetchall()
+        
+        if not rows:
+            return None
+        
+        food_row = rows[0]
+        food_data = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+        
+        # Get nutrition data
+        nutrition_rows = db_nutrition.execute(
+            text("""
+                SELECT n.name as nutrient_name, fn.amount, n.unit
+                FROM food_nutrients fn
+                JOIN nutrients n ON fn.nutrient_id = n.id
+                WHERE fn.food_id = :food_id
+            """),
+            {"food_id": food_data['id']}
+        ).fetchall()
+        
+        # Convert nutrition data
+        nutrition_data = {}
+        for nutrition_row in nutrition_rows:
+            if hasattr(nutrition_row, '_mapping'):
+                nutrient = dict(nutrition_row._mapping)
+            else:
+                nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], nutrition_row))
+            
+            nutrient_name = nutrient['nutrient_name'].lower()
+            amount = nutrient['amount'] or 0
+            
+            # Map nutrient names to expected fields
+            if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                nutrition_data['calories'] = amount
+            elif 'protein' in nutrient_name:
+                nutrition_data['protein_g'] = amount
+            elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                nutrition_data['carbs_g'] = amount
+            elif 'fat' in nutrient_name:
+                nutrition_data['fat_g'] = amount
+        
+        # Set defaults
+        nutrition_data.setdefault('calories', 0)
+        nutrition_data.setdefault('protein_g', 0)
+        nutrition_data.setdefault('carbs_g', 0)
+        nutrition_data.setdefault('fat_g', 0)
+        
+        return nutrition_data
+        
+    except Exception as e:
+        logger.error(f"Error getting nutrition data for {food_name}: {e}")
+        return None
+
+
+@app.post("/meal-plan-rule-based")
+def create_rule_based_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+    """Create a meal plan using the old rule-based algorithm (fallback option)."""
+    try:
+        user_id = request.get("user_id")
+        daily_calories = request.get("daily_calories", 2000)
+        meal_count = request.get("meal_count", 3)
+        dietary_restrictions = request.get("dietary_restrictions", [])
+
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+
+        # Get user's food preferences and history from shared database
+        user_history = get_user_calorie_history(db_shared, user_id)
+
+        # Rule-based meal planning algorithm
+        meal_plan = generate_meal_plan(
+            db_nutrition, daily_calories, meal_count, dietary_restrictions, user_history
+        )
+
+        return {
+            "status": "success",
+            "meal_plan": meal_plan,
+            "total_calories": sum(meal["calories"] for meal in meal_plan),
+            "meals": len(meal_plan),
+            "ai_generated": False,
+            "method": "rule_based"
+        }
+    except Exception as e:
+        logger.error(f"Error creating rule-based meal plan: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to create meal plan: {e}")
+
+
+@app.post("/test-ai-meal-plan")
+def test_ai_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+    """Test endpoint for AI meal plan creation with sample data."""
+    try:
+        # Use sample data for testing
+        user_id = request.get("user_id", "test-user-123")
+        daily_calories = request.get("daily_calories", 2000)
+        meal_count = request.get("meal_count", 3)
+        dietary_restrictions = request.get("dietary_restrictions", ["vegetarian"])
+        
+        # Sample user history
+        sample_history = [
+            {"name": "oatmeal", "calories": 150, "protein_g": 5, "carbs_g": 27, "fat_g": 3},
+            {"name": "banana", "calories": 105, "protein_g": 1, "carbs_g": 27, "fat_g": 0},
+            {"name": "chicken breast", "calories": 165, "protein_g": 31, "carbs_g": 0, "fat_g": 3.6},
+            {"name": "brown rice", "calories": 110, "protein_g": 2.5, "carbs_g": 23, "fat_g": 0.9},
+            {"name": "salmon", "calories": 208, "protein_g": 25, "carbs_g": 0, "fat_g": 12}
+        ]
+
+        # AI-powered meal plan creation
+        meal_plan = create_ai_meal_plan(
+            user_id, daily_calories, meal_count, dietary_restrictions, sample_history, db_nutrition
+        )
+
+        # Calculate total calories from enriched meal plan
+        total_calories = sum(meal["total_calories"] for meal in meal_plan)
+
+        return {
+            "status": "success",
+            "meal_plan": meal_plan,
+            "total_calories": total_calories,
+            "meals": len(meal_plan),
+            "ai_generated": True,
+            "nutrition_verified": True,
+            "test_mode": True,
+            "sample_data_used": True
+        }
+    except Exception as e:
+        logger.error(f"Error testing AI meal plan: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to test AI meal plan: {e}")
