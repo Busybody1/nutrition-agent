@@ -1313,15 +1313,70 @@ def search_food_by_name(db, name: str):
         {"name": f"%{name.lower()}%"},
     ).fetchall()
     
-    # Convert rows to dictionaries properly
+    # Convert rows to dictionaries properly and add nutrition data
     result = []
     for row in rows:
         if hasattr(row, '_mapping'):
-            result.append(dict(row._mapping))
+            food_data = dict(row._mapping)
         else:
             # Handle tuple case
             columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
-            result.append(dict(zip(columns, row)))
+            food_data = dict(zip(columns, row))
+        
+        # Get nutrition data for this food
+        try:
+            nutrition_rows = db.execute(
+                text("""
+                    SELECT n.name as nutrient_name, fn.amount, n.unit
+                    FROM food_nutrients fn
+                    JOIN nutrients n ON fn.nutrient_id = n.id
+                    WHERE fn.food_id = :food_id
+                """),
+                {"food_id": food_data['id']}
+            ).fetchall()
+            
+            # Convert nutrition data to a dictionary
+            nutrition_data = {}
+            for nutrition_row in nutrition_rows:
+                if hasattr(nutrition_row, '_mapping'):
+                    nutrient = dict(nutrition_row._mapping)
+                else:
+                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], nutrition_row))
+                
+                nutrient_name = nutrient['nutrient_name'].lower()
+                amount = nutrient['amount'] or 0
+                
+                # Map nutrient names to our expected fields
+                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                    nutrition_data['calories'] = amount
+                elif 'protein' in nutrient_name:
+                    nutrition_data['protein_g'] = amount
+                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                    nutrition_data['carbs_g'] = amount
+                elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+                elif 'fat' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+            
+            # Set default values if not found
+            nutrition_data.setdefault('calories', 0)
+            nutrition_data.setdefault('protein_g', 0)
+            nutrition_data.setdefault('carbs_g', 0)
+            nutrition_data.setdefault('fat_g', 0)
+            
+            # Add nutrition data to food_data
+            food_data.update(nutrition_data)
+            
+        except Exception as e:
+            # If nutrition data can't be retrieved, set defaults
+            food_data.update({
+                'calories': 0,
+                'protein_g': 0,
+                'carbs_g': 0,
+                'fat_g': 0
+            })
+        
+        result.append(food_data)
     return result
 
 
@@ -1445,9 +1500,9 @@ def log_food_to_calorie_log_with_details(db_nutrition, db_shared, entry: FoodLog
         db_shared.execute(
             text(
                 """
-            INSERT INTO food_logs (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at)
-            VALUES (:id, :user_id, :food_item_id, :quantity_g, :meal_type, :consumed_at, :calories, :protein_g, :carbs_g, :fat_g, :serving_size, :serving_unit, :serving, :notes, :created_at)
-            """
+        INSERT INTO food_logs (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at)
+        VALUES (:id, :user_id, :food_item_id, :quantity_g, :meal_type, :consumed_at, :calories, :protein_g, :carbs_g, :fat_g, :serving_size, :serving_unit, :serving, :notes, :created_at)
+        """
             ),
             {
                 "id": str(entry.id),
@@ -1533,15 +1588,70 @@ def search_food_fuzzy(db, name: str):
         )
     ).fetchall()
 
-    # Convert rows to dictionaries properly
+    # Convert rows to dictionaries properly and add nutrition data
     foods = []
     for row in rows:
         if hasattr(row, '_mapping'):
-            foods.append(dict(row._mapping))
+            food_data = dict(row._mapping)
         else:
             # Handle tuple case
             columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
-            foods.append(dict(zip(columns, row)))
+            food_data = dict(zip(columns, row))
+        
+        # Get nutrition data for this food
+        try:
+            nutrition_rows = db.execute(
+                text("""
+                    SELECT n.name as nutrient_name, fn.amount, n.unit
+                    FROM food_nutrients fn
+                    JOIN nutrients n ON fn.nutrient_id = n.id
+                    WHERE fn.food_id = :food_id
+                """),
+                {"food_id": food_data['id']}
+            ).fetchall()
+            
+            # Convert nutrition data to a dictionary
+            nutrition_data = {}
+            for nutrition_row in nutrition_rows:
+                if hasattr(nutrition_row, '_mapping'):
+                    nutrient = dict(nutrition_row._mapping)
+                else:
+                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], nutrition_row))
+                
+                nutrient_name = nutrient['nutrient_name'].lower()
+                amount = nutrient['amount'] or 0
+                
+                # Map nutrient names to our expected fields
+                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                    nutrition_data['calories'] = amount
+                elif 'protein' in nutrient_name:
+                    nutrition_data['protein_g'] = amount
+                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                    nutrition_data['carbs_g'] = amount
+                elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+                elif 'fat' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+            
+            # Set default values if not found
+            nutrition_data.setdefault('calories', 0)
+            nutrition_data.setdefault('protein_g', 0)
+            nutrition_data.setdefault('carbs_g', 0)
+            nutrition_data.setdefault('fat_g', 0)
+            
+            # Add nutrition data to food_data
+            food_data.update(nutrition_data)
+            
+        except Exception as e:
+            # If nutrition data can't be retrieved, set defaults
+            food_data.update({
+                'calories': 0,
+                'protein_g': 0,
+                'carbs_g': 0,
+                'fat_g': 0
+            })
+        
+        foods.append(food_data)
 
     # Use difflib for fuzzy matching
     matches = []
@@ -1919,57 +2029,16 @@ def fuzzy_search_food(request: Dict[str, Any], db=Depends(get_nutrition_db)):
         if not query:
             raise HTTPException(status_code=400, detail="Search query required")
 
-        # Enhanced search with multiple patterns
-        search_patterns = [f"%{query}%", f"%{query.lower()}%", f"%{query.title()}%"]
-
-        results = []
-        for pattern in search_patterns:
-            rows = db.execute(
-                text(
-                    """
-                SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
-                FROM foods
-                WHERE LOWER(name) LIKE :pattern
-                ORDER BY 
-                    CASE 
-                        WHEN LOWER(name) = :exact THEN 1
-                        WHEN LOWER(name) LIKE :exact_start THEN 2
-                        WHEN LOWER(name) LIKE :exact_contains THEN 3
-                        ELSE 4
-                    END,
-                    name
-                LIMIT :limit
-                """
-                ),
-                {
-                    "pattern": pattern,
-                    "exact": query.lower(),
-                    "exact_start": f"{query.lower()}%",
-                    "exact_contains": f"%{query.lower()}%",
-                    "limit": limit,
-                },
-            ).fetchall()
-
-            # Convert rows to dictionaries properly
-            for row in rows:
-                if hasattr(row, '_mapping'):
-                    results.append(dict(row._mapping))
-                else:
-                    columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
-                    results.append(dict(zip(columns, row)))
-
-        # Remove duplicates and limit results
-        seen_ids = set()
-        unique_results = []
-        for result in results:
-            if result["id"] not in seen_ids and len(unique_results) < limit:
-                seen_ids.add(result["id"])
-                unique_results.append(result)
+        # Use the updated search_food_fuzzy function that includes nutrition data
+        results = search_food_fuzzy(db, query)
+        
+        # Limit results to the requested limit
+        limited_results = results[:limit]
 
         return {
             "status": "success",
-            "results": unique_results,
-            "count": len(unique_results),
+            "results": limited_results,
+            "count": len(limited_results),
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Search failed: {e}")

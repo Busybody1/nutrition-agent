@@ -321,6 +321,10 @@
                     <h2>🍽️ Create Meal Plan</h2>
                     <p>Generate a personalized meal plan.</p>
                     <div class="form-group">
+                        <label for="mealUserId">User ID:</label>
+                        <input type="text" id="mealUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
                         <label for="mealCalories">Daily Calories:</label>
                         <input type="number" id="mealCalories" value="2000" placeholder="Enter daily calorie target">
                     </div>
@@ -475,7 +479,28 @@
         function displayResponse(elementId, response, type = 'info') {
             const element = document.getElementById(elementId);
             element.className = `response ${type}`;
-            element.textContent = JSON.stringify(response, null, 2);
+            
+            // Check if this is a search response with nutrition data
+            if (response.data && Array.isArray(response.data)) {
+                // Format search results with nutrition data
+                const formattedResults = response.data.map(food => {
+                    const nutrition = food.calories || food.protein_g || food.carbs_g || food.fat_g ? 
+                        `\n  🥗 Nutrition (per 100g):\n` +
+                        `    Calories: ${food.calories || 0} kcal\n` +
+                        `    Protein: ${food.protein_g || 0}g\n` +
+                        `    Carbs: ${food.carbs_g || 0}g\n` +
+                        `    Fat: ${food.fat_g || 0}g` : '';
+                    
+                    return `📦 ${food.name || 'Unknown Food'}\n` +
+                           `   ID: ${food.id}\n` +
+                           `   Serving: ${food.serving_size || 'N/A'} ${food.serving_unit || 'g'}\n` +
+                           nutrition;
+                }).join('\n\n');
+                
+                element.textContent = `Found ${response.data.length} foods:\n\n${formattedResults}`;
+            } else {
+                element.textContent = JSON.stringify(response, null, 2);
+            }
         }
 
         async function checkHealth() {
@@ -494,7 +519,13 @@
                 tool: 'search_food_by_name',
                 params: { name: query }
             });
-            displayResponse('searchResponse', response, response.success ? 'success' : 'error');
+            
+            // Handle the new response format with nutrition data
+            if (response.success && response.data) {
+                displayResponse('searchResponse', response, 'success');
+            } else {
+                displayResponse('searchResponse', response, response.success ? 'success' : 'error');
+            }
         }
 
         async function getFoodDetails() {
@@ -508,7 +539,13 @@
             const response = await makeRequest('/fuzzy-search', 'POST', {
                 query: query
             });
-            displayResponse('fuzzyResponse', response, response.success ? 'success' : 'error');
+            
+            // Handle the new response format with nutrition data
+            if (response.success && response.data && response.data.results) {
+                displayResponse('fuzzyResponse', { data: response.data.results }, 'success');
+            } else {
+                displayResponse('fuzzyResponse', response, response.success ? 'success' : 'error');
+            }
         }
 
         async function logFood() {
@@ -539,11 +576,13 @@
         }
 
         async function createMealPlan() {
+            const userId = document.getElementById('mealUserId').value;
             const calories = document.getElementById('mealCalories').value;
             const mealCount = document.getElementById('mealCount').value;
             const restrictions = document.getElementById('dietaryRestrictions').value;
 
             const response = await makeRequest('/meal-plan', 'POST', {
+                user_id: userId,
                 daily_calories: parseInt(calories),
                 meal_count: parseInt(mealCount),
                 dietary_restrictions: restrictions.split(',').map(r => r.trim()).filter(r => r)
