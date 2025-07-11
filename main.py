@@ -1613,11 +1613,13 @@ def generate_meal_plan(
 
         if suitable_foods:
             selected_food = suitable_foods[0]  # Simple selection for now
+            # Ensure the food has nutrition data, use defaults if missing
+            calories = selected_food.get("calories", 0)
             meal_plan.append(
                 {
                     "meal_type": meal_type,
                     "food": selected_food,
-                    "calories": selected_food["calories"],
+                    "calories": calories,
                     "quantity_g": 100,
                 }
             )
@@ -1667,15 +1669,71 @@ def find_suitable_foods(
     try:
         rows = db.execute(text(query), params).fetchall()
         
-        # Convert rows to dictionaries properly
+        # Convert rows to dictionaries properly and add nutrition data
         result = []
         for row in rows:
             if hasattr(row, '_mapping'):
-                result.append(dict(row._mapping))
+                food_data = dict(row._mapping)
             else:
                 # Handle tuple case
                 columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at']
-                result.append(dict(zip(columns, row)))
+                food_data = dict(zip(columns, row))
+            
+            # Get nutrition data for this food
+            try:
+                nutrition_rows = db.execute(
+                    text("""
+                        SELECT n.name as nutrient_name, fn.amount, n.unit
+                        FROM food_nutrients fn
+                        JOIN nutrients n ON fn.nutrient_id = n.id
+                        WHERE fn.food_id = :food_id
+                    """),
+                    {"food_id": food_data['id']}
+                ).fetchall()
+                
+                # Convert nutrition data to a dictionary
+                nutrition_data = {}
+                for nutrition_row in nutrition_rows:
+                    if hasattr(nutrition_row, '_mapping'):
+                        nutrient = dict(nutrition_row._mapping)
+                    else:
+                        nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], nutrition_row))
+                    
+                    nutrient_name = nutrient['nutrient_name'].lower()
+                    amount = nutrient['amount'] or 0
+                    
+                    # Map nutrient names to our expected fields
+                    if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                        nutrition_data['calories'] = amount
+                    elif 'protein' in nutrient_name:
+                        nutrition_data['protein_g'] = amount
+                    elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                        nutrition_data['carbs_g'] = amount
+                    elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                        nutrition_data['fat_g'] = amount
+                    elif 'fat' in nutrient_name:
+                        nutrition_data['fat_g'] = amount
+                
+                # Set default values if not found
+                nutrition_data.setdefault('calories', 0)
+                nutrition_data.setdefault('protein_g', 0)
+                nutrition_data.setdefault('carbs_g', 0)
+                nutrition_data.setdefault('fat_g', 0)
+                
+                # Add nutrition data to food_data
+                food_data.update(nutrition_data)
+                
+            except Exception as e:
+                # If nutrition data can't be retrieved, set defaults
+                food_data.update({
+                    'calories': 0,
+                    'protein_g': 0,
+                    'carbs_g': 0,
+                    'fat_g': 0
+                })
+            
+            result.append(food_data)
+        
         return result
     except Exception as e:
         # Log the error and raise it instead of returning dummy data
