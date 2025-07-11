@@ -486,12 +486,13 @@
         function displayResponse(elementId, response, type = 'info') {
             const element = document.getElementById(elementId);
             element.className = `response ${type}`;
-            
             // Show pretty-printed JSON for Search Food and Fuzzy Search
             if (elementId === 'searchResponse' && response.data && Array.isArray(response.data)) {
                 element.textContent = JSON.stringify(response.data, null, 2);
-            } else if (elementId === 'fuzzyResponse' && response.data && response.data.results && Array.isArray(response.data.results)) {
+            } else if (elementId === 'fuzzyResponse' && response.data && Array.isArray(response.data.results)) {
                 element.textContent = JSON.stringify(response.data.results, null, 2);
+            } else if (elementId === 'fuzzyResponse' && Array.isArray(response.data)) {
+                element.textContent = JSON.stringify(response.data, null, 2);
             } else if (response.data && Array.isArray(response.data)) {
                 // Default: formatted text for other array responses
                 const formattedResults = response.data.map(food => {
@@ -571,13 +572,8 @@
             const response = await makeRequest('/fuzzy-search', 'POST', {
                 query: query
             });
-            
-            // Handle the new response format with nutrition data
-            if (response.success && response.data && response.data.results) {
-                displayResponse('fuzzyResponse', { data: response.data.results }, 'success');
-            } else {
-                displayResponse('fuzzyResponse', response, response.success ? 'success' : 'error');
-            }
+            // Pass the response as-is, don't wrap results
+            displayResponse('fuzzyResponse', response, response.success ? 'success' : 'error');
         }
 
         async function logFood() {
