@@ -198,7 +198,14 @@ def get_nutrition_db():
         import traceback
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"Nutrition database connection error: {error_msg}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=503, detail=f"Nutrition database service unavailable: {error_msg}")
+        # Provide more detailed error information
+        if "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            detail_msg = f"Nutrition database connection failed: {error_msg}"
+        elif "authentication" in error_msg.lower():
+            detail_msg = f"Nutrition database authentication failed: {error_msg}"
+        else:
+            detail_msg = f"Nutrition database service unavailable: {error_msg}"
+        raise HTTPException(status_code=503, detail=detail_msg)
 
 # Use shared DB for all user-specific data (logs, goals, history, etc.)
 def get_shared_db():
@@ -219,7 +226,14 @@ def get_shared_db():
         import traceback
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"Shared database connection error: {error_msg}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=503, detail=f"Shared database service unavailable: {error_msg}")
+        # Provide more detailed error information
+        if "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            detail_msg = f"Shared database connection failed: {error_msg}"
+        elif "authentication" in error_msg.lower():
+            detail_msg = f"Shared database authentication failed: {error_msg}"
+        else:
+            detail_msg = f"Shared database service unavailable: {error_msg}"
+        raise HTTPException(status_code=503, detail=detail_msg)
 
 
 @app.get("/")
@@ -452,6 +466,80 @@ def food_count(db=Depends(get_nutrition_db)):
         return {"food_count": 0, "error": "Database temporarily unavailable"}
 
 
+@app.get("/test-nutrition-db")
+def test_nutrition_db():
+    """Test nutrition database connection and basic operations."""
+    try:
+        engine = get_nutrition_engine()
+        with engine.connect() as conn:
+            # Test basic connection
+            result = conn.execute(text("SELECT 1")).scalar()
+            
+            # Test if foods table exists
+            table_result = conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'")).fetchone()
+            if table_result:
+                # Get a sample food
+                food_result = conn.execute(text("SELECT id, name FROM foods LIMIT 1")).fetchone()
+                if food_result:
+                    food_data = dict(food_result._mapping) if hasattr(food_result, '_mapping') else dict(zip(['id', 'name'], food_result))
+                    return {
+                        "status": "success",
+                        "connection": "working",
+                        "foods_table": "exists",
+                        "sample_food": food_data
+                    }
+                else:
+                    return {
+                        "status": "success",
+                        "connection": "working",
+                        "foods_table": "exists",
+                        "sample_food": "no foods found"
+                    }
+            else:
+                return {
+                    "status": "success",
+                    "connection": "working",
+                    "foods_table": "missing"
+                }
+    except Exception as e:
+        return {
+            "status": "error",
+            "connection": "failed",
+            "error": str(e)
+        }
+
+
+@app.get("/test-shared-db")
+def test_shared_db():
+    """Test shared database connection and basic operations."""
+    try:
+        engine = get_fitness_engine()
+        with engine.connect() as conn:
+            # Test basic connection
+            result = conn.execute(text("SELECT 1")).scalar()
+            
+            # Test if food_logs table exists
+            table_result = conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
+            if table_result:
+                return {
+                    "status": "success",
+                    "connection": "working",
+                    "food_logs_table": "exists"
+                }
+            else:
+                return {
+                    "status": "success",
+                    "connection": "working",
+                    "food_logs_table": "missing"
+                }
+    except Exception as e:
+        return {
+            "status": "error",
+            "connection": "failed",
+            "error": str(e)
+        }
+
+
 @app.get("/foods/{food_id}")
 def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
     rows = db.execute(
@@ -527,6 +615,95 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
     }
 
 
+@app.post("/log-food")
+def log_food_endpoint(
+    request: Dict[str, Any],
+    db_nutrition=Depends(get_nutrition_db),
+    db_shared=Depends(get_shared_db)
+):
+    """Direct endpoint for logging food with proper two-database flow."""
+    try:
+        # Extract parameters
+        user_id = request.get("user_id")
+        food_id = request.get("food_id")
+        quantity_g = request.get("quantity_g", 100)
+        meal_type = request.get("meal_type", "snack")
+        consumed_at = request.get("consumed_at", datetime.datetime.utcnow().isoformat())
+        notes = request.get("notes", "")
+        
+        if not user_id or not food_id:
+            raise HTTPException(status_code=400, detail="Missing required parameters: user_id and food_id")
+        
+        # Get food details from nutrition database
+        food_details = None
+        try:
+            food_row = db_nutrition.execute(
+                text("SELECT id, name, serving_size, serving_unit, serving, calories, protein_g, carbs_g, fat_g FROM foods WHERE id = :food_id"),
+                {"food_id": food_id}
+            ).fetchone()
+            
+            if food_row:
+                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], food_row))
+                logger.info(f"Retrieved food details: {food_details.get('name', 'Unknown')}")
+            else:
+                raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
+        except Exception as e:
+            logger.error(f"Error getting food details: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to get food details: {str(e)}")
+        
+        # Calculate nutrition based on quantity
+        base_calories = food_details.get("calories", 0)
+        base_protein = food_details.get("protein_g", 0)
+        base_carbs = food_details.get("carbs_g", 0)
+        base_fat = food_details.get("fat_g", 0)
+        
+        # Calculate actual nutrition based on quantity
+        actual_calories = (base_calories * quantity_g) / 100
+        actual_protein = (base_protein * quantity_g) / 100
+        actual_carbs = (base_carbs * quantity_g) / 100
+        actual_fat = (base_fat * quantity_g) / 100
+        
+        # Create log entry
+        import uuid
+        log_entry = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "food_item_id": food_id,
+            "quantity_g": quantity_g,
+            "meal_type": meal_type,
+            "consumed_at": consumed_at,
+            "notes": notes,
+            "actual_nutrition": {
+                "calories": round(actual_calories, 1),
+                "protein_g": round(actual_protein, 1),
+                "carbs_g": round(actual_carbs, 1),
+                "fat_g": round(actual_fat, 1)
+            }
+        }
+        
+        # Create FoodLogEntry object
+        FoodItem, FoodLogEntry, NutritionInfo = get_models()
+        entry = FoodLogEntry(**log_entry)
+        
+        # Log to shared database
+        result = log_food_to_calorie_log_with_details(db_nutrition, db_shared, entry)
+        
+        return {
+            "status": "success",
+            "message": "Food logged successfully",
+            "food_name": food_details.get("name"),
+            "quantity_g": quantity_g,
+            "calories": actual_calories,
+            "log_id": log_entry["id"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in log_food_endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to log food: {str(e)}")
+
+
 # Import models when needed
 def get_models():
     from shared.models import FoodItem, FoodLogEntry, NutritionInfo
@@ -564,7 +741,7 @@ def execute_tool(
             entry = FoodLogEntry(**params)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid log entry: {e}")
-        return log_food_to_calorie_log(db_shared, entry)
+        return log_food_to_calorie_log_with_details(db_nutrition, db_shared, entry)
 
     elif tool == "get_user_calorie_history":
         user_id = params.get("user_id")
@@ -681,40 +858,52 @@ def get_food_nutrition(db, food_id: Any):
 
 
 def log_food_to_calorie_log(db, entry: FoodLogEntry):
+    """Legacy function - kept for backward compatibility"""
+    return log_food_to_calorie_log_with_details(None, db, entry)
+
+
+def log_food_to_calorie_log_with_details(db_nutrition, db_shared, entry: FoodLogEntry):
+    """Log food to calorie log with proper two-database flow."""
     # Validate nutrition data
     if not DataValidator.validate_nutrition_data(entry.actual_nutrition.model_dump()):
         raise HTTPException(status_code=400, detail="Invalid nutrition data")
     
-    # Check if food_logs table exists
+    # Check if food_logs table exists in shared database
     try:
-        result = db.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
+        result = db_shared.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
         if not result:
-            logger.error("food_logs table does not exist in the database")
+            logger.error("food_logs table does not exist in the shared database")
             raise HTTPException(status_code=500, detail="Database schema not properly initialized. Please contact administrator.")
     except Exception as e:
         logger.error(f"Error checking if food_logs table exists: {e}")
         raise HTTPException(status_code=500, detail="Database connection error")
     
-    # Get food details to capture serving information (only if foods table exists)
+    # Get food details from nutrition database (read-only)
     food_details = None
-    try:
-        # Check if foods table exists in this database
-        result = db.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'")).fetchone()
-        if result:
-            food_row = db.execute(
-                text("SELECT serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
-                {"food_id": entry.food_item_id}
-            ).fetchone()
-            if food_row:
-                # Convert Row to dict
-                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['serving_size', 'serving_unit', 'serving'], food_row))
-    except Exception as e:
-        logger.warning(f"Could not fetch food serving details: {e}")
-        # Continue without serving details
+    if db_nutrition:
+        try:
+            # Check if foods table exists in nutrition database
+            result = db_nutrition.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'")).fetchone()
+            if result:
+                food_row = db_nutrition.execute(
+                    text("SELECT serving_size, serving_unit, serving, name FROM foods WHERE id = :food_id"),
+                    {"food_id": entry.food_item_id}
+                ).fetchone()
+                if food_row:
+                    # Convert Row to dict
+                    food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['serving_size', 'serving_unit', 'serving', 'name'], food_row))
+                    logger.info(f"Retrieved food details for food_id {entry.food_item_id}: {food_details.get('name', 'Unknown')}")
+                else:
+                    logger.warning(f"Food with id {entry.food_item_id} not found in nutrition database")
+            else:
+                logger.warning("foods table does not exist in nutrition database")
+        except Exception as e:
+            logger.warning(f"Could not fetch food serving details from nutrition database: {e}")
+            # Continue without serving details
     
-    # Insert log with serving details
+    # Insert log into shared database
     try:
-        db.execute(
+        db_shared.execute(
             text(
                 """
             INSERT INTO food_logs (id, user_id, food_item_id, quantity_g, meal_type, consumed_at, calories, protein_g, carbs_g, fat_g, serving_size, serving_unit, serving, notes, created_at)
@@ -741,11 +930,12 @@ def log_food_to_calorie_log(db, entry: FoodLogEntry):
                 "created_at": datetime.datetime.utcnow(),
             },
         )
-        db.commit()
+        db_shared.commit()
+        logger.info(f"Successfully logged food for user {entry.user_id}, food_id {entry.food_item_id}")
         return {"status": "success", "message": "Food logged successfully"}
     except Exception as e:
         logger.error(f"Error inserting food log: {e}")
-        db.rollback()
+        db_shared.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to log food: {str(e)}")
 
 
