@@ -664,19 +664,65 @@ def log_food_endpoint(
         if isinstance(food_id, int):
             food_id = str(food_id)
         
-        # Get food details from nutrition database
+        # Get food details from nutrition database using the correct schema
         food_details = None
         try:
+            # First get basic food info
             food_row = db_nutrition.execute(
-                text("SELECT id, name, serving_size, serving_unit, serving, calories, protein_g, carbs_g, fat_g FROM foods WHERE id = :food_id"),
+                text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": food_id}
             ).fetchone()
             
-            if food_row:
-                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], food_row))
-                logger.info(f"Retrieved food details: {food_details.get('name', 'Unknown')}")
-            else:
+            if not food_row:
                 raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
+            
+            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+            
+            # Get nutrition data from food_nutrients table
+            nutrition_rows = db_nutrition.execute(
+                text("""
+                    SELECT n.name as nutrient_name, fn.amount, n.unit
+                    FROM food_nutrients fn
+                    JOIN nutrients n ON fn.nutrient_id = n.id
+                    WHERE fn.food_id = :food_id
+                """),
+                {"food_id": food_id}
+            ).fetchall()
+            
+            # Convert nutrition data to a dictionary
+            nutrition_data = {}
+            for row in nutrition_rows:
+                if hasattr(row, '_mapping'):
+                    nutrient = dict(row._mapping)
+                else:
+                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], row))
+                
+                nutrient_name = nutrient['nutrient_name'].lower()
+                amount = nutrient['amount'] or 0
+                
+                # Map nutrient names to our expected fields
+                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                    nutrition_data['calories'] = amount
+                elif 'protein' in nutrient_name:
+                    nutrition_data['protein_g'] = amount
+                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                    nutrition_data['carbs_g'] = amount
+                elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+                elif 'fat' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+            
+            # Set default values if not found
+            nutrition_data.setdefault('calories', 0)
+            nutrition_data.setdefault('protein_g', 0)
+            nutrition_data.setdefault('carbs_g', 0)
+            nutrition_data.setdefault('fat_g', 0)
+            
+            # Add nutrition data to food_details
+            food_details.update(nutrition_data)
+            
+            logger.info(f"Retrieved food details: {food_details.get('name', 'Unknown')}")
+            
         except Exception as e:
             logger.error(f"Error getting food details: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to get food details: {str(e)}")
@@ -758,17 +804,61 @@ def log_food_simple(
         if isinstance(food_id, int):
             food_id = str(food_id)
         
-        # Get food details from nutrition database
+        # Get food details from nutrition database using the correct schema
         try:
+            # First get basic food info
             food_row = db_nutrition.execute(
-                text("SELECT id, name, calories, protein_g, carbs_g, fat_g FROM foods WHERE id = :food_id"),
+                text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": food_id}
             ).fetchone()
             
             if not food_row:
                 raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
             
-            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'calories', 'protein_g', 'carbs_g', 'fat_g'], food_row))
+            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+            
+            # Get nutrition data from food_nutrients table
+            nutrition_rows = db_nutrition.execute(
+                text("""
+                    SELECT n.name as nutrient_name, fn.amount, n.unit
+                    FROM food_nutrients fn
+                    JOIN nutrients n ON fn.nutrient_id = n.id
+                    WHERE fn.food_id = :food_id
+                """),
+                {"food_id": food_id}
+            ).fetchall()
+            
+            # Convert nutrition data to a dictionary
+            nutrition_data = {}
+            for row in nutrition_rows:
+                if hasattr(row, '_mapping'):
+                    nutrient = dict(row._mapping)
+                else:
+                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], row))
+                
+                nutrient_name = nutrient['nutrient_name'].lower()
+                amount = nutrient['amount'] or 0
+                
+                # Map nutrient names to our expected fields
+                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                    nutrition_data['calories'] = amount
+                elif 'protein' in nutrient_name:
+                    nutrition_data['protein_g'] = amount
+                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                    nutrition_data['carbs_g'] = amount
+                elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+                elif 'fat' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+            
+            # Set default values if not found
+            nutrition_data.setdefault('calories', 0)
+            nutrition_data.setdefault('protein_g', 0)
+            nutrition_data.setdefault('carbs_g', 0)
+            nutrition_data.setdefault('fat_g', 0)
+            
+            # Add nutrition data to food_details
+            food_details.update(nutrition_data)
             
         except Exception as e:
             logger.error(f"Error getting food details: {e}")
@@ -855,17 +945,61 @@ def test_food_logging(
         # Convert nutrition database integer ID to UUID for shared database
         food_uuid = convert_nutrition_id_to_uuid(nutrition_food_id)
         
-        # Get food details from nutrition database using the original integer ID
+        # Get food details from nutrition database using the original integer ID and correct schema
         try:
+            # First get basic food info
             food_row = db_nutrition.execute(
-                text("SELECT id, name, calories, protein_g, carbs_g, fat_g FROM foods WHERE id = :food_id"),
+                text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": nutrition_food_id}
             ).fetchone()
             
             if not food_row:
                 raise HTTPException(status_code=404, detail=f"Food with id {nutrition_food_id} not found in nutrition database")
             
-            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'calories', 'protein_g', 'carbs_g', 'fat_g'], food_row))
+            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+            
+            # Get nutrition data from food_nutrients table
+            nutrition_rows = db_nutrition.execute(
+                text("""
+                    SELECT n.name as nutrient_name, fn.amount, n.unit
+                    FROM food_nutrients fn
+                    JOIN nutrients n ON fn.nutrient_id = n.id
+                    WHERE fn.food_id = :food_id
+                """),
+                {"food_id": nutrition_food_id}
+            ).fetchall()
+            
+            # Convert nutrition data to a dictionary
+            nutrition_data = {}
+            for row in nutrition_rows:
+                if hasattr(row, '_mapping'):
+                    nutrient = dict(row._mapping)
+                else:
+                    nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], row))
+                
+                nutrient_name = nutrient['nutrient_name'].lower()
+                amount = nutrient['amount'] or 0
+                
+                # Map nutrient names to our expected fields
+                if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                    nutrition_data['calories'] = amount
+                elif 'protein' in nutrient_name:
+                    nutrition_data['protein_g'] = amount
+                elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                    nutrition_data['carbs_g'] = amount
+                elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+                elif 'fat' in nutrient_name:
+                    nutrition_data['fat_g'] = amount
+            
+            # Set default values if not found
+            nutrition_data.setdefault('calories', 0)
+            nutrition_data.setdefault('protein_g', 0)
+            nutrition_data.setdefault('carbs_g', 0)
+            nutrition_data.setdefault('fat_g', 0)
+            
+            # Add nutrition data to food_details
+            food_details.update(nutrition_data)
             
         except Exception as e:
             logger.error(f"Error getting food details: {e}")
@@ -971,18 +1105,64 @@ def execute_tool(
             if not consumed_at:
                 consumed_at = datetime.datetime.utcnow().isoformat()
             
-            # Get food details from nutrition database to calculate nutrition
+            # Get food details from nutrition database using the correct schema
             try:
+                # First get basic food info
                 food_row = db_nutrition.execute(
-                    text("SELECT id, name, serving_size, serving_unit, serving, calories, protein_g, carbs_g, fat_g FROM foods WHERE id = :food_id"),
+                    text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                     {"food_id": food_id}
                 ).fetchone()
                 
-                if food_row:
-                    food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], food_row))
-                    logger.info(f"Retrieved food details: {food_details.get('name', 'Unknown')}")
-                else:
+                if not food_row:
                     raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
+                
+                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+                
+                # Get nutrition data from food_nutrients table
+                nutrition_rows = db_nutrition.execute(
+                    text("""
+                        SELECT n.name as nutrient_name, fn.amount, n.unit
+                        FROM food_nutrients fn
+                        JOIN nutrients n ON fn.nutrient_id = n.id
+                        WHERE fn.food_id = :food_id
+                    """),
+                    {"food_id": food_id}
+                ).fetchall()
+                
+                # Convert nutrition data to a dictionary
+                nutrition_data = {}
+                for row in nutrition_rows:
+                    if hasattr(row, '_mapping'):
+                        nutrient = dict(row._mapping)
+                    else:
+                        nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], row))
+                    
+                    nutrient_name = nutrient['nutrient_name'].lower()
+                    amount = nutrient['amount'] or 0
+                    
+                    # Map nutrient names to our expected fields
+                    if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                        nutrition_data['calories'] = amount
+                    elif 'protein' in nutrient_name:
+                        nutrition_data['protein_g'] = amount
+                    elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                        nutrition_data['carbs_g'] = amount
+                    elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                        nutrition_data['fat_g'] = amount
+                    elif 'fat' in nutrient_name:
+                        nutrition_data['fat_g'] = amount
+                
+                # Set default values if not found
+                nutrition_data.setdefault('calories', 0)
+                nutrition_data.setdefault('protein_g', 0)
+                nutrition_data.setdefault('carbs_g', 0)
+                nutrition_data.setdefault('fat_g', 0)
+                
+                # Add nutrition data to food_details
+                food_details.update(nutrition_data)
+                
+                logger.info(f"Retrieved food details: {food_details.get('name', 'Unknown')}")
+                
             except Exception as e:
                 logger.error(f"Error getting food details: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to get food details: {str(e)}")
@@ -1150,24 +1330,61 @@ def search_food_by_name(db, name: str):
 
 
 def get_food_nutrition(db, food_id: Any):
-    row = db.execute(
-        text(
-            """
-        SELECT * FROM foods WHERE id = :food_id
-        """
-        ),
+    """Get food nutrition data using the correct normalized schema."""
+    # First get basic food info
+    food_row = db.execute(
+        text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
         {"food_id": food_id},
     ).fetchone()
-    if not row:
+    
+    if not food_row:
         raise HTTPException(status_code=404, detail="Food not found")
     
-    # Convert row to dictionary properly
-    if hasattr(row, '_mapping'):
-        return dict(row._mapping)
-    else:
-        # Handle tuple case - we need to get column names
-        columns = [desc[0] for desc in db.execute(text("SELECT * FROM foods LIMIT 0")).cursor.description]
-        return dict(zip(columns, row))
+    food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+    
+    # Get nutrition data from food_nutrients table
+    nutrition_rows = db.execute(
+        text("""
+            SELECT n.name as nutrient_name, fn.amount, n.unit
+            FROM food_nutrients fn
+            JOIN nutrients n ON fn.nutrient_id = n.id
+            WHERE fn.food_id = :food_id
+        """),
+        {"food_id": food_id}
+    ).fetchall()
+    
+    # Convert nutrition data to a dictionary
+    nutrition_data = {}
+    for row in nutrition_rows:
+        if hasattr(row, '_mapping'):
+            nutrient = dict(row._mapping)
+        else:
+            nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], row))
+        
+        nutrient_name = nutrient['nutrient_name'].lower()
+        amount = nutrient['amount'] or 0
+        
+        # Map nutrient names to our expected fields
+        if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+            nutrition_data['calories'] = amount
+        elif 'protein' in nutrient_name:
+            nutrition_data['protein_g'] = amount
+        elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+            nutrition_data['carbs_g'] = amount
+        elif 'fat' in nutrient_name and 'total' in nutrient_name:
+            nutrition_data['fat_g'] = amount
+        elif 'fat' in nutrient_name:
+            nutrition_data['fat_g'] = amount
+    
+    # Set default values if not found
+    nutrition_data.setdefault('calories', 0)
+    nutrition_data.setdefault('protein_g', 0)
+    nutrition_data.setdefault('carbs_g', 0)
+    nutrition_data.setdefault('fat_g', 0)
+    
+    # Combine food details with nutrition data
+    food_details.update(nutrition_data)
+    return food_details
 
 
 def log_food_to_calorie_log(db, entry: FoodLogEntry):
