@@ -216,6 +216,7 @@
                 <div class="tab active" onclick="showTab('health')">Health Check</div>
                 <div class="tab" onclick="showTab('food')">Food Search</div>
                 <div class="tab" onclick="showTab('logging')">Food Logging</div>
+                <div class="tab" onclick="showTab('suggestions')">Meal Suggestions</div>
                 <div class="tab" onclick="showTab('analysis')">Nutrition Analysis</div>
                 <div class="tab" onclick="showTab('feedback')">Feedback & Bugs</div>
             </div>
@@ -319,6 +320,77 @@
                     </div>
                     <button class="btn" onclick="getCalorieHistory()">Get History</button>
                     <div id="historyResponse" class="response"></div>
+                </div>
+            </div>
+
+            <!-- Meal Suggestions Tab -->
+            <div id="suggestions" class="tab-content">
+                <div class="section">
+                    <h2>🍽️ Get Meal Suggestions</h2>
+                    <p>Get AI-powered meal suggestions based on user preferences and meal type.</p>
+                    <div class="form-group">
+                        <label for="suggestUserId">User ID:</label>
+                        <input type="text" id="suggestUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="suggestMealType">Meal Type:</label>
+                        <select id="suggestMealType">
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner">Dinner</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="suggestCalories">Target Calories (optional):</label>
+                        <input type="number" id="suggestCalories" placeholder="Enter target calories (optional)">
+                    </div>
+                    <button class="btn" onclick="getMealSuggestions()">Get Suggestions</button>
+                    <div id="suggestionsResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🧪 Test New User</h2>
+                    <p>Test meal suggestions for a new user with no food history.</p>
+                    <div class="form-group">
+                        <label for="newUserMealType">Meal Type:</label>
+                        <select id="newUserMealType">
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner">Dinner</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="newUserCalories">Target Calories (optional):</label>
+                        <input type="number" id="newUserCalories" value="300" placeholder="Enter target calories">
+                    </div>
+                    <button class="btn" onclick="testNewUserSuggestions()">Test New User</button>
+                    <div id="newUserResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🔄 Test Different Scenarios</h2>
+                    <p>Test meal suggestions with different parameters.</p>
+                    <div class="form-group">
+                        <label for="scenarioUser">User ID:</label>
+                        <input type="text" id="scenarioUser" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="scenarioMeal">Meal Type:</label>
+                        <select id="scenarioMeal">
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner">Dinner</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scenarioCalories">Target Calories:</label>
+                        <input type="number" id="scenarioCalories" value="500" placeholder="Enter target calories">
+                    </div>
+                    <button class="btn" onclick="testScenarioSuggestions()">Test Scenario</button>
+                    <div id="scenarioResponse" class="response"></div>
                 </div>
             </div>
 
@@ -486,6 +558,41 @@
         function displayResponse(elementId, response, type = 'info') {
             const element = document.getElementById(elementId);
             element.className = `response ${type}`;
+            
+            // Special handling for meal suggestions
+            if ((elementId === 'suggestionsResponse' || elementId === 'newUserResponse' || elementId === 'scenarioResponse') && 
+                response.data && response.data.suggestions) {
+                const data = response.data;
+                let formattedText = `🍽️ Meal Suggestions for ${data.meal_type}\n`;
+                formattedText += `Target Calories: ${data.target_calories || 'Not specified'}\n`;
+                formattedText += `AI Generated: ${data.ai_generated ? '✅ Yes' : '❌ No'}\n`;
+                if (data.user_preferences_considered !== undefined) {
+                    formattedText += `User Preferences Considered: ${data.user_preferences_considered ? '✅ Yes' : '❌ No'}\n`;
+                }
+                if (data.fallback_used !== undefined) {
+                    formattedText += `Fallback Used: ${data.fallback_used ? '✅ Yes' : '❌ No'}\n`;
+                }
+                formattedText += `\n📋 Suggestions (${data.suggestions.length} items):\n\n`;
+                
+                data.suggestions.forEach((suggestion, index) => {
+                    formattedText += `${index + 1}. 🍎 ${suggestion.name}\n`;
+                    formattedText += `   Quantity: ${suggestion.suggested_quantity_g || suggestion.quantity_g || 100}g\n`;
+                    if (suggestion.ai_reasoning) {
+                        formattedText += `   AI Reasoning: ${suggestion.ai_reasoning}\n`;
+                    }
+                    if (suggestion.nutrition_verified !== undefined) {
+                        formattedText += `   Nutrition Verified: ${suggestion.nutrition_verified ? '✅ Yes' : '❌ No'}\n`;
+                    }
+                    if (suggestion.id) {
+                        formattedText += `   Food ID: ${suggestion.id}\n`;
+                    }
+                    formattedText += '\n';
+                });
+                
+                element.textContent = formattedText;
+                return;
+            }
+            
             // Show pretty-printed JSON for Search Food and Fuzzy Search
             if (elementId === 'searchResponse' && response.data && Array.isArray(response.data)) {
                 element.textContent = JSON.stringify(response.data, null, 2);
@@ -640,6 +747,65 @@
                 target_value: parseFloat(target)
             });
             displayResponse('goalsResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function getMealSuggestions() {
+            const userId = document.getElementById('suggestUserId').value;
+            const mealType = document.getElementById('suggestMealType').value;
+            const calories = document.getElementById('suggestCalories').value;
+
+            const params = {
+                user_id: userId,
+                meal_type: mealType
+            };
+
+            if (calories && calories.trim() !== '') {
+                params.target_calories = parseFloat(calories);
+            }
+
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'get_meal_suggestions',
+                params: params
+            });
+            displayResponse('suggestionsResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function testNewUserSuggestions() {
+            const mealType = document.getElementById('newUserMealType').value;
+            const calories = document.getElementById('newUserCalories').value;
+
+            const params = {
+                user_id: 'new-user-no-history',
+                meal_type: mealType
+            };
+
+            if (calories && calories.trim() !== '') {
+                params.target_calories = parseFloat(calories);
+            }
+
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'get_meal_suggestions',
+                params: params
+            });
+            displayResponse('newUserResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function testScenarioSuggestions() {
+            const userId = document.getElementById('scenarioUser').value;
+            const mealType = document.getElementById('scenarioMeal').value;
+            const calories = document.getElementById('scenarioCalories').value;
+
+            const params = {
+                user_id: userId,
+                meal_type: mealType,
+                target_calories: parseFloat(calories)
+            };
+
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'get_meal_suggestions',
+                params: params
+            });
+            displayResponse('scenarioResponse', response, response.success ? 'success' : 'error');
         }
 
         async function submitFeedback() {
