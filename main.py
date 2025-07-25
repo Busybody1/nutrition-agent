@@ -1304,7 +1304,7 @@ def execute_tool(
         target_calories = params.get("target_calories")
         if not user_id or not meal_type:
             raise HTTPException(status_code=400, detail="Missing required parameters.")
-        return get_meal_suggestions(db_nutrition, user_id, meal_type, target_calories)
+        return get_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories)
 
     elif tool == "get_nutrition_recommendations":
         user_id = params.get("user_id")
@@ -2427,7 +2427,7 @@ def calculate_goal_progress(
 
 
 def get_meal_suggestions(
-    db, user_id: str, meal_type: str, target_calories: Optional[float] = None
+    db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None
 ):
     """Get AI-powered meal suggestions based on user preferences and calorie targets."""
     try:
@@ -2439,8 +2439,8 @@ def get_meal_suggestions(
             base_url=settings.llm.groq_base_url
         )
         
-        # Get user's recent food preferences for context
-        recent_foods = db.execute(
+        # Get user's recent food preferences for context (from shared database)
+        recent_foods = db_shared.execute(
             text(
                 """
             SELECT food_item_id, COUNT(*) as frequency
@@ -2455,8 +2455,8 @@ def get_meal_suggestions(
             {"user_id": user_id},
         ).fetchall()
 
-        # Get popular foods for this meal type
-        popular_foods = db.execute(
+        # Get popular foods for this meal type (from shared database)
+        popular_foods = db_shared.execute(
             text(
                 """
             SELECT food_item_id, COUNT(*) as frequency
@@ -2486,7 +2486,7 @@ def get_meal_suggestions(
             else:
                 popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
 
-        # Get food details for context
+        # Get food details for context (from nutrition database)
         food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
         user_preferences = []
         popular_choices = []
@@ -2495,7 +2495,7 @@ def get_meal_suggestions(
             placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
             params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
             
-            foods = db.execute(
+            foods = db_nutrition.execute(
                 text(
                     f"""
                 SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
@@ -2545,7 +2545,7 @@ def get_meal_suggestions(
         ai_suggestions = _generate_ai_meal_suggestions(client, context, target_calories)
         
         # Enrich with nutrition database data
-        enriched_suggestions = _enrich_suggestions_with_nutrition(ai_suggestions, db)
+        enriched_suggestions = _enrich_suggestions_with_nutrition(ai_suggestions, db_nutrition)
         
         return {
             "meal_type": meal_type,
@@ -2559,7 +2559,7 @@ def get_meal_suggestions(
     except Exception as e:
         logger.error(f"Error in AI meal suggestions: {e}")
         # Fallback to rule-based suggestions
-        return _get_fallback_meal_suggestions(db, user_id, meal_type, target_calories)
+        return _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories)
 
 
 def _generate_ai_meal_suggestions(client, context: str, target_calories: Optional[float] = None) -> List[Dict]:
@@ -2679,10 +2679,10 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
     return enriched_suggestions[:10]  # Limit to 10 suggestions
 
 
-def _get_fallback_meal_suggestions(db, user_id: str, meal_type: str, target_calories: Optional[float] = None) -> Dict:
+def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None) -> Dict:
     """Fallback rule-based meal suggestions when AI fails."""
-    # Get user's recent food preferences
-    recent_foods = db.execute(
+    # Get user's recent food preferences (from shared database)
+    recent_foods = db_shared.execute(
         text(
             """
         SELECT food_item_id, COUNT(*) as frequency
@@ -2697,8 +2697,8 @@ def _get_fallback_meal_suggestions(db, user_id: str, meal_type: str, target_calo
         {"user_id": user_id},
     ).fetchall()
 
-    # Get popular foods for this meal type
-    popular_foods = db.execute(
+    # Get popular foods for this meal type (from shared database)
+    popular_foods = db_shared.execute(
         text(
             """
         SELECT food_item_id, COUNT(*) as frequency
@@ -2734,11 +2734,11 @@ def _get_fallback_meal_suggestions(db, user_id: str, meal_type: str, target_calo
     if not food_ids:
         return {"suggestions": [], "message": "No food preferences found", "ai_generated": False}
 
-    # Get food details
+    # Get food details (from nutrition database)
     placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
     params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
 
-    foods = db.execute(
+    foods = db_nutrition.execute(
         text(
             f"""
         SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
