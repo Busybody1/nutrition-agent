@@ -558,38 +558,10 @@
         function displayResponse(elementId, response, type = 'info') {
             const element = document.getElementById(elementId);
             element.className = `response ${type}`;
-            
-            // Special handling for meal suggestions
+            // For meal suggestions, show raw JSON
             if ((elementId === 'suggestionsResponse' || elementId === 'newUserResponse' || elementId === 'scenarioResponse') && 
                 response.data && response.data.suggestions) {
-                const data = response.data;
-                let formattedText = `🍽️ Meal Suggestions for ${data.meal_type}\n`;
-                formattedText += `Target Calories: ${data.target_calories || 'Not specified'}\n`;
-                formattedText += `AI Generated: ${data.ai_generated ? '✅ Yes' : '❌ No'}\n`;
-                if (data.user_preferences_considered !== undefined) {
-                    formattedText += `User Preferences Considered: ${data.user_preferences_considered ? '✅ Yes' : '❌ No'}\n`;
-                }
-                if (data.fallback_used !== undefined) {
-                    formattedText += `Fallback Used: ${data.fallback_used ? '✅ Yes' : '❌ No'}\n`;
-                }
-                formattedText += `\n📋 Suggestions (${data.suggestions.length} items):\n\n`;
-                
-                data.suggestions.forEach((suggestion, index) => {
-                    formattedText += `${index + 1}. 🍎 ${suggestion.name}\n`;
-                    formattedText += `   Quantity: ${suggestion.suggested_quantity_g || suggestion.quantity_g || 100}g\n`;
-                    if (suggestion.ai_reasoning) {
-                        formattedText += `   AI Reasoning: ${suggestion.ai_reasoning}\n`;
-                    }
-                    if (suggestion.nutrition_verified !== undefined) {
-                        formattedText += `   Nutrition Verified: ${suggestion.nutrition_verified ? '✅ Yes' : '❌ No'}\n`;
-                    }
-                    if (suggestion.id) {
-                        formattedText += `   Food ID: ${suggestion.id}\n`;
-                    }
-                    formattedText += '\n';
-                });
-                
-                element.textContent = formattedText;
+                element.textContent = JSON.stringify(response.data, null, 2);
                 return;
             }
             

@@ -2643,19 +2643,27 @@ def _parse_ai_suggestions(ai_response: str) -> List[Dict]:
 
 
 def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[Dict]:
-    """Enrich AI suggestions with nutrition database data."""
+    """Enrich AI suggestions with nutrition database data and always include macros."""
     enriched_suggestions = []
-    
     for suggestion in ai_suggestions:
         food_name = suggestion.get("name", "")
         if not food_name:
             continue
-            
-        # Search for the food in the database
         food_data = _get_food_nutrition_from_db(db, food_name)
-        
+        # Always include macros, even if missing
+        macros = {
+            "calories": 0,
+            "protein_g": 0,
+            "carbs_g": 0,
+            "fat_g": 0
+        }
         if food_data:
-            # Use database data but keep AI reasoning
+            macros.update({
+                "calories": food_data.get("calories", 0),
+                "protein_g": food_data.get("protein_g", 0),
+                "carbs_g": food_data.get("carbs_g", 0),
+                "fat_g": food_data.get("fat_g", 0)
+            })
             enriched_suggestion = {
                 "id": food_data.get("id"),
                 "name": food_data.get("name", food_name),
@@ -2666,25 +2674,23 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
                 "serving": food_data.get("serving"),
                 "suggested_quantity_g": suggestion.get("quantity_g", 100),
                 "ai_reasoning": suggestion.get("reasoning", ""),
-                "nutrition_verified": True
+                "nutrition_verified": True,
+                **macros
             }
         else:
-            # Keep AI suggestion but mark as not verified
             enriched_suggestion = {
                 "name": food_name,
                 "suggested_quantity_g": suggestion.get("quantity_g", 100),
                 "ai_reasoning": suggestion.get("reasoning", ""),
-                "nutrition_verified": False
+                "nutrition_verified": False,
+                **macros
             }
-        
         enriched_suggestions.append(enriched_suggestion)
-    
-    return enriched_suggestions[:10]  # Limit to 10 suggestions
+    return enriched_suggestions[:10]
 
 
 def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None) -> Dict:
-    """Fallback rule-based meal suggestions when AI fails."""
-    # Get user's recent food preferences (from shared database)
+    """Fallback rule-based meal suggestions when AI fails. Always include macros."""
     user_uuid = _get_user_uuid(user_id)
     recent_foods = db_shared.execute(
         text(
@@ -2700,8 +2706,6 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
         ),
         {"user_id": user_uuid},
     ).fetchall()
-
-    # Get popular foods for this meal type (from shared database)
     popular_foods = db_shared.execute(
         text(
             """
@@ -2716,35 +2720,38 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
         ),
         {"meal_type": meal_type},
     ).fetchall()
-
-    # Convert rows to dictionaries properly
     recent_foods_dict = []
     for row in recent_foods:
         if hasattr(row, '_mapping'):
             recent_foods_dict.append(dict(row._mapping))
         else:
             recent_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
-
     popular_foods_dict = []
     for row in popular_foods:
         if hasattr(row, '_mapping'):
             popular_foods_dict.append(dict(row._mapping))
         else:
             popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
-
-    # Combine and get food details
     food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
-
+    suggestions = []
     if not food_ids:
-        # If no user preferences found, use general foods for this meal type
         general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
-        suggestions = []
         for food_name in general_foods:
+            macros = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
+            food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+            if food_data:
+                macros.update({
+                    "calories": food_data.get("calories", 0),
+                    "protein_g": food_data.get("protein_g", 0),
+                    "carbs_g": food_data.get("carbs_g", 0),
+                    "fat_g": food_data.get("fat_g", 0)
+                })
             suggestions.append({
                 "name": food_name,
                 "suggested_quantity_g": 100,
                 "reasoning": f"Common nutritious food for {meal_type}",
-                "found_in_db": True
+                "found_in_db": bool(food_data),
+                **macros
             })
         return {
             "meal_type": meal_type,
@@ -2754,11 +2761,8 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
             "fallback_used": True,
             "message": "Using general food suggestions"
         }
-
-    # Get food details (from nutrition database)
     placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
     params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
-
     foods = db_nutrition.execute(
         text(
             f"""
@@ -2769,26 +2773,28 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
         ),
         params,
     ).fetchall()
-
-    # Convert rows to dictionaries properly
-    suggestions = []
     for food in foods:
         if hasattr(food, '_mapping'):
             food_dict = dict(food._mapping)
         else:
             columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
             food_dict = dict(zip(columns, food))
-        
-        # Calculate suggested portion based on target calories (default 100g)
+        macros = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
+        food_data = _get_food_nutrition_from_db(db_nutrition, food_dict["name"])
+        if food_data:
+            macros.update({
+                "calories": food_data.get("calories", 0),
+                "protein_g": food_data.get("protein_g", 0),
+                "carbs_g": food_data.get("carbs_g", 0),
+                "fat_g": food_data.get("fat_g", 0)
+            })
         if target_calories:
-            # Use a default calorie value since we don't have calories in the nutrition DB
-            default_calories = 100  # Default calories per 100g
+            default_calories = 100
             suggested_quantity = min(200, (target_calories / default_calories) * 100)
             food_dict["suggested_quantity_g"] = round(suggested_quantity, 0)
         else:
             food_dict["suggested_quantity_g"] = 100
-        suggestions.append(food_dict)
-
+        suggestions.append({**food_dict, **macros})
     return {
         "meal_type": meal_type,
         "target_calories": target_calories,
