@@ -2524,7 +2524,7 @@ def get_meal_suggestions(
 
         # If no preferences found, get some general foods for this meal type
         if not user_preferences and not popular_choices:
-            general_foods = _get_general_foods_for_meal_type(db, meal_type)
+            general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
             popular_choices = general_foods
 
         # Prepare context for AI
@@ -2736,7 +2736,24 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
     food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
 
     if not food_ids:
-        return {"suggestions": [], "message": "No food preferences found", "ai_generated": False}
+        # If no user preferences found, use general foods for this meal type
+        general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
+        suggestions = []
+        for food_name in general_foods:
+            suggestions.append({
+                "name": food_name,
+                "suggested_quantity_g": 100,
+                "reasoning": f"Common nutritious food for {meal_type}",
+                "found_in_db": True
+            })
+        return {
+            "meal_type": meal_type,
+            "target_calories": target_calories,
+            "suggestions": suggestions,
+            "ai_generated": False,
+            "fallback_used": True,
+            "message": "Using general food suggestions"
+        }
 
     # Get food details (from nutrition database)
     placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
