@@ -10,6 +10,7 @@ import difflib
 import math
 from contextlib import asynccontextmanager
 import openai
+import uuid
 
 # Import models and utilities
 from shared import FoodLogEntry, DataValidator
@@ -798,7 +799,6 @@ def log_food_endpoint(
         actual_fat = (base_fat * quantity_g) / 100
         
         # Create log entry with UUID for food_item_id (nutrition DB uses int, shared DB expects UUID)
-        import uuid
         # Generate a UUID based on the nutrition database food ID to maintain consistency
         food_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"nutrition_food_{food_id}")
         
@@ -934,7 +934,6 @@ def log_food_simple(
         actual_fat = (base_fat * quantity_g) / 100
         
         # Create log entry with UUID for food_item_id (nutrition DB uses int, shared DB expects UUID)
-        import uuid
         # Generate a UUID based on the nutrition database food ID to maintain consistency
         food_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"nutrition_food_{food_id}")
         
@@ -1069,7 +1068,6 @@ def test_food_logging(
         actual_fat = (base_fat * quantity_g) / 100
         
         # Create log entry with proper UUID format
-        import uuid
         log_entry = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
@@ -1353,6 +1351,10 @@ def convert_uuid_to_nutrition_id(food_uuid: str) -> int:
         return None
     except Exception:
         return None
+
+def _get_user_uuid(user_id: str) -> str:
+    """Convert string user_id to UUID format for database queries."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"user_{user_id}"))
 
 def search_food_by_name(db, name: str):
     name = DataValidator.sanitize_string(name)
@@ -2440,6 +2442,7 @@ def get_meal_suggestions(
         )
         
         # Get user's recent food preferences for context (from shared database)
+        user_uuid = _get_user_uuid(user_id)
         recent_foods = db_shared.execute(
             text(
                 """
@@ -2452,7 +2455,7 @@ def get_meal_suggestions(
             LIMIT 10
             """
             ),
-            {"user_id": user_id},
+            {"user_id": user_uuid},
         ).fetchall()
 
         # Get popular foods for this meal type (from shared database)
@@ -2682,6 +2685,7 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
 def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None) -> Dict:
     """Fallback rule-based meal suggestions when AI fails."""
     # Get user's recent food preferences (from shared database)
+    user_uuid = _get_user_uuid(user_id)
     recent_foods = db_shared.execute(
         text(
             """
@@ -2694,7 +2698,7 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
         LIMIT 10
         """
         ),
-        {"user_id": user_id},
+        {"user_id": user_uuid},
     ).fetchall()
 
     # Get popular foods for this meal type (from shared database)
