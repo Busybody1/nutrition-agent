@@ -3313,13 +3313,35 @@ def get_models():
 def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
     """Get nutrition data for a food from the nutrition database."""
     try:
-        # Search for food by name (fuzzy search)
+        # Search for food by name with nutrition data, prioritizing foods with calories
         query = """
-        SELECT f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving
+        SELECT 
+            f.id, 
+            f.name, 
+            f.brand_id, 
+            f.category_id, 
+            f.serving_size, 
+            f.serving_unit, 
+            f.serving,
+            fn.amount as calories,
+            fn2.amount as protein_g,
+            fn3.amount as carbs_g,
+            fn4.amount as fat_g
         FROM foods f
+        LEFT JOIN food_nutrients fn ON f.id = fn.food_id 
+            AND fn.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Energy (kcal)' LIMIT 1)
+        LEFT JOIN food_nutrients fn2 ON f.id = fn2.food_id 
+            AND fn2.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Protein' LIMIT 1)
+        LEFT JOIN food_nutrients fn3 ON f.id = fn3.food_id 
+            AND fn3.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Carbohydrates' LIMIT 1)
+        LEFT JOIN food_nutrients fn4 ON f.id = fn4.food_id 
+            AND fn4.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Total Fat' LIMIT 1)
         WHERE LOWER(f.name) LIKE LOWER(:food_name)
         OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
-        LIMIT 1
+        ORDER BY 
+            CASE WHEN fn.amount IS NOT NULL AND fn.amount > 0 THEN 1 ELSE 2 END,
+            fn.amount DESC NULLS LAST
+        LIMIT 5
         """
         
         # Try exact match first, then partial match
@@ -3331,10 +3353,39 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
         if not rows:
             return None
         
-        food_row = rows[0]
-        food_data = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
+        # Find the best match (prioritize foods with calories)
+        best_match = None
+        for row in rows:
+            if hasattr(row, '_mapping'):
+                food_data = dict(row._mapping)
+            else:
+                food_data = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], row))
+            
+            # Check if this food has calories (Energy)
+            calories = food_data.get('calories')
+            if calories is not None and calories > 0:
+                best_match = food_data
+                break
         
-        return food_data
+        # If no food with calories found, use the first result
+        if best_match is None and rows:
+            row = rows[0]
+            if hasattr(row, '_mapping'):
+                best_match = dict(row._mapping)
+            else:
+                best_match = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], row))
+        
+        if best_match:
+            # Set default values for missing nutrition data
+            best_match.setdefault('calories', 0)
+            best_match.setdefault('protein_g', 0)
+            best_match.setdefault('carbs_g', 0)
+            best_match.setdefault('fat_g', 0)
+            
+            logger.info(f"Found food '{best_match['name']}' with calories: {best_match['calories']}")
+            return best_match
+        
+        return None
         
     except Exception as e:
         logger.error(f"Error getting nutrition data for {food_name}: {e}")
@@ -3645,3 +3696,219 @@ def _get_general_foods_for_meal_type(db, meal_type: str) -> List[str]:
         logger.error(f"Error getting general foods for {meal_type}: {e}")
         # Return basic fallback foods
         return ["oatmeal", "eggs", "chicken breast", "rice", "vegetables"]
+
+@app.get("/debug/foods-with-nutrition")
+def debug_foods_with_nutrition(db=Depends(get_nutrition_db)):
+    """Debug endpoint to check foods with nutrition data in the database."""
+    try:
+        # Query to find foods with nutrition data, especially calories
+        query = """
+        SELECT 
+            f.id, 
+            f.name, 
+            fn.amount as calories,
+            fn2.amount as protein_g,
+            fn3.amount as carbs_g,
+            fn4.amount as fat_g,
+            n.name as calorie_nutrient_name
+        FROM foods f
+        LEFT JOIN food_nutrients fn ON f.id = fn.food_id 
+            AND fn.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Energy (kcal)' LIMIT 1)
+        LEFT JOIN food_nutrients fn2 ON f.id = fn2.food_id 
+            AND fn2.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Protein' LIMIT 1)
+        LEFT JOIN food_nutrients fn3 ON f.id = fn3.food_id 
+            AND fn3.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Carbohydrates' LIMIT 1)
+        LEFT JOIN food_nutrients fn4 ON f.id = fn4.food_id 
+            AND fn4.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Total Fat' LIMIT 1)
+        LEFT JOIN nutrients n ON fn.nutrient_id = n.id
+        WHERE fn.amount IS NOT NULL AND fn.amount > 0
+        ORDER BY fn.amount DESC
+        LIMIT 20
+        """
+        
+        rows = db.execute(text(query)).fetchall()
+        
+        foods_with_nutrition = []
+        for row in rows:
+            if hasattr(row, '_mapping'):
+                food_data = dict(row._mapping)
+            else:
+                food_data = dict(zip(['id', 'name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'calorie_nutrient_name'], row))
+            
+            foods_with_nutrition.append({
+                "id": food_data['id'],
+                "name": food_data['name'],
+                "calories": food_data['calories'],
+                "protein_g": food_data['protein_g'] or 0,
+                "carbs_g": food_data['carbs_g'] or 0,
+                "fat_g": food_data['fat_g'] or 0,
+                "calorie_nutrient_name": food_data['calorie_nutrient_name']
+            })
+        
+        # Also get a count of total foods and foods with calories
+        total_foods_query = "SELECT COUNT(*) FROM foods"
+        foods_with_calories_query = """
+        SELECT COUNT(*) FROM foods f
+        JOIN food_nutrients fn ON f.id = fn.food_id 
+        JOIN nutrients n ON fn.nutrient_id = n.id
+        WHERE n.name = 'Energy (kcal)'
+        """
+        
+        total_foods = db.execute(text(total_foods_query)).scalar()
+        foods_with_calories = db.execute(text(foods_with_calories_query)).scalar()
+        
+        return {
+            "status": "success",
+            "total_foods_in_database": total_foods,
+            "foods_with_calories": foods_with_calories,
+            "sample_foods_with_nutrition": foods_with_nutrition,
+            "note": "This shows foods that have calorie data in the food_nutrients table"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug_foods_with_nutrition: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+@app.post("/test-meal-plan-nutrition")
+def test_meal_plan_nutrition(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+    """Test endpoint to verify meal plan nutrition data retrieval."""
+    try:
+        user_id = request.get("user_id", "test_user")
+        daily_calories = request.get("daily_calories", 2000)
+        meal_count = request.get("meal_count", 2)
+        dietary_restrictions = request.get("dietary_restrictions", [])
+        
+        # Create a simple test meal plan
+        test_meal_plan = [
+            {
+                "meal_type": "breakfast",
+                "foods": [
+                    {
+                        "name": "oatmeal",
+                        "quantity_g": 50,
+                        "reasoning": "High fiber, complex carbs for sustained energy"
+                    }
+                ]
+            },
+            {
+                "meal_type": "lunch",
+                "foods": [
+                    {
+                        "name": "chicken breast",
+                        "quantity_g": 150,
+                        "reasoning": "Lean protein source"
+                    }
+                ]
+            }
+        ]
+        
+        # Test the nutrition enrichment function
+        enriched_meal_plan = _enrich_meal_plan_with_nutrition(test_meal_plan, db_nutrition)
+        
+        # Calculate totals
+        total_calories = sum(meal["total_calories"] for meal in enriched_meal_plan)
+        total_protein = sum(meal["total_protein_g"] for meal in enriched_meal_plan)
+        total_carbs = sum(meal["total_carbs_g"] for meal in enriched_meal_plan)
+        total_fat = sum(meal["total_fat_g"] for meal in enriched_meal_plan)
+        
+        return {
+            "status": "success",
+            "test_meal_plan": enriched_meal_plan,
+            "totals": {
+                "total_calories": total_calories,
+                "total_protein_g": total_protein,
+                "total_carbs_g": total_carbs,
+                "total_fat_g": total_fat
+            },
+            "note": "This tests if the nutrition data retrieval is working properly"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test_meal_plan_nutrition: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+@app.get("/debug/nutrient-ids")
+def debug_nutrient_ids(db=Depends(get_nutrition_db)):
+    """Debug endpoint to show the exact nutrient IDs and names being used."""
+    try:
+        # Query to get the specific nutrient IDs we're using
+        query = """
+        SELECT id, name, unit 
+        FROM nutrients 
+        WHERE name IN ('Energy (kcal)', 'Protein', 'Carbohydrates', 'Total Fat')
+        ORDER BY name
+        """
+        
+        rows = db.execute(text(query)).fetchall()
+        
+        nutrient_info = []
+        for row in rows:
+            if hasattr(row, '_mapping'):
+                nutrient_data = dict(row._mapping)
+            else:
+                nutrient_data = dict(zip(['id', 'name', 'unit'], row))
+            
+            nutrient_info.append({
+                "id": nutrient_data['id'],
+                "name": nutrient_data['name'],
+                "unit": nutrient_data['unit']
+            })
+        
+        # Also get a sample of foods with these nutrients
+        sample_query = """
+        SELECT 
+            f.name as food_name,
+            fn.amount as calories,
+            fn2.amount as protein_g,
+            fn3.amount as carbs_g,
+            fn4.amount as fat_g
+        FROM foods f
+        LEFT JOIN food_nutrients fn ON f.id = fn.food_id 
+            AND fn.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Energy (kcal)' LIMIT 1)
+        LEFT JOIN food_nutrients fn2 ON f.id = fn2.food_id 
+            AND fn2.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Protein' LIMIT 1)
+        LEFT JOIN food_nutrients fn3 ON f.id = fn3.food_id 
+            AND fn3.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Carbohydrates' LIMIT 1)
+        LEFT JOIN food_nutrients fn4 ON f.id = fn4.food_id 
+            AND fn4.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Total Fat' LIMIT 1)
+        WHERE fn.amount IS NOT NULL AND fn.amount > 0
+        ORDER BY fn.amount DESC
+        LIMIT 5
+        """
+        
+        sample_rows = db.execute(text(sample_query)).fetchall()
+        
+        sample_foods = []
+        for row in sample_rows:
+            if hasattr(row, '_mapping'):
+                food_data = dict(row._mapping)
+            else:
+                food_data = dict(zip(['food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g'], row))
+            
+            sample_foods.append({
+                "food_name": food_data['food_name'],
+                "calories": food_data['calories'],
+                "protein_g": food_data['protein_g'] or 0,
+                "carbs_g": food_data['carbs_g'] or 0,
+                "fat_g": food_data['fat_g'] or 0
+            })
+        
+        return {
+            "status": "success",
+            "nutrient_ids_being_used": nutrient_info,
+            "sample_foods_with_nutrition": sample_foods,
+            "note": "These are the exact nutrient IDs and names being used for meal plan nutrition calculation"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug_nutrient_ids: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
