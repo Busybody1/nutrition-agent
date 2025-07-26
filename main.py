@@ -3579,13 +3579,20 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
             
             # Search for food in nutrition database
             nutrition_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+            logger.info(f"Food: {food_name}, Nutrition data: {nutrition_data}")
             
             if nutrition_data:
-                # Calculate nutrition based on quantity
-                actual_calories = (nutrition_data.get("calories", 0) * quantity_g) / 100
-                actual_protein = (nutrition_data.get("protein_g", 0) * quantity_g) / 100
-                actual_carbs = (nutrition_data.get("carbs_g", 0) * quantity_g) / 100
-                actual_fat = (nutrition_data.get("fat_g", 0) * quantity_g) / 100
+                # Calculate nutrition based on quantity, handle None values
+                calories = nutrition_data.get("calories")
+                protein = nutrition_data.get("protein_g")
+                carbs = nutrition_data.get("carbs_g")
+                fat = nutrition_data.get("fat_g")
+                
+                # Convert None to 0 for calculations
+                actual_calories = ((calories or 0) * quantity_g) / 100
+                actual_protein = ((protein or 0) * quantity_g) / 100
+                actual_carbs = ((carbs or 0) * quantity_g) / 100
+                actual_fat = ((fat or 0) * quantity_g) / 100
                 
                 enriched_food = {
                     "name": food_name,
@@ -3910,5 +3917,53 @@ def debug_nutrient_ids(db=Depends(get_nutrition_db)):
         logger.error(f"Error in debug_nutrient_ids: {e}")
         return {
             "status": "error",
+            "error": str(e)
+        }
+
+@app.get("/debug/test-nutrition/{food_name}")
+def debug_test_nutrition(food_name: str, db=Depends(get_nutrition_db)):
+    """Debug endpoint to test nutrition data retrieval for a specific food."""
+    try:
+        # Test the nutrition data retrieval
+        nutrition_data = _get_food_nutrition_from_db(db, food_name)
+        
+        if nutrition_data:
+            # Test the calculation
+            quantity_g = 100
+            calories = nutrition_data.get("calories")
+            protein = nutrition_data.get("protein_g")
+            carbs = nutrition_data.get("carbs_g")
+            fat = nutrition_data.get("fat_g")
+            
+            # Calculate with None handling
+            actual_calories = ((calories or 0) * quantity_g) / 100
+            actual_protein = ((protein or 0) * quantity_g) / 100
+            actual_carbs = ((carbs or 0) * quantity_g) / 100
+            actual_fat = ((fat or 0) * quantity_g) / 100
+            
+            return {
+                "status": "success",
+                "food_name": food_name,
+                "raw_nutrition_data": nutrition_data,
+                "calculated_nutrition": {
+                    "calories": round(actual_calories, 1),
+                    "protein_g": round(actual_protein, 1),
+                    "carbs_g": round(actual_carbs, 1),
+                    "fat_g": round(actual_fat, 1)
+                },
+                "note": "This tests the nutrition calculation with None handling"
+            }
+        else:
+            return {
+                "status": "not_found",
+                "food_name": food_name,
+                "note": "Food not found in database"
+            }
+        
+    except Exception as e:
+        logger.error(f"Error in debug_test_nutrition: {e}")
+        return {
+            "status": "error",
+            "food_name": food_name,
             "error": str(e)
         }
