@@ -621,25 +621,36 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
     # Create comprehensive nutrients array and nutrition summary
     nutrients = []
     nutrition_summary = {
-        "calories": 0,
-        "protein_g": 0,
-        "carbs_g": 0,
-        "fat_g": 0,
-        "fiber_g": 0,
-        "sugar_g": 0,
-        "sodium_mg": 0,
-        "cholesterol_mg": 0,
-        "vitamin_a_iu": 0,
-        "vitamin_c_mg": 0,
-        "vitamin_d_iu": 0,
-        "calcium_mg": 0,
-        "iron_mg": 0
+        "energy_kcal": 0,
+        "energy": 0,
+        "energy_from_fat": 0,
+        "total_fat": 0,
+        "unsaturated_fat": 0,
+        "omega_3_fat": 0,
+        "trans_fat": 0,
+        "cholesterol": 0,
+        "carbohydrates": 0,
+        "sugars": 0,
+        "fiber": 0,
+        "protein": 0,
+        "salt": 0,
+        "sodium": 0,
+        "potassium": 0,
+        "calcium": 0,
+        "iron": 0,
+        "magnesium": 0,
+        "vitamin_d": 0,
+        "vitamin_c": 0,
+        "alcohol": 0,
+        "caffeine": 0,
+        "taurine": 0,
+        "glycemic_index": 0
     }
     
     for r in converted_rows:
         if r["nutrient_id"] is not None:
             amount = r["amount"] or 0
-            nutrient_name_lower = r["nutrient_name"].lower()
+            nutrient_name = r["nutrient_name"]
             
             # Add to comprehensive nutrients array
             nutrients.append({
@@ -650,35 +661,55 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
                 "category": r.get("nutrient_category", "general")
             })
             
-            # Also populate summary for backward compatibility
-            if 'calorie' in nutrient_name_lower or 'energy' in nutrient_name_lower:
-                nutrition_summary['calories'] = amount
-            elif 'protein' in nutrient_name_lower:
-                nutrition_summary['protein_g'] = amount
-            elif 'carbohydrate' in nutrient_name_lower or 'carb' in nutrient_name_lower:
-                nutrition_summary['carbs_g'] = amount
-            elif 'fat' in nutrient_name_lower and 'total' in nutrient_name_lower:
-                nutrition_summary['fat_g'] = amount
-            elif 'fat' in nutrient_name_lower:
-                nutrition_summary['fat_g'] = amount
-            elif 'fiber' in nutrient_name_lower:
-                nutrition_summary['fiber_g'] = amount
-            elif 'sugar' in nutrient_name_lower:
-                nutrition_summary['sugar_g'] = amount
-            elif 'sodium' in nutrient_name_lower:
-                nutrition_summary['sodium_mg'] = amount
-            elif 'cholesterol' in nutrient_name_lower:
-                nutrition_summary['cholesterol_mg'] = amount
-            elif 'vitamin a' in nutrient_name_lower:
-                nutrition_summary['vitamin_a_iu'] = amount
-            elif 'vitamin c' in nutrient_name_lower:
-                nutrition_summary['vitamin_c_mg'] = amount
-            elif 'vitamin d' in nutrient_name_lower:
-                nutrition_summary['vitamin_d_iu'] = amount
-            elif 'calcium' in nutrient_name_lower:
-                nutrition_summary['calcium_mg'] = amount
-            elif 'iron' in nutrient_name_lower:
-                nutrition_summary['iron_mg'] = amount
+            # Map to nutrition summary using exact database names
+            if nutrient_name == "Energy (kcal)":
+                nutrition_summary['energy_kcal'] = amount
+            elif nutrient_name == "Energy":
+                nutrition_summary['energy'] = amount
+            elif nutrient_name == "Energy from Fat":
+                nutrition_summary['energy_from_fat'] = amount
+            elif nutrient_name == "Total Fat":
+                nutrition_summary['total_fat'] = amount
+            elif nutrient_name == "Unsaturated Fat":
+                nutrition_summary['unsaturated_fat'] = amount
+            elif nutrient_name == "Omega-3 Fat":
+                nutrition_summary['omega_3_fat'] = amount
+            elif nutrient_name == "Trans Fat":
+                nutrition_summary['trans_fat'] = amount
+            elif nutrient_name == "Cholesterol":
+                nutrition_summary['cholesterol'] = amount
+            elif nutrient_name == "Carbohydrates":
+                nutrition_summary['carbohydrates'] = amount
+            elif nutrient_name == "Sugars":
+                nutrition_summary['sugars'] = amount
+            elif nutrient_name == "Fiber":
+                nutrition_summary['fiber'] = amount
+            elif nutrient_name == "Protein":
+                nutrition_summary['protein'] = amount
+            elif nutrient_name == "Salt":
+                nutrition_summary['salt'] = amount
+            elif nutrient_name == "Sodium":
+                nutrition_summary['sodium'] = amount
+            elif nutrient_name == "Potassium":
+                nutrition_summary['potassium'] = amount
+            elif nutrient_name == "Calcium":
+                nutrition_summary['calcium'] = amount
+            elif nutrient_name == "Iron":
+                nutrition_summary['iron'] = amount
+            elif nutrient_name == "Magnesium":
+                nutrition_summary['magnesium'] = amount
+            elif nutrient_name == "Vitamin D":
+                nutrition_summary['vitamin_d'] = amount
+            elif nutrient_name == "Vitamin C":
+                nutrition_summary['vitamin_c'] = amount
+            elif nutrient_name == "Alcohol":
+                nutrition_summary['alcohol'] = amount
+            elif nutrient_name == "Caffeine":
+                nutrition_summary['caffeine'] = amount
+            elif nutrient_name == "Taurine":
+                nutrition_summary['taurine'] = amount
+            elif nutrient_name == "Glycemic Index":
+                nutrition_summary['glycemic_index'] = amount
 
     return {
         "id": food_row["food_id"],
@@ -1408,19 +1439,30 @@ def search_food_by_name(db, name: str):
             # Convert nutrition data to comprehensive nutrients array format
             nutrients = []
             nutrition_summary = {
-                "calories": 0,
-                "protein_g": 0,
-                "carbs_g": 0,
-                "fat_g": 0,
-                "fiber_g": 0,
-                "sugar_g": 0,
-                "sodium_mg": 0,
-                "cholesterol_mg": 0,
-                "vitamin_a_iu": 0,
-                "vitamin_c_mg": 0,
-                "vitamin_d_iu": 0,
-                "calcium_mg": 0,
-                "iron_mg": 0
+                "energy_kcal": 0,
+                "energy": 0,
+                "energy_from_fat": 0,
+                "total_fat": 0,
+                "unsaturated_fat": 0,
+                "omega_3_fat": 0,
+                "trans_fat": 0,
+                "cholesterol": 0,
+                "carbohydrates": 0,
+                "sugars": 0,
+                "fiber": 0,
+                "protein": 0,
+                "salt": 0,
+                "sodium": 0,
+                "potassium": 0,
+                "calcium": 0,
+                "iron": 0,
+                "magnesium": 0,
+                "vitamin_d": 0,
+                "vitamin_c": 0,
+                "alcohol": 0,
+                "caffeine": 0,
+                "taurine": 0,
+                "glycemic_index": 0
             }
             
             for nutrition_row in nutrition_rows:
@@ -1430,7 +1472,7 @@ def search_food_by_name(db, name: str):
                     nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], nutrition_row))
                 
                 amount = nutrient['amount'] or 0
-                nutrient_name_lower = nutrient['nutrient_name'].lower()
+                nutrient_name = nutrient['nutrient_name']
                 
                 # Add to comprehensive nutrients array
                 nutrients.append({
@@ -1441,35 +1483,55 @@ def search_food_by_name(db, name: str):
                     "category": nutrient.get('nutrient_category', 'general')
                 })
                 
-                # Also populate summary for backward compatibility
-                if 'calorie' in nutrient_name_lower or 'energy' in nutrient_name_lower:
-                    nutrition_summary['calories'] = amount
-                elif 'protein' in nutrient_name_lower:
-                    nutrition_summary['protein_g'] = amount
-                elif 'carbohydrate' in nutrient_name_lower or 'carb' in nutrient_name_lower:
-                    nutrition_summary['carbs_g'] = amount
-                elif 'fat' in nutrient_name_lower and 'total' in nutrient_name_lower:
-                    nutrition_summary['fat_g'] = amount
-                elif 'fat' in nutrient_name_lower:
-                    nutrition_summary['fat_g'] = amount
-                elif 'fiber' in nutrient_name_lower:
-                    nutrition_summary['fiber_g'] = amount
-                elif 'sugar' in nutrient_name_lower:
-                    nutrition_summary['sugar_g'] = amount
-                elif 'sodium' in nutrient_name_lower:
-                    nutrition_summary['sodium_mg'] = amount
-                elif 'cholesterol' in nutrient_name_lower:
-                    nutrition_summary['cholesterol_mg'] = amount
-                elif 'vitamin a' in nutrient_name_lower:
-                    nutrition_summary['vitamin_a_iu'] = amount
-                elif 'vitamin c' in nutrient_name_lower:
-                    nutrition_summary['vitamin_c_mg'] = amount
-                elif 'vitamin d' in nutrient_name_lower:
-                    nutrition_summary['vitamin_d_iu'] = amount
-                elif 'calcium' in nutrient_name_lower:
-                    nutrition_summary['calcium_mg'] = amount
-                elif 'iron' in nutrient_name_lower:
-                    nutrition_summary['iron_mg'] = amount
+                # Map to nutrition summary using exact database names
+                if nutrient_name == "Energy (kcal)":
+                    nutrition_summary['energy_kcal'] = amount
+                elif nutrient_name == "Energy":
+                    nutrition_summary['energy'] = amount
+                elif nutrient_name == "Energy from Fat":
+                    nutrition_summary['energy_from_fat'] = amount
+                elif nutrient_name == "Total Fat":
+                    nutrition_summary['total_fat'] = amount
+                elif nutrient_name == "Unsaturated Fat":
+                    nutrition_summary['unsaturated_fat'] = amount
+                elif nutrient_name == "Omega-3 Fat":
+                    nutrition_summary['omega_3_fat'] = amount
+                elif nutrient_name == "Trans Fat":
+                    nutrition_summary['trans_fat'] = amount
+                elif nutrient_name == "Cholesterol":
+                    nutrition_summary['cholesterol'] = amount
+                elif nutrient_name == "Carbohydrates":
+                    nutrition_summary['carbohydrates'] = amount
+                elif nutrient_name == "Sugars":
+                    nutrition_summary['sugars'] = amount
+                elif nutrient_name == "Fiber":
+                    nutrition_summary['fiber'] = amount
+                elif nutrient_name == "Protein":
+                    nutrition_summary['protein'] = amount
+                elif nutrient_name == "Salt":
+                    nutrition_summary['salt'] = amount
+                elif nutrient_name == "Sodium":
+                    nutrition_summary['sodium'] = amount
+                elif nutrient_name == "Potassium":
+                    nutrition_summary['potassium'] = amount
+                elif nutrient_name == "Calcium":
+                    nutrition_summary['calcium'] = amount
+                elif nutrient_name == "Iron":
+                    nutrition_summary['iron'] = amount
+                elif nutrient_name == "Magnesium":
+                    nutrition_summary['magnesium'] = amount
+                elif nutrient_name == "Vitamin D":
+                    nutrition_summary['vitamin_d'] = amount
+                elif nutrient_name == "Vitamin C":
+                    nutrition_summary['vitamin_c'] = amount
+                elif nutrient_name == "Alcohol":
+                    nutrition_summary['alcohol'] = amount
+                elif nutrient_name == "Caffeine":
+                    nutrition_summary['caffeine'] = amount
+                elif nutrient_name == "Taurine":
+                    nutrition_summary['taurine'] = amount
+                elif nutrient_name == "Glycemic Index":
+                    nutrition_summary['glycemic_index'] = amount
             
             logger.info(f"Found {len(nutrients)} nutrients for food {food_data['id']}")
             
@@ -1478,19 +1540,13 @@ def search_food_by_name(db, name: str):
             # If nutrition data can't be retrieved, set empty nutrients array
             nutrients = []
             nutrition_summary = {
-                "calories": 0,
-                "protein_g": 0,
-                "carbs_g": 0,
-                "fat_g": 0,
-                "fiber_g": 0,
-                "sugar_g": 0,
-                "sodium_mg": 0,
-                "cholesterol_mg": 0,
-                "vitamin_a_iu": 0,
-                "vitamin_c_mg": 0,
-                "vitamin_d_iu": 0,
-                "calcium_mg": 0,
-                "iron_mg": 0
+                "energy_kcal": 0, "energy": 0, "energy_from_fat": 0,
+                "total_fat": 0, "unsaturated_fat": 0, "omega_3_fat": 0,
+                "trans_fat": 0, "cholesterol": 0, "carbohydrates": 0,
+                "sugars": 0, "fiber": 0, "protein": 0, "salt": 0,
+                "sodium": 0, "potassium": 0, "calcium": 0, "iron": 0,
+                "magnesium": 0, "vitamin_d": 0, "vitamin_c": 0,
+                "alcohol": 0, "caffeine": 0, "taurine": 0, "glycemic_index": 0
             }
         
         # Create structured food object with comprehensive nutrition data
@@ -1823,19 +1879,30 @@ def search_food_fuzzy(db, name: str):
             # Convert nutrition data to comprehensive nutrients array
             nutrients = []
             nutrition_summary = {
-                "calories": 0,
-                "protein_g": 0,
-                "carbs_g": 0,
-                "fat_g": 0,
-                "fiber_g": 0,
-                "sugar_g": 0,
-                "sodium_mg": 0,
-                "cholesterol_mg": 0,
-                "vitamin_a_iu": 0,
-                "vitamin_c_mg": 0,
-                "vitamin_d_iu": 0,
-                "calcium_mg": 0,
-                "iron_mg": 0
+                "energy_kcal": 0,
+                "energy": 0,
+                "energy_from_fat": 0,
+                "total_fat": 0,
+                "unsaturated_fat": 0,
+                "omega_3_fat": 0,
+                "trans_fat": 0,
+                "cholesterol": 0,
+                "carbohydrates": 0,
+                "sugars": 0,
+                "fiber": 0,
+                "protein": 0,
+                "salt": 0,
+                "sodium": 0,
+                "potassium": 0,
+                "calcium": 0,
+                "iron": 0,
+                "magnesium": 0,
+                "vitamin_d": 0,
+                "vitamin_c": 0,
+                "alcohol": 0,
+                "caffeine": 0,
+                "taurine": 0,
+                "glycemic_index": 0
             }
             
             for nutrition_row in nutrition_rows:
@@ -1845,7 +1912,7 @@ def search_food_fuzzy(db, name: str):
                     nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], nutrition_row))
                 
                 amount = nutrient['amount'] or 0
-                nutrient_name_lower = nutrient['nutrient_name'].lower()
+                nutrient_name = nutrient['nutrient_name']
                 
                 # Add to comprehensive nutrients array
                 nutrients.append({
@@ -1856,35 +1923,55 @@ def search_food_fuzzy(db, name: str):
                     "category": nutrient.get('nutrient_category', 'general')
                 })
                 
-                # Also populate summary for backward compatibility
-                if 'calorie' in nutrient_name_lower or 'energy' in nutrient_name_lower:
-                    nutrition_summary['calories'] = amount
-                elif 'protein' in nutrient_name_lower:
-                    nutrition_summary['protein_g'] = amount
-                elif 'carbohydrate' in nutrient_name_lower or 'carb' in nutrient_name_lower:
-                    nutrition_summary['carbs_g'] = amount
-                elif 'fat' in nutrient_name_lower and 'total' in nutrient_name_lower:
-                    nutrition_summary['fat_g'] = amount
-                elif 'fat' in nutrient_name_lower:
-                    nutrition_summary['fat_g'] = amount
-                elif 'fiber' in nutrient_name_lower:
-                    nutrition_summary['fiber_g'] = amount
-                elif 'sugar' in nutrient_name_lower:
-                    nutrition_summary['sugar_g'] = amount
-                elif 'sodium' in nutrient_name_lower:
-                    nutrition_summary['sodium_mg'] = amount
-                elif 'cholesterol' in nutrient_name_lower:
-                    nutrition_summary['cholesterol_mg'] = amount
-                elif 'vitamin a' in nutrient_name_lower:
-                    nutrition_summary['vitamin_a_iu'] = amount
-                elif 'vitamin c' in nutrient_name_lower:
-                    nutrition_summary['vitamin_c_mg'] = amount
-                elif 'vitamin d' in nutrient_name_lower:
-                    nutrition_summary['vitamin_d_iu'] = amount
-                elif 'calcium' in nutrient_name_lower:
-                    nutrition_summary['calcium_mg'] = amount
-                elif 'iron' in nutrient_name_lower:
-                    nutrition_summary['iron_mg'] = amount
+                # Map to nutrition summary using exact database names
+                if nutrient_name == "Energy (kcal)":
+                    nutrition_summary['energy_kcal'] = amount
+                elif nutrient_name == "Energy":
+                    nutrition_summary['energy'] = amount
+                elif nutrient_name == "Energy from Fat":
+                    nutrition_summary['energy_from_fat'] = amount
+                elif nutrient_name == "Total Fat":
+                    nutrition_summary['total_fat'] = amount
+                elif nutrient_name == "Unsaturated Fat":
+                    nutrition_summary['unsaturated_fat'] = amount
+                elif nutrient_name == "Omega-3 Fat":
+                    nutrition_summary['omega_3_fat'] = amount
+                elif nutrient_name == "Trans Fat":
+                    nutrition_summary['trans_fat'] = amount
+                elif nutrient_name == "Cholesterol":
+                    nutrition_summary['cholesterol'] = amount
+                elif nutrient_name == "Carbohydrates":
+                    nutrition_summary['carbohydrates'] = amount
+                elif nutrient_name == "Sugars":
+                    nutrition_summary['sugars'] = amount
+                elif nutrient_name == "Fiber":
+                    nutrition_summary['fiber'] = amount
+                elif nutrient_name == "Protein":
+                    nutrition_summary['protein'] = amount
+                elif nutrient_name == "Salt":
+                    nutrition_summary['salt'] = amount
+                elif nutrient_name == "Sodium":
+                    nutrition_summary['sodium'] = amount
+                elif nutrient_name == "Potassium":
+                    nutrition_summary['potassium'] = amount
+                elif nutrient_name == "Calcium":
+                    nutrition_summary['calcium'] = amount
+                elif nutrient_name == "Iron":
+                    nutrition_summary['iron'] = amount
+                elif nutrient_name == "Magnesium":
+                    nutrition_summary['magnesium'] = amount
+                elif nutrient_name == "Vitamin D":
+                    nutrition_summary['vitamin_d'] = amount
+                elif nutrient_name == "Vitamin C":
+                    nutrition_summary['vitamin_c'] = amount
+                elif nutrient_name == "Alcohol":
+                    nutrition_summary['alcohol'] = amount
+                elif nutrient_name == "Caffeine":
+                    nutrition_summary['caffeine'] = amount
+                elif nutrient_name == "Taurine":
+                    nutrition_summary['taurine'] = amount
+                elif nutrient_name == "Glycemic Index":
+                    nutrition_summary['glycemic_index'] = amount
             
         except Exception as e:
             logger.warning(f"Error getting nutrition data for food {food_data['id']}: {e}")
@@ -3037,19 +3124,30 @@ def get_food_nutrients_comprehensive(food_id: int, db=Depends(get_nutrition_db))
         nutrients_by_category = {}
         all_nutrients = []
         nutrition_summary = {
-            "calories": 0,
-            "protein_g": 0,
-            "carbs_g": 0,
-            "fat_g": 0,
-            "fiber_g": 0,
-            "sugar_g": 0,
-            "sodium_mg": 0,
-            "cholesterol_mg": 0,
-            "vitamin_a_iu": 0,
-            "vitamin_c_mg": 0,
-            "vitamin_d_iu": 0,
-            "calcium_mg": 0,
-            "iron_mg": 0
+            "energy_kcal": 0,
+            "energy": 0,
+            "energy_from_fat": 0,
+            "total_fat": 0,
+            "unsaturated_fat": 0,
+            "omega_3_fat": 0,
+            "trans_fat": 0,
+            "cholesterol": 0,
+            "carbohydrates": 0,
+            "sugars": 0,
+            "fiber": 0,
+            "protein": 0,
+            "salt": 0,
+            "sodium": 0,
+            "potassium": 0,
+            "calcium": 0,
+            "iron": 0,
+            "magnesium": 0,
+            "vitamin_d": 0,
+            "vitamin_c": 0,
+            "alcohol": 0,
+            "caffeine": 0,
+            "taurine": 0,
+            "glycemic_index": 0
         }
         
         for row in nutrition_rows:
@@ -3059,7 +3157,7 @@ def get_food_nutrients_comprehensive(food_id: int, db=Depends(get_nutrition_db))
                 nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], row))
             
             amount = nutrient['amount'] or 0
-            nutrient_name_lower = nutrient['nutrient_name'].lower()
+            nutrient_name = nutrient['nutrient_name']
             category = nutrient.get('nutrient_category', 'general')
             
             nutrient_obj = {
@@ -3078,35 +3176,55 @@ def get_food_nutrients_comprehensive(food_id: int, db=Depends(get_nutrition_db))
                 nutrients_by_category[category] = []
             nutrients_by_category[category].append(nutrient_obj)
             
-            # Populate summary for backward compatibility
-            if 'calorie' in nutrient_name_lower or 'energy' in nutrient_name_lower:
-                nutrition_summary['calories'] = amount
-            elif 'protein' in nutrient_name_lower:
-                nutrition_summary['protein_g'] = amount
-            elif 'carbohydrate' in nutrient_name_lower or 'carb' in nutrient_name_lower:
-                nutrition_summary['carbs_g'] = amount
-            elif 'fat' in nutrient_name_lower and 'total' in nutrient_name_lower:
-                nutrition_summary['fat_g'] = amount
-            elif 'fat' in nutrient_name_lower:
-                nutrition_summary['fat_g'] = amount
-            elif 'fiber' in nutrient_name_lower:
-                nutrition_summary['fiber_g'] = amount
-            elif 'sugar' in nutrient_name_lower:
-                nutrition_summary['sugar_g'] = amount
-            elif 'sodium' in nutrient_name_lower:
-                nutrition_summary['sodium_mg'] = amount
-            elif 'cholesterol' in nutrient_name_lower:
-                nutrition_summary['cholesterol_mg'] = amount
-            elif 'vitamin a' in nutrient_name_lower:
-                nutrition_summary['vitamin_a_iu'] = amount
-            elif 'vitamin c' in nutrient_name_lower:
-                nutrition_summary['vitamin_c_mg'] = amount
-            elif 'vitamin d' in nutrient_name_lower:
-                nutrition_summary['vitamin_d_iu'] = amount
-            elif 'calcium' in nutrient_name_lower:
-                nutrition_summary['calcium_mg'] = amount
-            elif 'iron' in nutrient_name_lower:
-                nutrition_summary['iron_mg'] = amount
+            # Map to nutrition summary using exact database names
+            if nutrient_name == "Energy (kcal)":
+                nutrition_summary['energy_kcal'] = amount
+            elif nutrient_name == "Energy":
+                nutrition_summary['energy'] = amount
+            elif nutrient_name == "Energy from Fat":
+                nutrition_summary['energy_from_fat'] = amount
+            elif nutrient_name == "Total Fat":
+                nutrition_summary['total_fat'] = amount
+            elif nutrient_name == "Unsaturated Fat":
+                nutrition_summary['unsaturated_fat'] = amount
+            elif nutrient_name == "Omega-3 Fat":
+                nutrition_summary['omega_3_fat'] = amount
+            elif nutrient_name == "Trans Fat":
+                nutrition_summary['trans_fat'] = amount
+            elif nutrient_name == "Cholesterol":
+                nutrition_summary['cholesterol'] = amount
+            elif nutrient_name == "Carbohydrates":
+                nutrition_summary['carbohydrates'] = amount
+            elif nutrient_name == "Sugars":
+                nutrition_summary['sugars'] = amount
+            elif nutrient_name == "Fiber":
+                nutrition_summary['fiber'] = amount
+            elif nutrient_name == "Protein":
+                nutrition_summary['protein'] = amount
+            elif nutrient_name == "Salt":
+                nutrition_summary['salt'] = amount
+            elif nutrient_name == "Sodium":
+                nutrition_summary['sodium'] = amount
+            elif nutrient_name == "Potassium":
+                nutrition_summary['potassium'] = amount
+            elif nutrient_name == "Calcium":
+                nutrition_summary['calcium'] = amount
+            elif nutrient_name == "Iron":
+                nutrition_summary['iron'] = amount
+            elif nutrient_name == "Magnesium":
+                nutrition_summary['magnesium'] = amount
+            elif nutrient_name == "Vitamin D":
+                nutrition_summary['vitamin_d'] = amount
+            elif nutrient_name == "Vitamin C":
+                nutrition_summary['vitamin_c'] = amount
+            elif nutrient_name == "Alcohol":
+                nutrition_summary['alcohol'] = amount
+            elif nutrient_name == "Caffeine":
+                nutrition_summary['caffeine'] = amount
+            elif nutrient_name == "Taurine":
+                nutrition_summary['taurine'] = amount
+            elif nutrient_name == "Glycemic Index":
+                nutrition_summary['glycemic_index'] = amount
         
         return {
             "food": {
@@ -3207,19 +3325,30 @@ async def search_foods_comprehensive(request: Request, db=Depends(get_nutrition_
                     
                     nutrients = []
                     nutrition_summary = {
-                        "calories": 0,
-                        "protein_g": 0,
-                        "carbs_g": 0,
-                        "fat_g": 0,
-                        "fiber_g": 0,
-                        "sugar_g": 0,
-                        "sodium_mg": 0,
-                        "cholesterol_mg": 0,
-                        "vitamin_a_iu": 0,
-                        "vitamin_c_mg": 0,
-                        "vitamin_d_iu": 0,
-                        "calcium_mg": 0,
-                        "iron_mg": 0
+                        "energy_kcal": 0,
+                        "energy": 0,
+                        "energy_from_fat": 0,
+                        "total_fat": 0,
+                        "unsaturated_fat": 0,
+                        "omega_3_fat": 0,
+                        "trans_fat": 0,
+                        "cholesterol": 0,
+                        "carbohydrates": 0,
+                        "sugars": 0,
+                        "fiber": 0,
+                        "protein": 0,
+                        "salt": 0,
+                        "sodium": 0,
+                        "potassium": 0,
+                        "calcium": 0,
+                        "iron": 0,
+                        "magnesium": 0,
+                        "vitamin_d": 0,
+                        "vitamin_c": 0,
+                        "alcohol": 0,
+                        "caffeine": 0,
+                        "taurine": 0,
+                        "glycemic_index": 0
                     }
                     
                     for nutrition_row in nutrition_rows:
@@ -3229,7 +3358,7 @@ async def search_foods_comprehensive(request: Request, db=Depends(get_nutrition_
                             nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], nutrition_row))
                         
                         amount = nutrient['amount'] or 0
-                        nutrient_name_lower = nutrient['nutrient_name'].lower()
+                        nutrient_name = nutrient['nutrient_name']
                         
                         nutrients.append({
                             "id": nutrient['nutrient_id'],
@@ -3239,35 +3368,55 @@ async def search_foods_comprehensive(request: Request, db=Depends(get_nutrition_
                             "category": nutrient.get('nutrient_category', 'general')
                         })
                         
-                        # Populate summary
-                        if 'calorie' in nutrient_name_lower or 'energy' in nutrient_name_lower:
-                            nutrition_summary['calories'] = amount
-                        elif 'protein' in nutrient_name_lower:
-                            nutrition_summary['protein_g'] = amount
-                        elif 'carbohydrate' in nutrient_name_lower or 'carb' in nutrient_name_lower:
-                            nutrition_summary['carbs_g'] = amount
-                        elif 'fat' in nutrient_name_lower and 'total' in nutrient_name_lower:
-                            nutrition_summary['fat_g'] = amount
-                        elif 'fat' in nutrient_name_lower:
-                            nutrition_summary['fat_g'] = amount
-                        elif 'fiber' in nutrient_name_lower:
-                            nutrition_summary['fiber_g'] = amount
-                        elif 'sugar' in nutrient_name_lower:
-                            nutrition_summary['sugar_g'] = amount
-                        elif 'sodium' in nutrient_name_lower:
-                            nutrition_summary['sodium_mg'] = amount
-                        elif 'cholesterol' in nutrient_name_lower:
-                            nutrition_summary['cholesterol_mg'] = amount
-                        elif 'vitamin a' in nutrient_name_lower:
-                            nutrition_summary['vitamin_a_iu'] = amount
-                        elif 'vitamin c' in nutrient_name_lower:
-                            nutrition_summary['vitamin_c_mg'] = amount
-                        elif 'vitamin d' in nutrient_name_lower:
-                            nutrition_summary['vitamin_d_iu'] = amount
-                        elif 'calcium' in nutrient_name_lower:
-                            nutrition_summary['calcium_mg'] = amount
-                        elif 'iron' in nutrient_name_lower:
-                            nutrition_summary['iron_mg'] = amount
+                        # Map to nutrition summary using exact database names
+                        if nutrient_name == "Energy (kcal)":
+                            nutrition_summary['energy_kcal'] = amount
+                        elif nutrient_name == "Energy":
+                            nutrition_summary['energy'] = amount
+                        elif nutrient_name == "Energy from Fat":
+                            nutrition_summary['energy_from_fat'] = amount
+                        elif nutrient_name == "Total Fat":
+                            nutrition_summary['total_fat'] = amount
+                        elif nutrient_name == "Unsaturated Fat":
+                            nutrition_summary['unsaturated_fat'] = amount
+                        elif nutrient_name == "Omega-3 Fat":
+                            nutrition_summary['omega_3_fat'] = amount
+                        elif nutrient_name == "Trans Fat":
+                            nutrition_summary['trans_fat'] = amount
+                        elif nutrient_name == "Cholesterol":
+                            nutrition_summary['cholesterol'] = amount
+                        elif nutrient_name == "Carbohydrates":
+                            nutrition_summary['carbohydrates'] = amount
+                        elif nutrient_name == "Sugars":
+                            nutrition_summary['sugars'] = amount
+                        elif nutrient_name == "Fiber":
+                            nutrition_summary['fiber'] = amount
+                        elif nutrient_name == "Protein":
+                            nutrition_summary['protein'] = amount
+                        elif nutrient_name == "Salt":
+                            nutrition_summary['salt'] = amount
+                        elif nutrient_name == "Sodium":
+                            nutrition_summary['sodium'] = amount
+                        elif nutrient_name == "Potassium":
+                            nutrition_summary['potassium'] = amount
+                        elif nutrient_name == "Calcium":
+                            nutrition_summary['calcium'] = amount
+                        elif nutrient_name == "Iron":
+                            nutrition_summary['iron'] = amount
+                        elif nutrient_name == "Magnesium":
+                            nutrition_summary['magnesium'] = amount
+                        elif nutrient_name == "Vitamin D":
+                            nutrition_summary['vitamin_d'] = amount
+                        elif nutrient_name == "Vitamin C":
+                            nutrition_summary['vitamin_c'] = amount
+                        elif nutrient_name == "Alcohol":
+                            nutrition_summary['alcohol'] = amount
+                        elif nutrient_name == "Caffeine":
+                            nutrition_summary['caffeine'] = amount
+                        elif nutrient_name == "Taurine":
+                            nutrition_summary['taurine'] = amount
+                        elif nutrient_name == "Glycemic Index":
+                            nutrition_summary['glycemic_index'] = amount
                     
                     food_result.update({
                         "nutrients": nutrients,
@@ -3280,10 +3429,13 @@ async def search_foods_comprehensive(request: Request, db=Depends(get_nutrition_
                     food_result.update({
                         "nutrients": [],
                         "nutrition_summary": {
-                            "calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0,
-                            "fiber_g": 0, "sugar_g": 0, "sodium_mg": 0, "cholesterol_mg": 0,
-                            "vitamin_a_iu": 0, "vitamin_c_mg": 0, "vitamin_d_iu": 0,
-                            "calcium_mg": 0, "iron_mg": 0
+                            "energy_kcal": 0, "energy": 0, "energy_from_fat": 0,
+                            "total_fat": 0, "unsaturated_fat": 0, "omega_3_fat": 0,
+                            "trans_fat": 0, "cholesterol": 0, "carbohydrates": 0,
+                            "sugars": 0, "fiber": 0, "protein": 0, "salt": 0,
+                            "sodium": 0, "potassium": 0, "calcium": 0, "iron": 0,
+                            "magnesium": 0, "vitamin_d": 0, "vitamin_c": 0,
+                            "alcohol": 0, "caffeine": 0, "taurine": 0, "glycemic_index": 0
                         },
                         "total_nutrients": 0
                     })
