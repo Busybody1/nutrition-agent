@@ -482,9 +482,9 @@ def test_nutrition_db():
             table_result = conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'")).fetchone()
             if table_result:
                 # Get a sample food
-                food_result = conn.execute(text("SELECT id, name FROM foods LIMIT 1")).fetchone()
+                food_result = conn.execute(text("SELECT id, name, category_id FROM foods LIMIT 1")).fetchone()
                 if food_result:
-                    food_data = dict(food_result._mapping) if hasattr(food_result, '_mapping') else dict(zip(['id', 'name'], food_result))
+                    food_data = dict(food_result._mapping) if hasattr(food_result, '_mapping') else dict(zip(['id', 'name', 'category_id'], food_result))
                     return {
                         "status": "success",
                         "connection": "working",
@@ -548,11 +548,11 @@ def get_sample_food(db=Depends(get_nutrition_db)):
     """Get a sample food for testing purposes."""
     try:
         food_row = db.execute(
-            text("SELECT id, name, calories, protein_g, carbs_g, fat_g FROM foods LIMIT 1")
+            text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods LIMIT 1")
         ).fetchone()
         
         if food_row:
-            food_data = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'calories', 'protein_g', 'carbs_g', 'fat_g'], food_row))
+            food_data = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
             return {
                 "status": "success",
                 "sample_food": food_data
@@ -584,16 +584,12 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
           f.created_at,
           b.id AS brand_id,
           b.name AS brand_name,
-          c.id AS category_id,
-          c.name AS category_name,
           n.id AS nutrient_id,
           n.name AS nutrient_name,
           n.unit AS nutrient_unit,
-          n.category AS nutrient_category,
           fn.amount
         FROM foods f
         LEFT JOIN brands b ON f.brand_id = b.id
-        LEFT JOIN categories c ON f.category_id = c.id
         LEFT JOIN food_nutrients fn ON f.id = fn.food_id
         LEFT JOIN nutrients n ON fn.nutrient_id = n.id
         WHERE f.id = :food_id
@@ -613,7 +609,7 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
             converted_rows.append(dict(row._mapping))
         else:
             # Handle tuple case
-            columns = ['food_id', 'food_name', 'description', 'serving_size', 'serving_unit', 'serving', 'created_at', 'brand_id', 'brand_name', 'category_id', 'category_name', 'nutrient_id', 'nutrient_name', 'nutrient_unit', 'nutrient_category', 'amount']
+            columns = ['food_id', 'food_name', 'description', 'serving_size', 'serving_unit', 'serving', 'created_at', 'brand_id', 'brand_name', 'nutrient_id', 'nutrient_name', 'nutrient_unit', 'amount']
             converted_rows.append(dict(zip(columns, row)))
 
     food_row = converted_rows[0]
@@ -658,7 +654,7 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
                 "name": r["nutrient_name"],
                 "unit": r["nutrient_unit"],
                 "amount": amount,
-                "category": r.get("nutrient_category", "general")
+                "category": "general"
             })
             
             # Map to nutrition summary using exact database names
@@ -722,9 +718,6 @@ def get_food_full_view(food_id: int, db=Depends(get_nutrition_db)):
         "brand": {"id": food_row["brand_id"], "name": food_row["brand_name"]}
         if food_row["brand_id"]
         else None,
-        "category": {"id": food_row["category_id"], "name": food_row["category_name"]}
-        if food_row["category_id"]
-        else None,
         "nutrients": nutrients,  # Comprehensive nutrient array
         "nutrition_summary": nutrition_summary,  # Backward compatibility
         "total_nutrients": len(nutrients)
@@ -759,14 +752,14 @@ def log_food_endpoint(
         try:
             # First get basic food info
             food_row = db_nutrition.execute(
-                text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+                text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": food_id}
             ).fetchone()
             
             if not food_row:
                 raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
             
-            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
             
             # Get nutrition data from food_nutrients table
             nutrition_rows = db_nutrition.execute(
@@ -897,14 +890,14 @@ def log_food_simple(
         try:
             # First get basic food info
             food_row = db_nutrition.execute(
-                text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+                text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": food_id}
             ).fetchone()
             
             if not food_row:
                 raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
             
-            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
             
             # Get nutrition data from food_nutrients table
             nutrition_rows = db_nutrition.execute(
@@ -1031,14 +1024,14 @@ def test_food_logging(
         try:
             # First get basic food info
             food_row = db_nutrition.execute(
-                text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+                text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                 {"food_id": nutrition_food_id}
             ).fetchone()
             
             if not food_row:
                 raise HTTPException(status_code=404, detail=f"Food with id {nutrition_food_id} not found in nutrition database")
             
-            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+            food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
             
             # Get nutrition data from food_nutrients table
             nutrition_rows = db_nutrition.execute(
@@ -1190,14 +1183,14 @@ def execute_tool(
             try:
                 # First get basic food info
                 food_row = db_nutrition.execute(
-                    text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+                    text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
                     {"food_id": food_id}
                 ).fetchone()
                 
                 if not food_row:
                     raise HTTPException(status_code=404, detail=f"Food with id {food_id} not found")
                 
-                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+                food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
                 
                 # Get nutrition data from food_nutrients table
                 nutrition_rows = db_nutrition.execute(
@@ -1426,7 +1419,7 @@ def search_food_by_name(db, name: str):
                         n.id as nutrient_id, 
                         n.name as nutrient_name, 
                         fn.amount, 
-                        n.unit as nutrient_unit,
+                        n.unit as nutrient_unit
                     FROM food_nutrients fn
                     JOIN nutrients n ON fn.nutrient_id = n.id
                     WHERE fn.food_id = :food_id
@@ -1468,10 +1461,11 @@ def search_food_by_name(db, name: str):
                 if hasattr(nutrition_row, '_mapping'):
                     nutrient = dict(nutrition_row._mapping)
                 else:
-                    nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], nutrition_row))
+                    nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
                 
                 amount = nutrient['amount'] or 0
                 nutrient_name = nutrient['nutrient_name']
+                category = 'general'
                 
                 # Add to comprehensive nutrients array
                 nutrients.append({
@@ -1479,7 +1473,7 @@ def search_food_by_name(db, name: str):
                     "name": nutrient['nutrient_name'],
                     "unit": nutrient['nutrient_unit'],
                     "amount": amount,
-                    "category": nutrient.get('nutrient_category', 'general')
+                    "category": category
                 })
                 
                 # Map to nutrition summary using exact database names
@@ -1552,12 +1546,12 @@ def search_food_by_name(db, name: str):
         food_object = {
             "id": food_data['id'],
             "name": food_data['name'],
+            "category_id": food_data['category_id'],
             "serving_size": food_data['serving_size'],
             "serving_unit": food_data['serving_unit'],
             "serving": food_data['serving'],
             "created_at": food_data['created_at'],
             "brand": {"id": food_data['brand_id'], "name": None} if food_data['brand_id'] else None,
-            "category": {"id": food_data['category_id'], "name": None} if food_data['category_id'] else None,
             "nutrients": nutrients,  # Comprehensive nutrient array
             "nutrition_summary": nutrition_summary,  # Backward compatibility
             "total_nutrients": len(nutrients)
@@ -1573,14 +1567,14 @@ def get_food_nutrition(db, food_id: Any):
     """Get comprehensive food nutrition data using the normalized schema."""
     # First get basic food info
     food_row = db.execute(
-        text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+        text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
         {"food_id": food_id},
     ).fetchone()
     
     if not food_row:
         raise HTTPException(status_code=404, detail="Food not found")
     
-    food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+    food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
     
     # Get comprehensive nutrition data from food_nutrients table
     nutrition_rows = db.execute(
@@ -1589,7 +1583,7 @@ def get_food_nutrition(db, food_id: Any):
                 n.id as nutrient_id,
                 n.name as nutrient_name, 
                 fn.amount, 
-                n.unit as nutrient_unit,
+                n.unit as nutrient_unit
             FROM food_nutrients fn
             JOIN nutrients n ON fn.nutrient_id = n.id
             WHERE fn.food_id = :food_id
@@ -1606,7 +1600,7 @@ def get_food_nutrition(db, food_id: Any):
         if hasattr(row, '_mapping'):
             nutrient = dict(row._mapping)
         else:
-            nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], row))
+            nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], row))
         
         nutrient_name = nutrient['nutrient_name'].lower()
         amount = nutrient['amount'] or 0
@@ -1617,7 +1611,7 @@ def get_food_nutrition(db, food_id: Any):
             "name": nutrient['nutrient_name'],
             "unit": nutrient['nutrient_unit'],
             "amount": amount,
-            "category": nutrient.get('nutrient_category', 'general')
+            "category": "general"
         })
         
         # Also populate summary for backward compatibility
@@ -1864,8 +1858,7 @@ def search_food_fuzzy(db, name: str):
                         n.id as nutrient_id, 
                         n.name as nutrient_name, 
                         fn.amount, 
-                        n.unit as nutrient_unit,
-                        n.category as nutrient_category
+                        n.unit as nutrient_unit
                     FROM food_nutrients fn
                     JOIN nutrients n ON fn.nutrient_id = n.id
                     WHERE fn.food_id = :food_id
@@ -1907,10 +1900,11 @@ def search_food_fuzzy(db, name: str):
                 if hasattr(nutrition_row, '_mapping'):
                     nutrient = dict(nutrition_row._mapping)
                 else:
-                    nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], nutrition_row))
+                    nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
                 
                 amount = nutrient['amount'] or 0
                 nutrient_name = nutrient['nutrient_name']
+                category = 'general'
                 
                 # Add to comprehensive nutrients array
                 nutrients.append({
@@ -1918,7 +1912,7 @@ def search_food_fuzzy(db, name: str):
                     "name": nutrient['nutrient_name'],
                     "unit": nutrient['nutrient_unit'],
                     "amount": amount,
-                    "category": nutrient.get('nutrient_category', 'general')
+                    "category": category
                 })
                 
                 # Map to nutrition summary using exact database names
@@ -2053,7 +2047,7 @@ def search_food_fuzzy(db, name: str):
             "serving": food["serving"],
             "created_at": food["created_at"],
             "brand": {"id": food["brand_id"], "name": None} if food["brand_id"] else None,
-            "category": {"id": food["category_id"], "name": None} if food["category_id"] else None,
+            "category_id": food["category_id"],
             "nutrients": food["nutrients"],  # Comprehensive nutrient array
             "nutrition_summary": food["nutrition_summary"],  # Backward compatibility
             "total_nutrients": food["total_nutrients"],
@@ -3092,14 +3086,14 @@ def get_food_nutrients_comprehensive(food_id: int, db=Depends(get_nutrition_db))
     try:
         # Get basic food info
         food_row = db.execute(
-            text("SELECT id, name, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
+            text("SELECT id, name, category_id, serving_size, serving_unit, serving FROM foods WHERE id = :food_id"),
             {"food_id": food_id},
         ).fetchone()
         
         if not food_row:
             raise HTTPException(status_code=404, detail="Food not found")
         
-        food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'serving_size', 'serving_unit', 'serving'], food_row))
+        food_details = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
         
         # Get all nutrients for this food
         nutrition_rows = db.execute(
@@ -3108,12 +3102,11 @@ def get_food_nutrients_comprehensive(food_id: int, db=Depends(get_nutrition_db))
                     n.id as nutrient_id,
                     n.name as nutrient_name, 
                     fn.amount, 
-                    n.unit as nutrient_unit,
-                    n.category as nutrient_category
+                    n.unit as nutrient_unit
                 FROM food_nutrients fn
                 JOIN nutrients n ON fn.nutrient_id = n.id
                 WHERE fn.food_id = :food_id
-                ORDER BY n.category, n.name
+                ORDER BY n.name
             """),
             {"food_id": food_id}
         ).fetchall()
@@ -3152,11 +3145,11 @@ def get_food_nutrients_comprehensive(food_id: int, db=Depends(get_nutrition_db))
             if hasattr(row, '_mapping'):
                 nutrient = dict(row._mapping)
             else:
-                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], row))
+                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], row))
             
             amount = nutrient['amount'] or 0
             nutrient_name = nutrient['nutrient_name']
-            category = nutrient.get('nutrient_category', 'general')
+            category = 'general'
             
             nutrient_obj = {
                 "id": nutrient['nutrient_id'],
@@ -3311,12 +3304,11 @@ async def search_foods_comprehensive(request: Request, db=Depends(get_nutrition_
                                 n.id as nutrient_id,
                                 n.name as nutrient_name, 
                                 fn.amount, 
-                                n.unit as nutrient_unit,
-                                n.category as nutrient_category
+                                n.unit as nutrient_unit
                             FROM food_nutrients fn
                             JOIN nutrients n ON fn.nutrient_id = n.id
                             WHERE fn.food_id = :food_id
-                            ORDER BY n.category, n.name
+                            ORDER BY n.name
                         """),
                         {"food_id": food_data['id']}
                     ).fetchall()
@@ -3353,17 +3345,18 @@ async def search_foods_comprehensive(request: Request, db=Depends(get_nutrition_
                         if hasattr(nutrition_row, '_mapping'):
                             nutrient = dict(nutrition_row._mapping)
                         else:
-                            nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], nutrition_row))
+                            nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
                         
                         amount = nutrient['amount'] or 0
                         nutrient_name = nutrient['nutrient_name']
+                        category = 'general'
                         
                         nutrients.append({
                             "id": nutrient['nutrient_id'],
                             "name": nutrient['nutrient_name'],
                             "unit": nutrient['nutrient_unit'],
                             "amount": amount,
-                            "category": nutrient.get('nutrient_category', 'general')
+                            "category": category
                         })
                         
                         # Map to nutrition summary using exact database names
@@ -4145,8 +4138,7 @@ def debug_food_details(food_id: int, db=Depends(get_nutrition_db)):
             n.id as nutrient_id, 
             n.name as nutrient_name, 
             fn.amount, 
-            n.unit as nutrient_unit,
-            n.category as nutrient_category
+            n.unit as nutrient_unit
         FROM food_nutrients fn
         JOIN nutrients n ON fn.nutrient_id = n.id
         WHERE fn.food_id = :food_id
@@ -4160,7 +4152,7 @@ def debug_food_details(food_id: int, db=Depends(get_nutrition_db)):
             if hasattr(row, '_mapping'):
                 nutrient = dict(row._mapping)
             else:
-                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], row))
+                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], row))
             nutrients.append(nutrient)
         
         # Test the specific nutrient names that search_food_by_name is looking for
