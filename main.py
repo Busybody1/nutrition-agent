@@ -1321,12 +1321,12 @@ def execute_tool(
         return calculate_calories({"food": food_data, "quantity_g": quantity_g})
 
     elif tool == "get_meal_suggestions":
-        user_id = params.get("user_id")
+        user_id = params.get("user_id", "anonymous")  # Make user_id optional
         meal_type = params.get("meal_type")
         target_calories = params.get("target_calories")
         meal_description = params.get("meal_description")  # New parameter
-        if not user_id or not meal_type:
-            raise HTTPException(status_code=400, detail="Missing required parameters.")
+        if not meal_type:
+            raise HTTPException(status_code=400, detail="Missing required parameter: meal_type")
         return get_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories, meal_description)
 
     elif tool == "get_nutrition_recommendations":
@@ -2069,15 +2069,20 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
         dietary_restrictions = request.get("dietary_restrictions", [])
         meal_description = request.get("meal_description")  # New parameter
 
-        if not user_id:
-            raise HTTPException(status_code=400, detail="user_id is required")
-
         # Get user's food preferences and history from shared database
-        user_history = get_user_calorie_history(db_shared, user_id)
+        user_history = []
+        if user_id:
+            try:
+                user_history = get_user_calorie_history(db_shared, user_id)
+            except Exception as user_data_error:
+                logger.warning(f"Could not fetch user data for user_id {user_id}: {user_data_error}")
+                # Continue with empty user history
+        else:
+            logger.info("No user_id provided, using general meal plan")
 
         # AI-powered meal plan creation with meal description
         meal_plan = create_ai_meal_plan(
-            user_id, daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition, meal_description
+            user_id or "anonymous", daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition, meal_description
         )
 
         # Calculate total calories from enriched meal plan
@@ -2090,7 +2095,8 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
             "meals": len(meal_plan),
             "ai_generated": True,
             "nutrition_verified": True,
-            "meal_description": meal_description
+            "meal_description": meal_description,
+            "user_data_available": len(user_history) > 0
         }
     except Exception as e:
         logger.error(f"Error creating AI meal plan: {e}")
@@ -2524,85 +2530,91 @@ def get_meal_suggestions(
         )
         
         # Get user's recent food preferences for context (from shared database)
-        user_uuid = _get_user_uuid(user_id)
-        recent_foods = db_shared.execute(
-            text(
-                """
-            SELECT food_item_id, COUNT(*) as frequency
-            FROM food_logs 
-            WHERE user_id = :user_id 
-            AND consumed_at > NOW() - INTERVAL '30 days'
-            GROUP BY food_item_id
-            ORDER BY frequency DESC
-            LIMIT 10
-            """
-            ),
-            {"user_id": user_uuid},
-        ).fetchall()
-
-        # Get popular foods for this meal type (from shared database)
-        popular_foods = db_shared.execute(
-            text(
-                """
-            SELECT food_item_id, COUNT(*) as frequency
-            FROM food_logs 
-            WHERE meal_type = :meal_type
-            AND consumed_at > NOW() - INTERVAL '7 days'
-            GROUP BY food_item_id
-            ORDER BY frequency DESC
-            LIMIT 20
-            """
-            ),
-            {"meal_type": meal_type},
-        ).fetchall()
-
-        # Convert rows to dictionaries
-        recent_foods_dict = []
-        for row in recent_foods:
-            if hasattr(row, '_mapping'):
-                recent_foods_dict.append(dict(row._mapping))
-            else:
-                recent_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
-
-        popular_foods_dict = []
-        for row in popular_foods:
-            if hasattr(row, '_mapping'):
-                popular_foods_dict.append(dict(row._mapping))
-            else:
-                popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
-
-        # Get food details for context (from nutrition database)
-        food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
         user_preferences = []
         popular_choices = []
         
-        if food_ids:
-            placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
-            params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
-            
-            foods = db_nutrition.execute(
+        try:
+            user_uuid = _get_user_uuid(user_id)
+            recent_foods = db_shared.execute(
                 text(
-                    f"""
-                SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
-                FROM foods 
-                WHERE id IN ({placeholders})
+                    """
+                SELECT food_item_id, COUNT(*) as frequency
+                FROM food_logs 
+                WHERE user_id = :user_id 
+                AND consumed_at > NOW() - INTERVAL '30 days'
+                GROUP BY food_item_id
+                ORDER BY frequency DESC
+                LIMIT 10
                 """
                 ),
-                params,
+                {"user_id": user_uuid},
             ).fetchall()
 
-            for food in foods:
-                if hasattr(food, '_mapping'):
-                    food_dict = dict(food._mapping)
+            # Get popular foods for this meal type (from shared database)
+            popular_foods = db_shared.execute(
+                text(
+                    """
+                SELECT food_item_id, COUNT(*) as frequency
+                FROM food_logs 
+                WHERE meal_type = :meal_type
+                AND consumed_at > NOW() - INTERVAL '7 days'
+                GROUP BY food_item_id
+                ORDER BY frequency DESC
+                LIMIT 20
+                """
+                ),
+                {"meal_type": meal_type},
+            ).fetchall()
+
+            # Convert rows to dictionaries
+            recent_foods_dict = []
+            for row in recent_foods:
+                if hasattr(row, '_mapping'):
+                    recent_foods_dict.append(dict(row._mapping))
                 else:
-                    columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
-                    food_dict = dict(zip(columns, food))
+                    recent_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
+
+            popular_foods_dict = []
+            for row in popular_foods:
+                if hasattr(row, '_mapping'):
+                    popular_foods_dict.append(dict(row._mapping))
+                else:
+                    popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
+
+            # Get food details for context (from nutrition database)
+            food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
+            
+            if food_ids:
+                placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
+                params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
                 
-                # Check if this food is in user's recent preferences
-                if any(f["food_item_id"] == food_dict["id"] for f in recent_foods_dict):
-                    user_preferences.append(food_dict["name"])
-                else:
-                    popular_choices.append(food_dict["name"])
+                foods = db_nutrition.execute(
+                    text(
+                        f"""
+                    SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
+                    FROM foods 
+                    WHERE id IN ({placeholders})
+                    """
+                    ),
+                    params,
+                ).fetchall()
+
+                for food in foods:
+                    if hasattr(food, '_mapping'):
+                        food_dict = dict(food._mapping)
+                    else:
+                        columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
+                        food_dict = dict(zip(columns, food))
+                    
+                    # Check if this food is in user's recent preferences
+                    if any(f["food_item_id"] == food_dict["id"] for f in recent_foods_dict):
+                        user_preferences.append(food_dict["name"])
+                    else:
+                        popular_choices.append(food_dict["name"])
+
+        except Exception as user_data_error:
+            logger.warning(f"Could not fetch user data for user_id {user_id}: {user_data_error}")
+            # Continue without user preferences - will use general foods
 
         # If no preferences found, get some general foods for this meal type
         if not user_preferences and not popular_choices:
@@ -2640,7 +2652,8 @@ def get_meal_suggestions(
             "suggestions": enriched_suggestions,
             "ai_generated": True,
             "user_preferences_count": len(user_preferences),
-            "popular_choices_count": len(popular_choices)
+            "popular_choices_count": len(popular_choices),
+            "user_data_available": len(user_preferences) > 0
         }
         
     except Exception as e:
@@ -2813,50 +2826,163 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
 
 def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None, meal_description: Optional[str] = None) -> Dict:
     """Fallback rule-based meal suggestions when AI fails. Uses comprehensive nutrition data."""
-    user_uuid = _get_user_uuid(user_id)
-    recent_foods = db_shared.execute(
-        text(
-            """
-        SELECT food_item_id, COUNT(*) as frequency
-        FROM food_logs 
-        WHERE user_id = :user_id 
-        AND consumed_at > NOW() - INTERVAL '30 days'
-        GROUP BY food_item_id
-        ORDER BY frequency DESC
-        LIMIT 10
-        """
-        ),
-        {"user_id": user_uuid},
-    ).fetchall()
-    popular_foods = db_shared.execute(
-        text(
-            """
-        SELECT food_item_id, COUNT(*) as frequency
-        FROM food_logs 
-        WHERE meal_type = :meal_type
-        AND consumed_at > NOW() - INTERVAL '7 days'
-        GROUP BY food_item_id
-        ORDER BY frequency DESC
-        LIMIT 20
-        """
-        ),
-        {"meal_type": meal_type},
-    ).fetchall()
-    recent_foods_dict = []
-    for row in recent_foods:
-        if hasattr(row, '_mapping'):
-            recent_foods_dict.append(dict(row._mapping))
-        else:
-            recent_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
-    popular_foods_dict = []
-    for row in popular_foods:
-        if hasattr(row, '_mapping'):
-            popular_foods_dict.append(dict(row._mapping))
-        else:
-            popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
-    food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
     suggestions = []
-    if not food_ids:
+    
+    try:
+        user_uuid = _get_user_uuid(user_id)
+        recent_foods = db_shared.execute(
+            text(
+                """
+            SELECT food_item_id, COUNT(*) as frequency
+            FROM food_logs 
+            WHERE user_id = :user_id 
+            AND consumed_at > NOW() - INTERVAL '30 days'
+            GROUP BY food_item_id
+            ORDER BY frequency DESC
+            LIMIT 10
+            """
+            ),
+            {"user_id": user_uuid},
+        ).fetchall()
+        popular_foods = db_shared.execute(
+            text(
+                """
+            SELECT food_item_id, COUNT(*) as frequency
+            FROM food_logs 
+            WHERE meal_type = :meal_type
+            AND consumed_at > NOW() - INTERVAL '7 days'
+            GROUP BY food_item_id
+            ORDER BY frequency DESC
+            LIMIT 20
+            """
+            ),
+            {"meal_type": meal_type},
+        ).fetchall()
+        recent_foods_dict = []
+        for row in recent_foods:
+            if hasattr(row, '_mapping'):
+                recent_foods_dict.append(dict(row._mapping))
+            else:
+                recent_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
+        popular_foods_dict = []
+        for row in popular_foods:
+            if hasattr(row, '_mapping'):
+                popular_foods_dict.append(dict(row._mapping))
+            else:
+                popular_foods_dict.append(dict(zip(['food_item_id', 'frequency'], row)))
+        food_ids = list(set([f["food_item_id"] for f in recent_foods_dict + popular_foods_dict]))
+        
+        if not food_ids:
+            # No user data available, use general foods
+            general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
+            for food_name in general_foods:
+                food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+                if food_data:
+                    suggestions.append({
+                        "name": food_name,
+                        "suggested_quantity_g": 100,
+                        "reasoning": f"Common nutritious food for {meal_type}",
+                        "found_in_db": True,
+                        "calories": food_data.get("calories", 0),
+                        "protein_g": food_data.get("protein_g", 0),
+                        "carbs_g": food_data.get("carbs_g", 0),
+                        "fat_g": food_data.get("fat_g", 0),
+                        "nutrients": food_data.get("nutrients", []),
+                        "nutrition_summary": food_data.get("nutrition_summary", {}),
+                        "total_nutrients": food_data.get("total_nutrients", 0)
+                    })
+                else:
+                    suggestions.append({
+                        "name": food_name,
+                        "suggested_quantity_g": 100,
+                        "reasoning": f"Common nutritious food for {meal_type}",
+                        "found_in_db": False,
+                        "calories": 0,
+                        "protein_g": 0,
+                        "carbs_g": 0,
+                        "fat_g": 0,
+                        "nutrients": [],
+                        "nutrition_summary": {},
+                        "total_nutrients": 0
+                    })
+            return {
+                "meal_type": meal_type,
+                "target_calories": target_calories,
+                "meal_description": meal_description,
+                "suggestions": suggestions,
+                "ai_generated": False,
+                "fallback_used": True,
+                "message": "Using general food suggestions (no user data available)",
+                "user_data_available": False
+            }
+        
+        placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
+        params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
+        foods = db_nutrition.execute(
+            text(
+                f"""
+            SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
+            FROM foods 
+            WHERE id IN ({placeholders})
+            """
+            ),
+            params,
+        ).fetchall()
+        for food in foods:
+            if hasattr(food, '_mapping'):
+                food_dict = dict(food._mapping)
+            else:
+                columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
+                food_dict = dict(zip(columns, food))
+            
+            # Get comprehensive nutrition data
+            food_data = _get_food_nutrition_from_db(db_nutrition, food_dict["name"])
+            
+            if target_calories:
+                default_calories = 100
+                suggested_quantity = min(200, (target_calories / default_calories) * 100)
+                food_dict["suggested_quantity_g"] = round(suggested_quantity, 0)
+            else:
+                food_dict["suggested_quantity_g"] = 100
+            
+            if food_data:
+                suggestions.append({
+                    **food_dict,
+                    "calories": food_data.get("calories", 0),
+                    "protein_g": food_data.get("protein_g", 0),
+                    "carbs_g": food_data.get("carbs_g", 0),
+                    "fat_g": food_data.get("fat_g", 0),
+                    "nutrients": food_data.get("nutrients", []),
+                    "nutrition_summary": food_data.get("nutrition_summary", {}),
+                    "total_nutrients": food_data.get("total_nutrients", 0),
+                    "found_in_db": True
+                })
+            else:
+                suggestions.append({
+                    **food_dict,
+                    "calories": 0,
+                    "protein_g": 0,
+                    "carbs_g": 0,
+                    "fat_g": 0,
+                    "nutrients": [],
+                    "nutrition_summary": {},
+                    "total_nutrients": 0,
+                    "found_in_db": False
+                })
+        
+        return {
+            "meal_type": meal_type,
+            "target_calories": target_calories,
+            "meal_description": meal_description,
+            "suggestions": suggestions[:10],
+            "ai_generated": False,
+            "fallback_used": True,
+            "user_data_available": True
+        }
+        
+    except Exception as user_data_error:
+        logger.warning(f"Could not fetch user data for user_id {user_id} in fallback: {user_data_error}")
+        # Fallback to general foods when user data is not available
         general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
         for food_name in general_foods:
             food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
@@ -2888,6 +3014,7 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
                     "nutrition_summary": {},
                     "total_nutrients": 0
                 })
+        
         return {
             "meal_type": meal_type,
             "target_calories": target_calories,
@@ -2895,69 +3022,9 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
             "suggestions": suggestions,
             "ai_generated": False,
             "fallback_used": True,
-            "message": "Using general food suggestions"
+            "message": "Using general food suggestions (user data not available)",
+            "user_data_available": False
         }
-    placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
-    params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
-    foods = db_nutrition.execute(
-        text(
-            f"""
-        SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving
-        FROM foods 
-        WHERE id IN ({placeholders})
-        """
-        ),
-        params,
-    ).fetchall()
-    for food in foods:
-        if hasattr(food, '_mapping'):
-            food_dict = dict(food._mapping)
-        else:
-            columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
-            food_dict = dict(zip(columns, food))
-        
-        # Get comprehensive nutrition data
-        food_data = _get_food_nutrition_from_db(db_nutrition, food_dict["name"])
-        
-        if target_calories:
-            default_calories = 100
-            suggested_quantity = min(200, (target_calories / default_calories) * 100)
-            food_dict["suggested_quantity_g"] = round(suggested_quantity, 0)
-        else:
-            food_dict["suggested_quantity_g"] = 100
-        
-        if food_data:
-            suggestions.append({
-                **food_dict,
-                "calories": food_data.get("calories", 0),
-                "protein_g": food_data.get("protein_g", 0),
-                "carbs_g": food_data.get("carbs_g", 0),
-                "fat_g": food_data.get("fat_g", 0),
-                "nutrients": food_data.get("nutrients", []),
-                "nutrition_summary": food_data.get("nutrition_summary", {}),
-                "total_nutrients": food_data.get("total_nutrients", 0),
-                "found_in_db": True
-            })
-        else:
-            suggestions.append({
-                **food_dict,
-                "calories": 0,
-                "protein_g": 0,
-                "carbs_g": 0,
-                "fat_g": 0,
-                "nutrients": [],
-                "nutrition_summary": {},
-                "total_nutrients": 0,
-                "found_in_db": False
-            })
-    return {
-        "meal_type": meal_type,
-        "target_calories": target_calories,
-        "meal_description": meal_description,
-        "suggestions": suggestions[:10],
-        "ai_generated": False,
-        "fallback_used": True
-    }
 
 
 @app.post("/meal-plan-rule-based")
