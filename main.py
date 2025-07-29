@@ -1427,7 +1427,6 @@ def search_food_by_name(db, name: str):
                         n.name as nutrient_name, 
                         fn.amount, 
                         n.unit as nutrient_unit,
-                        n.category as nutrient_category
                     FROM food_nutrients fn
                     JOIN nutrients n ON fn.nutrient_id = n.id
                     WHERE fn.food_id = :food_id
