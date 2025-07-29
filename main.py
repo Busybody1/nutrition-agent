@@ -1591,7 +1591,6 @@ def get_food_nutrition(db, food_id: Any):
                 n.name as nutrient_name, 
                 fn.amount, 
                 n.unit as nutrient_unit,
-                n.category as nutrient_category
             FROM food_nutrients fn
             JOIN nutrients n ON fn.nutrient_id = n.id
             WHERE fn.food_id = :food_id
@@ -4117,5 +4116,106 @@ def debug_test_nutrition(food_name: str, db=Depends(get_nutrition_db)):
         return {
             "status": "error",
             "food_name": food_name,
+            "error": str(e)
+        }
+
+@app.get("/debug/food/{food_id}")
+def debug_food_details(food_id: int, db=Depends(get_nutrition_db)):
+    """Debug endpoint to show detailed information about a specific food."""
+    try:
+        # Get basic food information
+        food_query = """
+        SELECT id, name, brand_id, category_id, serving_size, serving_unit, serving, created_at
+        FROM foods
+        WHERE id = :food_id
+        """
+        
+        food_row = db.execute(text(food_query), {"food_id": food_id}).fetchone()
+        
+        if not food_row:
+            return {"status": "error", "message": f"Food with ID {food_id} not found"}
+        
+        if hasattr(food_row, '_mapping'):
+            food_data = dict(food_row._mapping)
+        else:
+            food_data = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'created_at'], food_row))
+        
+        # Get all nutrients for this food
+        nutrients_query = """
+        SELECT 
+            n.id as nutrient_id, 
+            n.name as nutrient_name, 
+            fn.amount, 
+            n.unit as nutrient_unit,
+            n.category as nutrient_category
+        FROM food_nutrients fn
+        JOIN nutrients n ON fn.nutrient_id = n.id
+        WHERE fn.food_id = :food_id
+        ORDER BY n.name
+        """
+        
+        nutrients_rows = db.execute(text(nutrients_query), {"food_id": food_id}).fetchall()
+        
+        nutrients = []
+        for row in nutrients_rows:
+            if hasattr(row, '_mapping'):
+                nutrient = dict(row._mapping)
+            else:
+                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit', 'nutrient_category'], row))
+            nutrients.append(nutrient)
+        
+        # Test the specific nutrient names that search_food_by_name is looking for
+        specific_nutrients_query = """
+        SELECT 
+            n.name as nutrient_name,
+            fn.amount
+        FROM food_nutrients fn
+        JOIN nutrients n ON fn.nutrient_id = n.id
+        WHERE fn.food_id = :food_id
+        AND n.name IN (
+            'Energy (kcal)', 'Energy', 'Energy from Fat', 'Total Fat', 'Unsaturated Fat',
+            'Omega-3 Fat', 'Trans Fat', 'Cholesterol', 'Carbohydrates', 'Sugars',
+            'Fiber', 'Protein', 'Salt', 'Sodium', 'Potassium', 'Calcium', 'Iron',
+            'Magnesium', 'Vitamin D', 'Vitamin C', 'Alcohol', 'Caffeine', 'Taurine',
+            'Glycemic Index'
+        )
+        ORDER BY n.name
+        """
+        
+        specific_nutrients_rows = db.execute(text(specific_nutrients_query), {"food_id": food_id}).fetchall()
+        
+        specific_nutrients = []
+        for row in specific_nutrients_rows:
+            if hasattr(row, '_mapping'):
+                nutrient = dict(row._mapping)
+            else:
+                nutrient = dict(zip(['nutrient_name', 'amount'], row))
+            specific_nutrients.append(nutrient)
+        
+        # Get all available nutrient names in the database for comparison
+        all_nutrients_query = """
+        SELECT DISTINCT n.name
+        FROM nutrients n
+        ORDER BY n.name
+        """
+        
+        all_nutrients_rows = db.execute(text(all_nutrients_query)).fetchall()
+        all_nutrient_names = [row[0] if not hasattr(row, '_mapping') else row._mapping['name'] for row in all_nutrients_rows]
+        
+        return {
+            "status": "success",
+            "food": food_data,
+            "total_nutrients_found": len(nutrients),
+            "all_nutrients": nutrients,
+            "specific_nutrients_found": len(specific_nutrients),
+            "specific_nutrients": specific_nutrients,
+            "all_available_nutrient_names": all_nutrient_names[:20],  # First 20 for reference
+            "note": "This shows what nutrients are actually in the database vs what the search function is looking for"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug_food_details: {e}")
+        return {
+            "status": "error",
             "error": str(e)
         }
