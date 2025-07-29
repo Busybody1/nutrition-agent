@@ -2722,27 +2722,29 @@ def _parse_ai_suggestions(ai_response: str) -> List[Dict]:
 
 
 def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[Dict]:
-    """Enrich AI suggestions with nutrition database data and always include macros."""
+    """Enrich AI suggestions with comprehensive nutrition database data."""
     enriched_suggestions = []
     for suggestion in ai_suggestions:
         food_name = suggestion.get("name", "")
         if not food_name:
             continue
+        
         food_data = _get_food_nutrition_from_db(db, food_name)
-        # Always include macros, even if missing
-        macros = {
-            "calories": 0,
-            "protein_g": 0,
-            "carbs_g": 0,
-            "fat_g": 0
-        }
+        
         if food_data:
-            macros.update({
-                "calories": food_data.get("calories", 0),
-                "protein_g": food_data.get("protein_g", 0),
-                "carbs_g": food_data.get("carbs_g", 0),
-                "fat_g": food_data.get("fat_g", 0)
-            })
+            # Calculate nutrition based on suggested quantity
+            suggested_quantity = suggestion.get("quantity_g", 100)
+            base_calories = food_data.get("calories", 0)
+            base_protein = food_data.get("protein_g", 0)
+            base_carbs = food_data.get("carbs_g", 0)
+            base_fat = food_data.get("fat_g", 0)
+            
+            # Calculate actual nutrition based on quantity
+            actual_calories = (base_calories * suggested_quantity) / 100
+            actual_protein = (base_protein * suggested_quantity) / 100
+            actual_carbs = (base_carbs * suggested_quantity) / 100
+            actual_fat = (base_fat * suggested_quantity) / 100
+            
             enriched_suggestion = {
                 "id": food_data.get("id"),
                 "name": food_data.get("name", food_name),
@@ -2751,25 +2753,41 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
                 "serving_size": food_data.get("serving_size"),
                 "serving_unit": food_data.get("serving_unit"),
                 "serving": food_data.get("serving"),
-                "suggested_quantity_g": suggestion.get("quantity_g", 100),
+                "suggested_quantity_g": suggested_quantity,
                 "ai_reasoning": suggestion.get("reasoning", ""),
                 "nutrition_verified": True,
-                **macros
+                "calories": round(actual_calories, 1),
+                "protein_g": round(actual_protein, 1),
+                "carbs_g": round(actual_carbs, 1),
+                "fat_g": round(actual_fat, 1),
+                "nutrients": food_data.get("nutrients", []),
+                "nutrition_summary": food_data.get("nutrition_summary", {}),
+                "total_nutrients": food_data.get("total_nutrients", 0)
             }
         else:
+            # Food not found in database, use estimated values
             enriched_suggestion = {
                 "name": food_name,
                 "suggested_quantity_g": suggestion.get("quantity_g", 100),
                 "ai_reasoning": suggestion.get("reasoning", ""),
                 "nutrition_verified": False,
-                **macros
+                "calories": 0,
+                "protein_g": 0,
+                "carbs_g": 0,
+                "fat_g": 0,
+                "nutrients": [],
+                "nutrition_summary": {},
+                "total_nutrients": 0,
+                "note": "Nutrition data not available in database"
             }
+        
         enriched_suggestions.append(enriched_suggestion)
+    
     return enriched_suggestions[:10]
 
 
 def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None) -> Dict:
-    """Fallback rule-based meal suggestions when AI fails. Always include macros."""
+    """Fallback rule-based meal suggestions when AI fails. Uses comprehensive nutrition data."""
     user_uuid = _get_user_uuid(user_id)
     recent_foods = db_shared.execute(
         text(
@@ -2816,22 +2834,35 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
     if not food_ids:
         general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
         for food_name in general_foods:
-            macros = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
             food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
             if food_data:
-                macros.update({
+                suggestions.append({
+                    "name": food_name,
+                    "suggested_quantity_g": 100,
+                    "reasoning": f"Common nutritious food for {meal_type}",
+                    "found_in_db": True,
                     "calories": food_data.get("calories", 0),
                     "protein_g": food_data.get("protein_g", 0),
                     "carbs_g": food_data.get("carbs_g", 0),
-                    "fat_g": food_data.get("fat_g", 0)
+                    "fat_g": food_data.get("fat_g", 0),
+                    "nutrients": food_data.get("nutrients", []),
+                    "nutrition_summary": food_data.get("nutrition_summary", {}),
+                    "total_nutrients": food_data.get("total_nutrients", 0)
                 })
-            suggestions.append({
-                "name": food_name,
-                "suggested_quantity_g": 100,
-                "reasoning": f"Common nutritious food for {meal_type}",
-                "found_in_db": bool(food_data),
-                **macros
-            })
+            else:
+                suggestions.append({
+                    "name": food_name,
+                    "suggested_quantity_g": 100,
+                    "reasoning": f"Common nutritious food for {meal_type}",
+                    "found_in_db": False,
+                    "calories": 0,
+                    "protein_g": 0,
+                    "carbs_g": 0,
+                    "fat_g": 0,
+                    "nutrients": [],
+                    "nutrition_summary": {},
+                    "total_nutrients": 0
+                })
         return {
             "meal_type": meal_type,
             "target_calories": target_calories,
@@ -2858,22 +2889,41 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
         else:
             columns = ['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving']
             food_dict = dict(zip(columns, food))
-        macros = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
+        
+        # Get comprehensive nutrition data
         food_data = _get_food_nutrition_from_db(db_nutrition, food_dict["name"])
-        if food_data:
-            macros.update({
-                "calories": food_data.get("calories", 0),
-                "protein_g": food_data.get("protein_g", 0),
-                "carbs_g": food_data.get("carbs_g", 0),
-                "fat_g": food_data.get("fat_g", 0)
-            })
+        
         if target_calories:
             default_calories = 100
             suggested_quantity = min(200, (target_calories / default_calories) * 100)
             food_dict["suggested_quantity_g"] = round(suggested_quantity, 0)
         else:
             food_dict["suggested_quantity_g"] = 100
-        suggestions.append({**food_dict, **macros})
+        
+        if food_data:
+            suggestions.append({
+                **food_dict,
+                "calories": food_data.get("calories", 0),
+                "protein_g": food_data.get("protein_g", 0),
+                "carbs_g": food_data.get("carbs_g", 0),
+                "fat_g": food_data.get("fat_g", 0),
+                "nutrients": food_data.get("nutrients", []),
+                "nutrition_summary": food_data.get("nutrition_summary", {}),
+                "total_nutrients": food_data.get("total_nutrients", 0),
+                "found_in_db": True
+            })
+        else:
+            suggestions.append({
+                **food_dict,
+                "calories": 0,
+                "protein_g": 0,
+                "carbs_g": 0,
+                "fat_g": 0,
+                "nutrients": [],
+                "nutrition_summary": {},
+                "total_nutrients": 0,
+                "found_in_db": False
+            })
     return {
         "meal_type": meal_type,
         "target_calories": target_calories,
@@ -3454,9 +3504,9 @@ def get_models():
 
 
 def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
-    """Get nutrition data for a food from the nutrition database."""
+    """Get comprehensive nutrition data for a food from the nutrition database."""
     try:
-        # Search for food by name with nutrition data, prioritizing foods with calories
+        # Search for food by name with comprehensive nutrition data
         query = """
         SELECT 
             f.id, 
@@ -3465,25 +3515,11 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
             f.category_id, 
             f.serving_size, 
             f.serving_unit, 
-            f.serving,
-            fn.amount as calories,
-            fn2.amount as protein_g,
-            fn3.amount as carbs_g,
-            fn4.amount as fat_g
+            f.serving
         FROM foods f
-        LEFT JOIN food_nutrients fn ON f.id = fn.food_id 
-            AND fn.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Energy (kcal)' LIMIT 1)
-        LEFT JOIN food_nutrients fn2 ON f.id = fn2.food_id 
-            AND fn2.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Protein' LIMIT 1)
-        LEFT JOIN food_nutrients fn3 ON f.id = fn3.food_id 
-            AND fn3.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Carbohydrates' LIMIT 1)
-        LEFT JOIN food_nutrients fn4 ON f.id = fn4.food_id 
-            AND fn4.nutrient_id = (SELECT id FROM nutrients WHERE name = 'Total Fat' LIMIT 1)
         WHERE LOWER(f.name) LIKE LOWER(:food_name)
         OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
-        ORDER BY 
-            CASE WHEN fn.amount IS NOT NULL AND fn.amount > 0 THEN 1 ELSE 2 END,
-            fn.amount DESC NULLS LAST
+        ORDER BY f.name
         LIMIT 5
         """
         
@@ -3496,39 +3532,150 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
         if not rows:
             return None
         
-        # Find the best match (prioritize foods with calories)
-        best_match = None
-        for row in rows:
-            if hasattr(row, '_mapping'):
-                food_data = dict(row._mapping)
+        # Get the best match (first result)
+        row = rows[0]
+        if hasattr(row, '_mapping'):
+            food_data = dict(row._mapping)
+        else:
+            food_data = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving'], row))
+        
+        # Get comprehensive nutrition data for this food
+        nutrition_rows = db.execute(
+            text("""
+                SELECT 
+                    n.id as nutrient_id, 
+                    n.name as nutrient_name, 
+                    fn.amount, 
+                    n.unit as nutrient_unit
+                FROM food_nutrients fn
+                JOIN nutrients n ON fn.nutrient_id = n.id
+                WHERE fn.food_id = :food_id
+                ORDER BY n.name
+            """),
+            {"food_id": food_data['id']}
+        ).fetchall()
+        
+        # Convert nutrition data to comprehensive format
+        nutrients = []
+        nutrition_summary = {
+            "energy_kcal": 0,
+            "energy": 0,
+            "energy_from_fat": 0,
+            "total_fat": 0,
+            "unsaturated_fat": 0,
+            "omega_3_fat": 0,
+            "trans_fat": 0,
+            "cholesterol": 0,
+            "carbohydrates": 0,
+            "sugars": 0,
+            "fiber": 0,
+            "protein": 0,
+            "salt": 0,
+            "sodium": 0,
+            "potassium": 0,
+            "calcium": 0,
+            "iron": 0,
+            "magnesium": 0,
+            "vitamin_d": 0,
+            "vitamin_c": 0,
+            "alcohol": 0,
+            "caffeine": 0,
+            "taurine": 0,
+            "glycemic_index": 0
+        }
+        
+        # Basic macros for backward compatibility
+        calories = 0
+        protein_g = 0
+        carbs_g = 0
+        fat_g = 0
+        
+        for nutrition_row in nutrition_rows:
+            if hasattr(nutrition_row, '_mapping'):
+                nutrient = dict(nutrition_row._mapping)
             else:
-                food_data = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], row))
+                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
             
-            # Check if this food has calories (Energy)
-            calories = food_data.get('calories')
-            if calories is not None and calories > 0:
-                best_match = food_data
-                break
-        
-        # If no food with calories found, use the first result
-        if best_match is None and rows:
-            row = rows[0]
-            if hasattr(row, '_mapping'):
-                best_match = dict(row._mapping)
-            else:
-                best_match = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], row))
-        
-        if best_match:
-            # Set default values for missing nutrition data
-            best_match.setdefault('calories', 0)
-            best_match.setdefault('protein_g', 0)
-            best_match.setdefault('carbs_g', 0)
-            best_match.setdefault('fat_g', 0)
+            amount = nutrient['amount'] or 0
+            nutrient_name = nutrient['nutrient_name']
             
-            logger.info(f"Found food '{best_match['name']}' with calories: {best_match['calories']}")
-            return best_match
+            # Add to comprehensive nutrients array
+            nutrients.append({
+                "id": nutrient['nutrient_id'],
+                "name": nutrient['nutrient_name'],
+                "unit": nutrient['nutrient_unit'],
+                "amount": amount,
+                "category": "general"
+            })
+            
+            # Map to nutrition summary using exact database names
+            if nutrient_name == "Energy (kcal)":
+                nutrition_summary['energy_kcal'] = amount
+                calories = amount
+            elif nutrient_name == "Energy":
+                nutrition_summary['energy'] = amount
+            elif nutrient_name == "Energy from Fat":
+                nutrition_summary['energy_from_fat'] = amount
+            elif nutrient_name == "Total Fat":
+                nutrition_summary['total_fat'] = amount
+                fat_g = amount
+            elif nutrient_name == "Unsaturated Fat":
+                nutrition_summary['unsaturated_fat'] = amount
+            elif nutrient_name == "Omega-3 Fat":
+                nutrition_summary['omega_3_fat'] = amount
+            elif nutrient_name == "Trans Fat":
+                nutrition_summary['trans_fat'] = amount
+            elif nutrient_name == "Cholesterol":
+                nutrition_summary['cholesterol'] = amount
+            elif nutrient_name == "Carbohydrates":
+                nutrition_summary['carbohydrates'] = amount
+                carbs_g = amount
+            elif nutrient_name == "Sugars":
+                nutrition_summary['sugars'] = amount
+            elif nutrient_name == "Fiber":
+                nutrition_summary['fiber'] = amount
+            elif nutrient_name == "Protein":
+                nutrition_summary['protein'] = amount
+                protein_g = amount
+            elif nutrient_name == "Salt":
+                nutrition_summary['salt'] = amount
+            elif nutrient_name == "Sodium":
+                nutrition_summary['sodium'] = amount
+            elif nutrient_name == "Potassium":
+                nutrition_summary['potassium'] = amount
+            elif nutrient_name == "Calcium":
+                nutrition_summary['calcium'] = amount
+            elif nutrient_name == "Iron":
+                nutrition_summary['iron'] = amount
+            elif nutrient_name == "Magnesium":
+                nutrition_summary['magnesium'] = amount
+            elif nutrient_name == "Vitamin D":
+                nutrition_summary['vitamin_d'] = amount
+            elif nutrient_name == "Vitamin C":
+                nutrition_summary['vitamin_c'] = amount
+            elif nutrient_name == "Alcohol":
+                nutrition_summary['alcohol'] = amount
+            elif nutrient_name == "Caffeine":
+                nutrition_summary['caffeine'] = amount
+            elif nutrient_name == "Taurine":
+                nutrition_summary['taurine'] = amount
+            elif nutrient_name == "Glycemic Index":
+                nutrition_summary['glycemic_index'] = amount
         
-        return None
+        # Combine food data with comprehensive nutrition data
+        result = {
+            **food_data,
+            "calories": calories,
+            "protein_g": protein_g,
+            "carbs_g": carbs_g,
+            "fat_g": fat_g,
+            "nutrients": nutrients,
+            "nutrition_summary": nutrition_summary,
+            "total_nutrients": len(nutrients)
+        }
+        
+        logger.info(f"Found food '{result['name']}' with {len(nutrients)} nutrients, calories: {calories}")
+        return result
         
     except Exception as e:
         logger.error(f"Error getting nutrition data for {food_name}: {e}")
@@ -3703,7 +3850,7 @@ def _create_fallback_meal_plan(meal_count: int) -> List[Dict]:
 
 
 def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> List[Dict]:
-    """Query nutrition database to get accurate macros and calories for AI-generated meals."""
+    """Query nutrition database to get comprehensive nutrition data for AI-generated meals."""
     enriched_plan = []
     
     for meal in ai_meal_plan:
@@ -3713,29 +3860,60 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
             "total_calories": 0,
             "total_protein_g": 0,
             "total_carbs_g": 0,
-            "total_fat_g": 0
+            "total_fat_g": 0,
+            "total_nutrients": 0,
+            "nutrition_summary": {
+                "energy_kcal": 0,
+                "energy": 0,
+                "energy_from_fat": 0,
+                "total_fat": 0,
+                "unsaturated_fat": 0,
+                "omega_3_fat": 0,
+                "trans_fat": 0,
+                "cholesterol": 0,
+                "carbohydrates": 0,
+                "sugars": 0,
+                "fiber": 0,
+                "protein": 0,
+                "salt": 0,
+                "sodium": 0,
+                "potassium": 0,
+                "calcium": 0,
+                "iron": 0,
+                "magnesium": 0,
+                "vitamin_d": 0,
+                "vitamin_c": 0,
+                "alcohol": 0,
+                "caffeine": 0,
+                "taurine": 0,
+                "glycemic_index": 0
+            }
         }
         
         for food_item in meal["foods"]:
             food_name = food_item["name"]
             quantity_g = food_item["quantity_g"]
             
-            # Search for food in nutrition database
-            nutrition_data = _get_food_nutrition_from_db(db_nutrition, food_name)
-            logger.info(f"Food: {food_name}, Nutrition data: {nutrition_data}")
+            # Get comprehensive nutrition data
+            food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+            logger.info(f"Food: {food_name}, Nutrition data: {food_data is not None}")
             
-            if nutrition_data:
-                # Calculate nutrition based on quantity, handle None values
-                calories = nutrition_data.get("calories")
-                protein = nutrition_data.get("protein_g")
-                carbs = nutrition_data.get("carbs_g")
-                fat = nutrition_data.get("fat_g")
+            if food_data:
+                # Calculate nutrition based on quantity
+                base_calories = food_data.get("calories", 0)
+                base_protein = food_data.get("protein_g", 0)
+                base_carbs = food_data.get("carbs_g", 0)
+                base_fat = food_data.get("fat_g", 0)
                 
-                # Convert None to 0 for calculations
-                actual_calories = ((calories or 0) * quantity_g) / 100
-                actual_protein = ((protein or 0) * quantity_g) / 100
-                actual_carbs = ((carbs or 0) * quantity_g) / 100
-                actual_fat = ((fat or 0) * quantity_g) / 100
+                # Calculate actual nutrition based on quantity
+                actual_calories = (base_calories * quantity_g) / 100
+                actual_protein = (base_protein * quantity_g) / 100
+                actual_carbs = (base_carbs * quantity_g) / 100
+                actual_fat = (base_fat * quantity_g) / 100
+                
+                # Get comprehensive nutrients and nutrition summary
+                nutrients = food_data.get("nutrients", [])
+                nutrition_summary = food_data.get("nutrition_summary", {})
                 
                 enriched_food = {
                     "name": food_name,
@@ -3747,6 +3925,9 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                         "carbs_g": round(actual_carbs, 1),
                         "fat_g": round(actual_fat, 1)
                     },
+                    "nutrients": nutrients,
+                    "nutrition_summary": nutrition_summary,
+                    "total_nutrients": len(nutrients),
                     "found_in_db": True
                 }
                 
@@ -3755,6 +3936,15 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                 enriched_meal["total_protein_g"] += actual_protein
                 enriched_meal["total_carbs_g"] += actual_carbs
                 enriched_meal["total_fat_g"] += actual_fat
+                enriched_meal["total_nutrients"] += len(nutrients)
+                
+                # Update meal nutrition summary
+                for key, value in nutrition_summary.items():
+                    if key in enriched_meal["nutrition_summary"]:
+                        # Calculate based on quantity ratio
+                        base_value = value or 0
+                        actual_value = (base_value * quantity_g) / 100
+                        enriched_meal["nutrition_summary"][key] += actual_value
                 
             else:
                 # Food not found in database, use estimated values
@@ -3768,6 +3958,9 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                         "carbs_g": 0,
                         "fat_g": 0
                     },
+                    "nutrients": [],
+                    "nutrition_summary": {},
+                    "total_nutrients": 0,
                     "found_in_db": False,
                     "note": "Nutrition data not available in database"
                 }
@@ -3779,6 +3972,10 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
         enriched_meal["total_protein_g"] = round(enriched_meal["total_protein_g"], 1)
         enriched_meal["total_carbs_g"] = round(enriched_meal["total_carbs_g"], 1)
         enriched_meal["total_fat_g"] = round(enriched_meal["total_fat_g"], 1)
+        
+        # Round nutrition summary values
+        for key in enriched_meal["nutrition_summary"]:
+            enriched_meal["nutrition_summary"][key] = round(enriched_meal["nutrition_summary"][key], 1)
         
         enriched_plan.append(enriched_meal)
     
