@@ -1324,9 +1324,10 @@ def execute_tool(
         user_id = params.get("user_id")
         meal_type = params.get("meal_type")
         target_calories = params.get("target_calories")
+        meal_description = params.get("meal_description")  # New parameter
         if not user_id or not meal_type:
             raise HTTPException(status_code=400, detail="Missing required parameters.")
-        return get_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories)
+        return get_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories, meal_description)
 
     elif tool == "get_nutrition_recommendations":
         user_id = params.get("user_id")
@@ -2066,6 +2067,7 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
         daily_calories = request.get("daily_calories", 2000)
         meal_count = request.get("meal_count", 3)
         dietary_restrictions = request.get("dietary_restrictions", [])
+        meal_description = request.get("meal_description")  # New parameter
 
         if not user_id:
             raise HTTPException(status_code=400, detail="user_id is required")
@@ -2073,9 +2075,9 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
         # Get user's food preferences and history from shared database
         user_history = get_user_calorie_history(db_shared, user_id)
 
-        # AI-powered meal plan creation
+        # AI-powered meal plan creation with meal description
         meal_plan = create_ai_meal_plan(
-            user_id, daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition
+            user_id, daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition, meal_description
         )
 
         # Calculate total calories from enriched meal plan
@@ -2087,7 +2089,8 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
             "total_calories": total_calories,
             "meals": len(meal_plan),
             "ai_generated": True,
-            "nutrition_verified": True
+            "nutrition_verified": True,
+            "meal_description": meal_description
         }
     except Exception as e:
         logger.error(f"Error creating AI meal plan: {e}")
@@ -2508,9 +2511,9 @@ def calculate_goal_progress(
 
 
 def get_meal_suggestions(
-    db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None
+    db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None, meal_description: Optional[str] = None
 ):
-    """Get AI-powered meal suggestions based on user preferences and calorie targets."""
+    """Get AI-powered meal suggestions based on user preferences, calorie targets, and meal description."""
     try:
         settings = get_settings()
         
@@ -2606,51 +2609,72 @@ def get_meal_suggestions(
             general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
             popular_choices = general_foods
 
-        # Prepare context for AI
-        context = f"""
-        User Profile:
-        - Meal type: {meal_type}
-        - Target calories: {target_calories if target_calories else 'Not specified'}
-        - User's recent food preferences: {', '.join(user_preferences[:5]) if user_preferences else 'None available'}
-        - Popular foods for {meal_type}: {', '.join(popular_choices[:5]) if popular_choices else 'None available'}
+        # Prepare context for AI with meal description
+        context_parts = [
+            f"Meal type: {meal_type}",
+            f"Target calories: {target_calories if target_calories else 'Not specified'}"
+        ]
         
-        Requirements:
-        - Suggest 5-8 food items suitable for {meal_type}
-        - Consider user's preferences and popular choices if available
-        - If no preferences available, suggest common nutritious foods for {meal_type}
-        - Ensure variety and nutritional balance
-        - Focus on whole, nutritious foods
-        - If target calories specified, suggest appropriate portion sizes
-        """
-
-        # Generate AI suggestions
-        ai_suggestions = _generate_ai_meal_suggestions(client, context, target_calories)
+        # Add meal description if provided
+        if meal_description:
+            context_parts.append(f"Meal description: {meal_description}")
         
-        # Enrich with nutrition database data
+        # Add user preferences and popular choices
+        if user_preferences:
+            context_parts.append(f"User's recent food preferences: {', '.join(user_preferences[:5])}")
+        if popular_choices:
+            context_parts.append(f"Popular foods for {meal_type}: {', '.join(popular_choices[:5])}")
+        
+        context = " | ".join(context_parts)
+        
+        # Generate AI suggestions with meal description
+        ai_suggestions = _generate_ai_meal_suggestions(client, context, target_calories, meal_description)
+        
+        # Enrich with nutrition data
         enriched_suggestions = _enrich_suggestions_with_nutrition(ai_suggestions, db_nutrition)
         
         return {
             "meal_type": meal_type,
             "target_calories": target_calories,
+            "meal_description": meal_description,
             "suggestions": enriched_suggestions,
             "ai_generated": True,
-            "user_preferences_considered": len(user_preferences) > 0,
-            "fallback_used": not user_preferences and not popular_choices
+            "user_preferences_count": len(user_preferences),
+            "popular_choices_count": len(popular_choices)
         }
         
     except Exception as e:
         logger.error(f"Error in AI meal suggestions: {e}")
         # Fallback to rule-based suggestions
-        return _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories)
+        return _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id, meal_type, target_calories, meal_description)
 
 
-def _generate_ai_meal_suggestions(client, context: str, target_calories: Optional[float] = None) -> List[Dict]:
+def _generate_ai_meal_suggestions(client, context: str, target_calories: Optional[float] = None, meal_description: Optional[str] = None) -> List[Dict]:
     """Generate meal suggestions using Groq AI."""
     
     settings = get_settings()
     
+    # Build personalized prompt based on meal description
+    personalization_guidelines = ""
+    if meal_description:
+        personalization_guidelines = f"""
+        IMPORTANT: The user has provided a specific meal description: "{meal_description}"
+        
+        Please prioritize foods that match this description. For example:
+        - If description mentions "all chicken" or "chicken only", focus on chicken-based foods
+        - If description mentions "all pork" or "pork only", focus on pork-based foods  
+        - If description mentions "all beef" or "beef only", focus on beef-based foods
+        - If description mentions "vegetarian", avoid meat products
+        - If description mentions "low carb", focus on protein and healthy fats
+        - If description mentions "high protein", prioritize protein-rich foods
+        
+        Always respect the user's specific preferences while maintaining nutritional balance.
+        """
+    
     prompt = f"""
     {context}
+    
+    {personalization_guidelines}
     
     Create 5-8 food suggestions for this meal. For each food, provide:
     1. Food name (specific food names that would be found in a nutrition database)
@@ -2679,13 +2703,14 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
     - Keep reasoning brief but informative
     - If no user preferences are available, suggest common nutritious foods for the meal type
     - Focus on whole foods and balanced nutrition
+    - If a specific meal description is provided, prioritize foods that match that description
     """
     
     try:
         response = client.chat.completions.create(
             model=settings.llm.groq_model,
             messages=[
-                {"role": "system", "content": "You are a nutrition expert providing personalized meal suggestions."},
+                {"role": "system", "content": "You are a nutrition expert providing personalized meal suggestions based on user preferences and specific meal descriptions."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -2786,7 +2811,7 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
     return enriched_suggestions[:10]
 
 
-def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None) -> Dict:
+def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_type: str, target_calories: Optional[float] = None, meal_description: Optional[str] = None) -> Dict:
     """Fallback rule-based meal suggestions when AI fails. Uses comprehensive nutrition data."""
     user_uuid = _get_user_uuid(user_id)
     recent_foods = db_shared.execute(
@@ -2866,6 +2891,7 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
         return {
             "meal_type": meal_type,
             "target_calories": target_calories,
+            "meal_description": meal_description,
             "suggestions": suggestions,
             "ai_generated": False,
             "fallback_used": True,
@@ -2927,6 +2953,7 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
     return {
         "meal_type": meal_type,
         "target_calories": target_calories,
+        "meal_description": meal_description,
         "suggestions": suggestions[:10],
         "ai_generated": False,
         "fallback_used": True
@@ -2975,6 +3002,7 @@ def test_ai_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutritio
         daily_calories = request.get("daily_calories", 2000)
         meal_count = request.get("meal_count", 3)
         dietary_restrictions = request.get("dietary_restrictions", ["vegetarian"])
+        meal_description = request.get("meal_description")  # New parameter for testing
         
         # Sample user history
         sample_history = [
@@ -2985,9 +3013,9 @@ def test_ai_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutritio
             {"name": "salmon", "calories": 208, "protein_g": 25, "carbs_g": 0, "fat_g": 12}
         ]
 
-        # AI-powered meal plan creation
+        # AI-powered meal plan creation with meal description
         meal_plan = create_ai_meal_plan(
-            user_id, daily_calories, meal_count, dietary_restrictions, sample_history, db_nutrition
+            user_id, daily_calories, meal_count, dietary_restrictions, sample_history, db_nutrition, meal_description
         )
 
         # Calculate total calories from enriched meal plan
@@ -3001,7 +3029,8 @@ def test_ai_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutritio
             "ai_generated": True,
             "nutrition_verified": True,
             "test_mode": True,
-            "sample_data_used": True
+            "sample_data_used": True,
+            "meal_description": meal_description
         }
     except Exception as e:
         logger.error(f"Error testing AI meal plan: {e}")
@@ -3688,7 +3717,8 @@ def create_ai_meal_plan(
     meal_count: int,
     dietary_restrictions: List[str],
     user_history: List[Dict],
-    db_nutrition
+    db_nutrition,
+    meal_description: Optional[str] = None
 ) -> List[Dict]:
     """
     AI-powered meal plan creation using Groq API.
@@ -3704,10 +3734,10 @@ def create_ai_meal_plan(
         )
         
         # Prepare user context for AI
-        user_context = _prepare_user_context(user_history, dietary_restrictions, daily_calories)
+        user_context = _prepare_user_context(user_history, dietary_restrictions, daily_calories, meal_description)
         
         # Generate meal plan with AI
-        ai_meal_plan = _generate_meal_plan_with_ai(client, user_context, meal_count)
+        ai_meal_plan = _generate_meal_plan_with_ai(client, user_context, meal_count, meal_description)
         
         # Query nutrition database for accurate macros and calories
         enriched_meal_plan = _enrich_meal_plan_with_nutrition(ai_meal_plan, db_nutrition)
@@ -3719,7 +3749,7 @@ def create_ai_meal_plan(
         raise HTTPException(status_code=500, detail=f"Failed to create AI meal plan: {str(e)}")
 
 
-def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[str], daily_calories: int) -> str:
+def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[str], daily_calories: int, meal_description: Optional[str] = None) -> str:
     """Prepare user context for AI meal plan generation."""
     
     # Extract user's food preferences
@@ -3732,11 +3762,20 @@ def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[s
     # Get unique preferences
     unique_preferences = list(set(food_preferences))
     
+    # Build context with meal description
+    context_parts = [
+        f"Daily calorie target: {daily_calories} calories",
+        f"Dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}",
+        f"Food preferences (from history): {', '.join(unique_preferences[:10])}"
+    ]
+    
+    # Add meal description if provided
+    if meal_description:
+        context_parts.append(f"Meal description: {meal_description}")
+    
     context = f"""
     User Profile:
-    - Daily calorie target: {daily_calories} calories
-    - Dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}
-    - Food preferences (from history): {', '.join(unique_preferences[:10])}
+    - {' | '.join(context_parts)}
     
     Requirements:
     - Create a balanced meal plan with proper macronutrient distribution
@@ -3748,13 +3787,32 @@ def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[s
     return context
 
 
-def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int) -> List[Dict]:
+def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal_description: Optional[str] = None) -> List[Dict]:
     """Generate meal plan using Groq AI."""
     
     settings = get_settings()
     
+    # Build personalized prompt based on meal description
+    personalization_guidelines = ""
+    if meal_description:
+        personalization_guidelines = f"""
+        IMPORTANT: The user has provided a specific meal description: "{meal_description}"
+        
+        Please prioritize foods that match this description throughout the meal plan. For example:
+        - If description mentions "all chicken" or "chicken only", focus on chicken-based foods across all meals
+        - If description mentions "all pork" or "pork only", focus on pork-based foods across all meals  
+        - If description mentions "all beef" or "beef only", focus on beef-based foods across all meals
+        - If description mentions "vegetarian", avoid meat products in all meals
+        - If description mentions "low carb", focus on protein and healthy fats across all meals
+        - If description mentions "high protein", prioritize protein-rich foods across all meals
+        
+        Always respect the user's specific preferences while maintaining nutritional balance across the entire meal plan.
+        """
+    
     prompt = f"""
     {user_context}
+    
+    {personalization_guidelines}
     
     Create a {meal_count}-meal daily plan. For each meal, provide:
     1. Meal type (breakfast/lunch/dinner/snack)
@@ -3782,13 +3840,14 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int) -> L
     ]
     
     Focus on common, recognizable food names that would be in a nutrition database.
+    If a specific meal description is provided, prioritize foods that match that description across all meals.
     """
     
     try:
         response = client.chat.completions.create(
             model=settings.llm.groq_model,
             messages=[
-                {"role": "system", "content": "You are a nutrition expert creating personalized meal plans. Provide specific, actionable meal suggestions with common food names."},
+                {"role": "system", "content": "You are a nutrition expert creating personalized meal plans based on user preferences and specific meal descriptions. Provide specific, actionable meal suggestions with common food names."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,

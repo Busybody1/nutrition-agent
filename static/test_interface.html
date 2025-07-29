@@ -345,6 +345,10 @@
                         <label for="suggestCalories">Target Calories (optional):</label>
                         <input type="number" id="suggestCalories" placeholder="Enter target calories (optional)">
                     </div>
+                    <div class="form-group">
+                        <label for="suggestMealDescription">Meal Description (optional):</label>
+                        <input type="text" id="suggestMealDescription" placeholder="e.g., all chicken, all pork, all beef, vegetarian, low carb, high protein">
+                    </div>
                     <button class="btn" onclick="getMealSuggestions()">Get Suggestions</button>
                     <div id="suggestionsResponse" class="response"></div>
                 </div>
@@ -364,6 +368,10 @@
                     <div class="form-group">
                         <label for="newUserCalories">Target Calories (optional):</label>
                         <input type="number" id="newUserCalories" value="300" placeholder="Enter target calories">
+                    </div>
+                    <div class="form-group">
+                        <label for="newUserMealDescription">Meal Description (optional):</label>
+                        <input type="text" id="newUserMealDescription" placeholder="e.g., all chicken, vegetarian, low carb">
                     </div>
                     <button class="btn" onclick="testNewUserSuggestions()">Test New User</button>
                     <div id="newUserResponse" class="response"></div>
@@ -389,8 +397,39 @@
                         <label for="scenarioCalories">Target Calories:</label>
                         <input type="number" id="scenarioCalories" value="500" placeholder="Enter target calories">
                     </div>
+                    <div class="form-group">
+                        <label for="scenarioMealDescription">Meal Description (optional):</label>
+                        <input type="text" id="scenarioMealDescription" placeholder="e.g., all chicken, all beef, vegetarian">
+                    </div>
                     <button class="btn" onclick="testScenarioSuggestions()">Test Scenario</button>
                     <div id="scenarioResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🎯 Test Meal Description Examples</h2>
+                    <p>Quick test buttons for common meal description scenarios.</p>
+                    <div class="form-group">
+                        <label for="quickTestUser">User ID:</label>
+                        <input type="text" id="quickTestUser" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="quickTestMeal">Meal Type:</label>
+                        <select id="quickTestMeal">
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner">Dinner</option>
+                            <option value="breakfast">Breakfast</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="testQuickScenario('all chicken')">🐔 All Chicken</button>
+                        <button class="btn btn-secondary" onclick="testQuickScenario('all beef')">🥩 All Beef</button>
+                        <button class="btn btn-secondary" onclick="testQuickScenario('all pork')">🐷 All Pork</button>
+                        <button class="btn btn-secondary" onclick="testQuickScenario('vegetarian')">🥬 Vegetarian</button>
+                        <button class="btn btn-secondary" onclick="testQuickScenario('low carb')">🥑 Low Carb</button>
+                        <button class="btn btn-secondary" onclick="testQuickScenario('high protein')">💪 High Protein</button>
+                    </div>
+                    <div id="quickTestResponse" class="response"></div>
                 </div>
             </div>
 
@@ -415,8 +454,61 @@
                         <label for="dietaryRestrictions">Dietary Restrictions:</label>
                         <input type="text" id="dietaryRestrictions" placeholder="e.g., vegetarian, gluten-free">
                     </div>
+                    <div class="form-group">
+                        <label for="mealDescription">Meal Description (optional):</label>
+                        <input type="text" id="mealDescription" placeholder="e.g., all chicken, all beef, vegetarian, low carb, high protein">
+                    </div>
                     <button class="btn" onclick="createMealPlan()">Create Meal Plan</button>
                     <div id="mealPlanResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🧪 Test AI Meal Plan</h2>
+                    <p>Test AI meal plan creation with sample data and meal descriptions.</p>
+                    <div class="form-group">
+                        <label for="testMealUserId">User ID:</label>
+                        <input type="text" id="testMealUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="testMealCalories">Daily Calories:</label>
+                        <input type="number" id="testMealCalories" value="2000" placeholder="Enter daily calorie target">
+                    </div>
+                    <div class="form-group">
+                        <label for="testMealCount">Meals per Day:</label>
+                        <input type="number" id="testMealCount" value="3" min="1" max="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="testDietaryRestrictions">Dietary Restrictions:</label>
+                        <input type="text" id="testDietaryRestrictions" value="vegetarian" placeholder="e.g., vegetarian, gluten-free">
+                    </div>
+                    <div class="form-group">
+                        <label for="testMealDescription">Meal Description (optional):</label>
+                        <input type="text" id="testMealDescription" placeholder="e.g., all chicken, all beef, vegetarian, low carb">
+                    </div>
+                    <button class="btn" onclick="testAIMealPlan()">Test AI Meal Plan</button>
+                    <div id="testMealPlanResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🎯 Quick Meal Plan Tests</h2>
+                    <p>Quick test buttons for common meal plan scenarios with meal descriptions.</p>
+                    <div class="form-group">
+                        <label for="quickMealUser">User ID:</label>
+                        <input type="text" id="quickMealUser" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="quickMealCalories">Daily Calories:</label>
+                        <input type="number" id="quickMealCalories" value="2000" placeholder="Enter daily calorie target">
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="testQuickMealPlan('all chicken')">🐔 Chicken Meal Plan</button>
+                        <button class="btn btn-secondary" onclick="testQuickMealPlan('all beef')">🥩 Beef Meal Plan</button>
+                        <button class="btn btn-secondary" onclick="testQuickMealPlan('all pork')">🐷 Pork Meal Plan</button>
+                        <button class="btn btn-secondary" onclick="testQuickMealPlan('vegetarian')">🥬 Vegetarian Plan</button>
+                        <button class="btn btn-secondary" onclick="testQuickMealPlan('low carb')">🥑 Low Carb Plan</button>
+                        <button class="btn btn-secondary" onclick="testQuickMealPlan('high protein')">💪 High Protein Plan</button>
+                    </div>
+                    <div id="quickMealPlanResponse" class="response"></div>
                 </div>
 
                 <div class="section">
@@ -687,13 +779,20 @@
             const calories = document.getElementById('mealCalories').value;
             const mealCount = document.getElementById('mealCount').value;
             const restrictions = document.getElementById('dietaryRestrictions').value;
+            const mealDescription = document.getElementById('mealDescription').value;
 
-            const response = await makeRequest('/meal-plan', 'POST', {
+            const params = {
                 user_id: userId,
                 daily_calories: parseInt(calories),
                 meal_count: parseInt(mealCount),
                 dietary_restrictions: restrictions.split(',').map(r => r.trim()).filter(r => r)
-            });
+            };
+
+            if (mealDescription && mealDescription.trim() !== '') {
+                params.meal_description = mealDescription;
+            }
+
+            const response = await makeRequest('/meal-plan', 'POST', params);
             displayResponse('mealPlanResponse', response, response.success ? 'success' : 'error');
         }
 
@@ -725,6 +824,7 @@
             const userId = document.getElementById('suggestUserId').value;
             const mealType = document.getElementById('suggestMealType').value;
             const calories = document.getElementById('suggestCalories').value;
+            const mealDescription = document.getElementById('suggestMealDescription').value;
 
             const params = {
                 user_id: userId,
@@ -733,6 +833,9 @@
 
             if (calories && calories.trim() !== '') {
                 params.target_calories = parseFloat(calories);
+            }
+            if (mealDescription && mealDescription.trim() !== '') {
+                params.meal_description = mealDescription;
             }
 
             const response = await makeRequest('/execute-tool', 'POST', {
@@ -745,6 +848,7 @@
         async function testNewUserSuggestions() {
             const mealType = document.getElementById('newUserMealType').value;
             const calories = document.getElementById('newUserCalories').value;
+            const mealDescription = document.getElementById('newUserMealDescription').value;
 
             const params = {
                 user_id: 'new-user-no-history',
@@ -753,6 +857,9 @@
 
             if (calories && calories.trim() !== '') {
                 params.target_calories = parseFloat(calories);
+            }
+            if (mealDescription && mealDescription.trim() !== '') {
+                params.meal_description = mealDescription;
             }
 
             const response = await makeRequest('/execute-tool', 'POST', {
@@ -766,18 +873,79 @@
             const userId = document.getElementById('scenarioUser').value;
             const mealType = document.getElementById('scenarioMeal').value;
             const calories = document.getElementById('scenarioCalories').value;
+            const mealDescription = document.getElementById('scenarioMealDescription').value;
 
             const params = {
                 user_id: userId,
                 meal_type: mealType,
                 target_calories: parseFloat(calories)
             };
+            if (mealDescription && mealDescription.trim() !== '') {
+                params.meal_description = mealDescription;
+            }
 
             const response = await makeRequest('/execute-tool', 'POST', {
                 tool: 'get_meal_suggestions',
                 params: params
             });
             displayResponse('scenarioResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function testQuickScenario(description) {
+            const userId = document.getElementById('quickTestUser').value;
+            const mealType = document.getElementById('quickTestMeal').value;
+            const mealDescription = description;
+
+            const params = {
+                user_id: userId,
+                meal_type: mealType,
+                meal_description: mealDescription
+            };
+
+            const response = await makeRequest('/execute-tool', 'POST', {
+                tool: 'get_meal_suggestions',
+                params: params
+            });
+            displayResponse('quickTestResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function testAIMealPlan() {
+            const userId = document.getElementById('testMealUserId').value;
+            const calories = document.getElementById('testMealCalories').value;
+            const mealCount = document.getElementById('testMealCount').value;
+            const restrictions = document.getElementById('testDietaryRestrictions').value;
+            const mealDescription = document.getElementById('testMealDescription').value;
+
+            const params = {
+                user_id: userId,
+                daily_calories: parseInt(calories),
+                meal_count: parseInt(mealCount),
+                dietary_restrictions: restrictions.split(',').map(r => r.trim()).filter(r => r)
+            };
+
+            if (mealDescription && mealDescription.trim() !== '') {
+                params.meal_description = mealDescription;
+            }
+
+            const response = await makeRequest('/meal-plan', 'POST', params);
+            displayResponse('testMealPlanResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function testQuickMealPlan(description) {
+            const userId = document.getElementById('quickMealUser').value;
+            const calories = document.getElementById('quickMealCalories').value;
+            const mealDescription = description;
+
+            const params = {
+                user_id: userId,
+                daily_calories: parseInt(calories),
+                meal_count: 3, // Default to 3 meals
+                dietary_restrictions: [], // Default to no restrictions
+                meal_description: mealDescription
+            };
+
+            const response = await makeRequest('/meal-plan', 'POST', params);
+            displayResponse('quickMealPlanResponse', response, response.success ? 'success' : 'error');
         }
 
         async function submitFeedback() {
