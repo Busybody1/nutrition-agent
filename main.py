@@ -2671,15 +2671,15 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
     personalization_guidelines = ""
     if meal_description:
         personalization_guidelines = f"""
-        IMPORTANT: The user has provided a specific meal description: "{meal_description}"
+        IMPORTANT: The user has provided a detailed meal description: "{meal_description}"
         
-        Please prioritize foods that match this description. For example:
-        - If description mentions "all chicken" or "chicken only", focus on chicken-based foods
-        - If description mentions "all pork" or "pork only", focus on pork-based foods  
-        - If description mentions "all beef" or "beef only", focus on beef-based foods
-        - If description mentions "vegetarian", avoid meat products
-        - If description mentions "low carb", focus on protein and healthy fats
-        - If description mentions "high protein", prioritize protein-rich foods
+        Please analyze this description carefully and prioritize foods that match the user's specific requirements:
+        
+        - If the description mentions specific ingredients (like "5% ground beef", "asparagus", "salmon", "avocado", "oatmeal", "berries", "coconut", "yoghurt", "veal stock", "tomato salsa"), prioritize these exact foods
+        - If the description mentions dietary preferences (like "high protein and low carb - max 50g a day"), ensure the meal plan follows these guidelines
+        - If the description mentions available ingredients ("I have all the sides in the fridge like garlic, oil, salt, etc."), incorporate these as supporting ingredients
+        - If the description mentions calorie targets ("around 1100 calories"), ensure the meal meets this target
+        - If the description mentions meal frequency ("2 meals each day"), structure the suggestions accordingly
         
         Always respect the user's specific preferences while maintaining nutritional balance.
         """
@@ -2692,18 +2692,31 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
     Create 5-8 food suggestions for this meal. For each food, provide:
     1. Food name (specific food names that would be found in a nutrition database)
     2. Suggested quantity in grams
-    3. Brief nutritional reasoning
+    3. Estimated macros (calories, protein, carbs, fat) based on the quantity
+    4. Brief nutritional reasoning
     
     Format your response as a JSON array with this structure:
     [
         {{
             "name": "oatmeal",
             "quantity_g": 50,
+            "estimated_macros": {{
+                "calories": 180,
+                "protein_g": 6.5,
+                "carbs_g": 30.5,
+                "fat_g": 3.2
+            }},
             "reasoning": "High fiber, complex carbs for sustained energy"
         }},
         {{
             "name": "banana",
             "quantity_g": 120,
+            "estimated_macros": {{
+                "calories": 105,
+                "protein_g": 1.3,
+                "carbs_g": 27,
+                "fat_g": 0.4
+            }},
             "reasoning": "Natural sweetness and potassium"
         }}
     ]
@@ -2717,6 +2730,7 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
     - If no user preferences are available, suggest common nutritious foods for the meal type
     - Focus on whole foods and balanced nutrition
     - If a specific meal description is provided, prioritize foods that match that description
+    - Provide accurate macro estimates based on standard nutrition values for the suggested quantities
     """
     
     try:
@@ -2768,10 +2782,11 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
             continue
         
         food_data = _get_food_nutrition_from_db(db, food_name)
+        suggested_quantity = suggestion.get("quantity_g", 100)
+        ai_estimated_macros = suggestion.get("estimated_macros", {})
         
         if food_data:
             # Calculate nutrition based on suggested quantity
-            suggested_quantity = suggestion.get("quantity_g", 100)
             base_calories = food_data.get("calories", 0)
             base_protein = food_data.get("protein_g", 0)
             base_carbs = food_data.get("carbs_g", 0)
@@ -2803,20 +2818,25 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
                 "total_nutrients": food_data.get("total_nutrients", 0)
             }
         else:
-            # Food not found in database, use estimated values
+            # Food not found in database, use AI-generated macros if available
+            ai_calories = ai_estimated_macros.get("calories", 0)
+            ai_protein = ai_estimated_macros.get("protein_g", 0)
+            ai_carbs = ai_estimated_macros.get("carbs_g", 0)
+            ai_fat = ai_estimated_macros.get("fat_g", 0)
+            
             enriched_suggestion = {
                 "name": food_name,
-                "suggested_quantity_g": suggestion.get("quantity_g", 100),
+                "suggested_quantity_g": suggested_quantity,
                 "ai_reasoning": suggestion.get("reasoning", ""),
                 "nutrition_verified": False,
-                "calories": 0,
-                "protein_g": 0,
-                "carbs_g": 0,
-                "fat_g": 0,
+                "calories": round(ai_calories, 1),
+                "protein_g": round(ai_protein, 1),
+                "carbs_g": round(ai_carbs, 1),
+                "fat_g": round(ai_fat, 1),
                 "nutrients": [],
                 "nutrition_summary": {},
                 "total_nutrients": 0,
-                "note": "Nutrition data not available in database"
+                "note": "Nutrition data not available in database - using AI estimates"
             }
         
         enriched_suggestions.append(enriched_suggestion)
@@ -3102,6 +3122,89 @@ def test_ai_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutritio
     except Exception as e:
         logger.error(f"Error testing AI meal plan: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to test AI meal plan: {e}")
+
+
+@app.post("/test-detailed-meal-description")
+def test_detailed_meal_description(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+    """Test the new detailed meal description functionality with the sample user request."""
+    try:
+        # Sample user request as provided
+        sample_meal_description = """
+        I want you to make me a meal plan for 3 days. I have all the sides in the fridge like garlic, oil, salt ,etc.. 
+        The main ones that i want you to use are 5% ground beef , asparagus, salmon, avocado, oatmeal, berries, coconut, yoghurt, veal stock, tomato salsa. 
+        I want 2 meals each day one around 1100 calories. I want to eat high protein and low carb - max 50g a day.
+        """
+        
+        user_id = request.get("user_id", "test_user")
+        daily_calories = request.get("daily_calories", 2200)  # 2 meals * 1100 calories
+        meal_count = request.get("meal_count", 2)  # 2 meals per day
+        dietary_restrictions = request.get("dietary_restrictions", ["low_carb", "high_protein"])
+        meal_description = request.get("meal_description", sample_meal_description)
+        
+        # Get user history
+        user_history = []
+        try:
+            user_uuid = _get_user_uuid(user_id)
+            recent_foods = db_shared.execute(
+                text(
+                    """
+                SELECT food_item_id, COUNT(*) as frequency
+                FROM food_logs 
+                WHERE user_id = :user_id 
+                AND consumed_at > NOW() - INTERVAL '30 days'
+                GROUP BY food_item_id
+                ORDER BY frequency DESC
+                LIMIT 10
+                """
+                ),
+                {"user_id": user_uuid},
+            ).fetchall()
+            
+            for row in recent_foods:
+                if hasattr(row, '_mapping'):
+                    food_id = dict(row._mapping)["food_item_id"]
+                else:
+                    food_id = row[0]
+                user_history.append({"food_item_id": food_id, "name": f"food_{food_id}"})
+        except Exception as e:
+            logger.warning(f"Could not fetch user history: {e}")
+        
+        # Create AI meal plan with detailed description
+        meal_plan = create_ai_meal_plan(
+            user_id=user_id,
+            daily_calories=daily_calories,
+            meal_count=meal_count,
+            dietary_restrictions=dietary_restrictions,
+            user_history=user_history,
+            db_nutrition=db_nutrition,
+            meal_description=meal_description
+        )
+        
+        # Also test meal suggestions with the same description
+        meal_suggestions = get_meal_suggestions(
+            db_nutrition=db_nutrition,
+            db_shared=db_shared,
+            user_id=user_id,
+            meal_type="lunch",
+            target_calories=1100,
+            meal_description=meal_description
+        )
+        
+        return {
+            "success": True,
+            "meal_plan": meal_plan,
+            "meal_suggestions": meal_suggestions,
+            "user_id": user_id,
+            "daily_calories": daily_calories,
+            "meal_count": meal_count,
+            "dietary_restrictions": dietary_restrictions,
+            "meal_description": meal_description,
+            "test_description": "Testing detailed meal description with specific ingredients and preferences"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test detailed meal description: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to test detailed meal description: {str(e)}")
 
 @app.get("/debug/foods")
 def debug_foods(db=Depends(get_nutrition_db)):
@@ -3838,7 +3941,7 @@ def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[s
     
     # Add meal description if provided
     if meal_description:
-        context_parts.append(f"Meal description: {meal_description}")
+        context_parts.append(f"Detailed meal description: {meal_description}")
     
     context = f"""
     User Profile:
@@ -3849,6 +3952,8 @@ def _prepare_user_context(user_history: List[Dict], dietary_restrictions: List[s
     - Consider user's food preferences and dietary restrictions
     - Ensure variety and nutritional balance
     - Focus on whole, nutritious foods
+    - If a detailed meal description is provided, prioritize the specific ingredients and preferences mentioned
+    - Provide accurate macro estimates for all suggested foods
     """
     
     return context
@@ -3863,15 +3968,16 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     personalization_guidelines = ""
     if meal_description:
         personalization_guidelines = f"""
-        IMPORTANT: The user has provided a specific meal description: "{meal_description}"
+        IMPORTANT: The user has provided a detailed meal description: "{meal_description}"
         
-        Please prioritize foods that match this description throughout the meal plan. For example:
-        - If description mentions "all chicken" or "chicken only", focus on chicken-based foods across all meals
-        - If description mentions "all pork" or "pork only", focus on pork-based foods across all meals  
-        - If description mentions "all beef" or "beef only", focus on beef-based foods across all meals
-        - If description mentions "vegetarian", avoid meat products in all meals
-        - If description mentions "low carb", focus on protein and healthy fats across all meals
-        - If description mentions "high protein", prioritize protein-rich foods across all meals
+        Please analyze this description carefully and prioritize foods that match the user's specific requirements:
+        
+        - If the description mentions specific ingredients (like "5% ground beef", "asparagus", "salmon", "avocado", "oatmeal", "berries", "coconut", "yoghurt", "veal stock", "tomato salsa"), prioritize these exact foods
+        - If the description mentions dietary preferences (like "high protein and low carb - max 50g a day"), ensure the meal plan follows these guidelines
+        - If the description mentions available ingredients ("I have all the sides in the fridge like garlic, oil, salt, etc."), incorporate these as supporting ingredients
+        - If the description mentions calorie targets ("around 1100 calories"), ensure the meal meets this target
+        - If the description mentions meal frequency ("2 meals each day"), structure the suggestions accordingly
+        - If the description mentions time period ("3 days"), create a multi-day meal plan
         
         Always respect the user's specific preferences while maintaining nutritional balance across the entire meal plan.
         """
@@ -3885,7 +3991,8 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     1. Meal type (breakfast/lunch/dinner/snack)
     2. Food items (specific food names that would be found in a nutrition database)
     3. Suggested quantities in grams
-    4. Brief nutritional reasoning
+    4. Estimated macros (calories, protein, carbs, fat) based on the quantity
+    5. Brief nutritional reasoning
     
     Format your response as a JSON array with this structure:
     [
@@ -3895,11 +4002,23 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
                 {{
                     "name": "oatmeal",
                     "quantity_g": 50,
+                    "estimated_macros": {{
+                        "calories": 180,
+                        "protein_g": 6.5,
+                        "carbs_g": 30.5,
+                        "fat_g": 3.2
+                    }},
                     "reasoning": "High fiber, complex carbs for sustained energy"
                 }},
                 {{
                     "name": "banana",
                     "quantity_g": 120,
+                    "estimated_macros": {{
+                        "calories": 105,
+                        "protein_g": 1.3,
+                        "carbs_g": 27,
+                        "fat_g": 0.4
+                    }},
                     "reasoning": "Natural sweetness and potassium"
                 }}
             ]
@@ -3908,6 +4027,7 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     
     Focus on common, recognizable food names that would be in a nutrition database.
     If a specific meal description is provided, prioritize foods that match that description across all meals.
+    Provide accurate macro estimates based on standard nutrition values for the suggested quantities.
     """
     
     try:
@@ -3961,13 +4081,45 @@ def _create_fallback_meal_plan(meal_count: int) -> List[Dict]:
     
     for i in range(meal_count):
         meal_type = meal_types[i % len(meal_types)]
+        if meal_type == "breakfast":
+            food_name = "oatmeal"
+            quantity_g = 50
+            estimated_macros = {
+                "calories": 180,
+                "protein_g": 6.5,
+                "carbs_g": 30.5,
+                "fat_g": 3.2
+            }
+            reasoning = "High fiber, complex carbs for sustained energy"
+        elif meal_type == "lunch":
+            food_name = "chicken breast"
+            quantity_g = 150
+            estimated_macros = {
+                "calories": 250,
+                "protein_g": 45,
+                "carbs_g": 0,
+                "fat_g": 5.5
+            }
+            reasoning = "Lean protein source"
+        else:  # dinner
+            food_name = "salmon"
+            quantity_g = 120
+            estimated_macros = {
+                "calories": 280,
+                "protein_g": 35,
+                "carbs_g": 0,
+                "fat_g": 15
+            }
+            reasoning = "Omega-3 rich protein source"
+        
         fallback_plan.append({
             "meal_type": meal_type,
             "foods": [
                 {
-                    "name": "chicken breast" if meal_type == "lunch" else "oatmeal" if meal_type == "breakfast" else "salmon",
-                    "quantity_g": 150 if meal_type == "lunch" else 50 if meal_type == "breakfast" else 120,
-                    "reasoning": "Balanced protein source"
+                    "name": food_name,
+                    "quantity_g": quantity_g,
+                    "estimated_macros": estimated_macros,
+                    "reasoning": reasoning
                 }
             ]
         })
@@ -4019,6 +4171,7 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
         for food_item in meal["foods"]:
             food_name = food_item["name"]
             quantity_g = food_item["quantity_g"]
+            ai_estimated_macros = food_item.get("estimated_macros", {})
             
             # Get comprehensive nutrition data
             food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
@@ -4073,23 +4226,34 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                         enriched_meal["nutrition_summary"][key] += actual_value
                 
             else:
-                # Food not found in database, use estimated values
+                # Food not found in database, use AI-generated macros if available
+                ai_calories = ai_estimated_macros.get("calories", 0)
+                ai_protein = ai_estimated_macros.get("protein_g", 0)
+                ai_carbs = ai_estimated_macros.get("carbs_g", 0)
+                ai_fat = ai_estimated_macros.get("fat_g", 0)
+                
                 enriched_food = {
                     "name": food_name,
                     "quantity_g": quantity_g,
                     "reasoning": food_item.get("reasoning", ""),
                     "nutrition": {
-                        "calories": 0,
-                        "protein_g": 0,
-                        "carbs_g": 0,
-                        "fat_g": 0
+                        "calories": round(ai_calories, 1),
+                        "protein_g": round(ai_protein, 1),
+                        "carbs_g": round(ai_carbs, 1),
+                        "fat_g": round(ai_fat, 1)
                     },
                     "nutrients": [],
                     "nutrition_summary": {},
                     "total_nutrients": 0,
                     "found_in_db": False,
-                    "note": "Nutrition data not available in database"
+                    "note": "Nutrition data not available in database - using AI estimates"
                 }
+                
+                # Update meal totals with AI estimates
+                enriched_meal["total_calories"] += ai_calories
+                enriched_meal["total_protein_g"] += ai_protein
+                enriched_meal["total_carbs_g"] += ai_carbs
+                enriched_meal["total_fat_g"] += ai_fat
             
             enriched_meal["foods"].append(enriched_food)
         
