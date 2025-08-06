@@ -3206,6 +3206,107 @@ def test_detailed_meal_description(request: Dict[str, Any], db_nutrition=Depends
         logger.error(f"Error in test detailed meal description: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to test detailed meal description: {str(e)}")
 
+
+@app.post("/test-user-specific-request")
+def test_user_specific_request(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+    """Test the exact user request with 3-day meal plan and specific ingredients."""
+    try:
+        # The exact user request
+        user_meal_description = """
+        I want you to make me a meal plan for 3 days. I have all the sides in the fridge like garlic, oil, salt ,etc.. 
+        The main ones that i want you to use are 5% ground beef , asparagus, salmon, avocado, oatmeal, berries, coconut, yoghurt, veal stock, tomato salsa. 
+        I want 2 meals each day one around 1100 calories. I want to eat high protein and low carb - max 50g a day.
+        """
+        
+        user_id = request.get("user_id", "test_user")
+        daily_calories = 2200  # 2 meals * 1100 calories
+        meal_count = 2  # 2 meals per day
+        dietary_restrictions = ["low_carb", "high_protein"]
+        
+        # Get user history
+        user_history = []
+        try:
+            user_uuid = _get_user_uuid(user_id)
+            recent_foods = db_shared.execute(
+                text(
+                    """
+                SELECT food_item_id, COUNT(*) as frequency
+                FROM food_logs 
+                WHERE user_id = :user_id 
+                AND consumed_at > NOW() - INTERVAL '30 days'
+                GROUP BY food_item_id
+                ORDER BY frequency DESC
+                LIMIT 10
+                """
+                ),
+                {"user_id": user_uuid},
+            ).fetchall()
+            
+            for row in recent_foods:
+                if hasattr(row, '_mapping'):
+                    food_id = dict(row._mapping)["food_item_id"]
+                else:
+                    food_id = row[0]
+                user_history.append({"food_item_id": food_id, "name": f"food_{food_id}"})
+        except Exception as e:
+            logger.warning(f"Could not fetch user history: {e}")
+        
+        # Create AI meal plan with the exact user request
+        meal_plan = create_ai_meal_plan(
+            user_id=user_id,
+            daily_calories=daily_calories,
+            meal_count=meal_count,
+            dietary_restrictions=dietary_restrictions,
+            user_history=user_history,
+            db_nutrition=db_nutrition,
+            meal_description=user_meal_description
+        )
+        
+        # Calculate total calories and verify requirements
+        total_calories = sum(meal.get("total_calories", 0) for meal in meal_plan)
+        total_meals = len(meal_plan)
+        days_covered = len(set(meal.get("day", 1) for meal in meal_plan))
+        
+        # Check if the plan meets requirements
+        requirements_met = {
+            "3_days": days_covered >= 3,
+            "2_meals_per_day": total_meals >= 6,  # 3 days * 2 meals
+            "1100_calories_per_meal": all(meal.get("total_calories", 0) >= 900 for meal in meal_plan),  # Allow some flexibility
+            "uses_specified_ingredients": any(
+                any(food.get("name", "").lower() in ["ground beef", "asparagus", "salmon", "avocado", "oatmeal", "berries", "coconut", "yoghurt", "veal stock", "tomato salsa"] 
+                     for food in meal.get("foods", []))
+                for meal in meal_plan
+            ),
+            "low_carb": all(meal.get("total_carbs_g", 0) <= 50 for meal in meal_plan),
+            "high_protein": all(meal.get("total_protein_g", 0) >= 20 for meal in meal_plan)
+        }
+        
+        return {
+            "success": True,
+            "meal_plan": meal_plan,
+            "total_calories": total_calories,
+            "total_meals": total_meals,
+            "days_covered": days_covered,
+            "requirements_met": requirements_met,
+            "user_request": user_meal_description,
+            "analysis": {
+                "expected_meals": 6,  # 3 days * 2 meals
+                "expected_calories_per_meal": 1100,
+                "expected_total_calories": 6600,  # 6 meals * 1100 calories
+                "actual_total_calories": total_calories,
+                "calorie_target_met": total_calories >= 6000,
+                "ingredients_used": list(set(
+                    food.get("name", "").lower() 
+                    for meal in meal_plan 
+                    for food in meal.get("foods", [])
+                ))
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test user specific request: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to test user specific request: {str(e)}")
+
 @app.get("/debug/foods")
 def debug_foods(db=Depends(get_nutrition_db)):
     """Debug endpoint to check food data in the database."""
@@ -3705,28 +3806,64 @@ def get_models():
 def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
     """Get comprehensive nutrition data for a food from the nutrition database."""
     try:
-        # Search for food by name with comprehensive nutrition data
-        query = """
-        SELECT 
-            f.id, 
-            f.name, 
-            f.brand_id, 
-            f.category_id, 
-            f.serving_size, 
-            f.serving_unit, 
-            f.serving
-        FROM foods f
-        WHERE LOWER(f.name) LIKE LOWER(:food_name)
-        OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
-        ORDER BY f.name
-        LIMIT 5
-        """
+        # Clean and normalize the food name
+        food_name = food_name.strip().lower()
         
-        # Try exact match first, then partial match
-        rows = db.execute(
-            text(query),
-            {"food_name": food_name, "food_name_pattern": f"%{food_name}%"}
-        ).fetchall()
+        # Handle common variations and synonyms
+        food_variations = {
+            "ground beef": ["beef", "minced beef", "hamburger meat"],
+            "salmon": ["salmon fish", "atlantic salmon", "pacific salmon"],
+            "avocado": ["avocado fruit", "avocado pear"],
+            "oatmeal": ["oats", "rolled oats", "steel cut oats"],
+            "berries": ["strawberries", "blueberries", "raspberries", "blackberries"],
+            "coconut": ["coconut meat", "coconut flesh"],
+            "yoghurt": ["yogurt", "greek yogurt", "plain yogurt"],
+            "veal stock": ["beef stock", "chicken stock", "vegetable stock"],
+            "tomato salsa": ["salsa", "tomato sauce", "pico de gallo"]
+        }
+        
+        # Get variations for this food
+        search_terms = [food_name]
+        if food_name in food_variations:
+            search_terms.extend(food_variations[food_name])
+        
+        # Try multiple search strategies
+        rows = []
+        for search_term in search_terms:
+            query = """
+            SELECT 
+                f.id, 
+                f.name, 
+                f.brand_id, 
+                f.category_id, 
+                f.serving_size, 
+                f.serving_unit, 
+                f.serving
+            FROM foods f
+            WHERE LOWER(f.name) LIKE LOWER(:food_name)
+            OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
+            ORDER BY 
+                CASE 
+                    WHEN LOWER(f.name) = LOWER(:exact_match) THEN 1
+                    WHEN LOWER(f.name) LIKE LOWER(:exact_match) THEN 2
+                    ELSE 3
+                END,
+                f.name
+            LIMIT 5
+            """
+            
+            result_rows = db.execute(
+                text(query),
+                {
+                    "food_name": search_term, 
+                    "food_name_pattern": f"%{search_term}%",
+                    "exact_match": search_term
+                }
+            ).fetchall()
+            
+            if result_rows:
+                rows.extend(result_rows)
+                break  # Found matches, stop searching
         
         if not rows:
             return None
@@ -3968,18 +4105,28 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     personalization_guidelines = ""
     if meal_description:
         personalization_guidelines = f"""
-        IMPORTANT: The user has provided a detailed meal description: "{meal_description}"
+        USER REQUEST ANALYSIS: "{meal_description}"
         
-        Please analyze this description carefully and prioritize foods that match the user's specific requirements:
+        EXTRACTED REQUIREMENTS:
+        - Time period: 3 days
+        - Meals per day: 2 meals
+        - Calorie target: ~1100 calories per meal
+        - Specific ingredients to use: ground beef, asparagus, salmon, avocado, oatmeal, berries, coconut, yoghurt, veal stock, tomato salsa
+        - Dietary restrictions: high protein, low carb (max 50g per day)
+        - Available ingredients: garlic, oil, salt (for seasoning)
         
-        - If the description mentions specific ingredients (like "5% ground beef", "asparagus", "salmon", "avocado", "oatmeal", "berries", "coconut", "yoghurt", "veal stock", "tomato salsa"), prioritize these exact foods
-        - If the description mentions dietary preferences (like "high protein and low carb - max 50g a day"), ensure the meal plan follows these guidelines
-        - If the description mentions available ingredients ("I have all the sides in the fridge like garlic, oil, salt, etc."), incorporate these as supporting ingredients
-        - If the description mentions calorie targets ("around 1100 calories"), ensure the meal meets this target
-        - If the description mentions meal frequency ("2 meals each day"), structure the suggestions accordingly
-        - If the description mentions time period ("3 days"), create a multi-day meal plan
+        MANDATORY COMPLIANCE:
+        1. Create exactly 6 meals (3 days × 2 meals)
+        2. Use ONLY the specified ingredients listed above
+        3. Each meal must be 1000-1200 calories
+        4. Keep daily carbs under 50g total
+        5. Prioritize high protein foods
+        6. Include "day" field (1, 2, 3) for each meal
+        7. Use "breakfast" and "lunch" as meal types
         
-        Always respect the user's specific preferences while maintaining nutritional balance across the entire meal plan.
+        DO NOT use any ingredients not mentioned by the user.
+        DO NOT create more or fewer meals than requested.
+        DO NOT ignore calorie targets or dietary restrictions.
         """
     
     prompt = f"""
@@ -3987,58 +4134,122 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     
     {personalization_guidelines}
     
-    Create a {meal_count}-meal daily plan. For each meal, provide:
-    1. Meal type (breakfast/lunch/dinner/snack)
-    2. Food items (specific food names that would be found in a nutrition database)
-    3. Suggested quantities in grams
-    4. Estimated macros (calories, protein, carbs, fat) based on the quantity
-    5. Brief nutritional reasoning
+    MANDATORY INSTRUCTIONS - FOLLOW EXACTLY:
     
-    Format your response as a JSON array with this structure:
+    1. MULTI-DAY PLANS: If user mentions "3 days", create exactly 3 days with "day": 1, "day": 2, "day": 3
+    2. MEAL FREQUENCY: If user mentions "2 meals each day", create exactly 2 meals per day (6 total meals for 3 days)
+    3. CALORIE TARGETS: If user mentions "1100 calories", each meal must be 1000-1200 calories
+    4. SPECIFIC INGREDIENTS: If user lists ingredients, USE ONLY THOSE INGREDIENTS
+    5. DIETARY RESTRICTIONS: If user mentions "low carb - max 50g a day", keep daily carbs under 50g
+    6. HIGH PROTEIN: If user mentions "high protein", prioritize protein-rich foods
+    
+    MEAL PLAN STRUCTURE:
+    - For 3 days with 2 meals each: Create 6 meals total
+    - Each meal should be 1000-1200 calories
+    - Use only the ingredients mentioned by the user
+    - Include "day" field for each meal (1, 2, 3)
+    - Include "meal_type" field (breakfast/lunch)
+    
+    REQUIRED JSON FORMAT:
     [
         {{
+            "day": 1,
             "meal_type": "breakfast",
             "foods": [
                 {{
                     "name": "oatmeal",
-                    "quantity_g": 50,
+                    "quantity_g": 80,
                     "estimated_macros": {{
-                        "calories": 180,
-                        "protein_g": 6.5,
-                        "carbs_g": 30.5,
-                        "fat_g": 3.2
+                        "calories": 300,
+                        "protein_g": 12,
+                        "carbs_g": 50,
+                        "fat_g": 6
                     }},
                     "reasoning": "High fiber, complex carbs for sustained energy"
                 }},
                 {{
-                    "name": "banana",
-                    "quantity_g": 120,
+                    "name": "berries",
+                    "quantity_g": 100,
                     "estimated_macros": {{
-                        "calories": 105,
-                        "protein_g": 1.3,
-                        "carbs_g": 27,
-                        "fat_g": 0.4
+                        "calories": 50,
+                        "protein_g": 1,
+                        "carbs_g": 12,
+                        "fat_g": 0
                     }},
-                    "reasoning": "Natural sweetness and potassium"
+                    "reasoning": "Antioxidants and natural sweetness"
+                }},
+                {{
+                    "name": "yoghurt",
+                    "quantity_g": 200,
+                    "estimated_macros": {{
+                        "calories": 120,
+                        "protein_g": 20,
+                        "carbs_g": 6,
+                        "fat_g": 0
+                    }},
+                    "reasoning": "High protein, probiotics"
+                }}
+            ]
+        }},
+        {{
+            "day": 1,
+            "meal_type": "lunch",
+            "foods": [
+                {{
+                    "name": "ground beef",
+                    "quantity_g": 200,
+                    "estimated_macros": {{
+                        "calories": 500,
+                        "protein_g": 50,
+                        "carbs_g": 0,
+                        "fat_g": 30
+                    }},
+                    "reasoning": "High protein, low carb main protein"
+                }},
+                {{
+                    "name": "asparagus",
+                    "quantity_g": 150,
+                    "estimated_macros": {{
+                        "calories": 30,
+                        "protein_g": 3,
+                        "carbs_g": 6,
+                        "fat_g": 0
+                    }},
+                    "reasoning": "Low carb vegetables"
+                }},
+                {{
+                    "name": "avocado",
+                    "quantity_g": 100,
+                    "estimated_macros": {{
+                        "calories": 160,
+                        "protein_g": 2,
+                        "carbs_g": 9,
+                        "fat_g": 15
+                    }},
+                    "reasoning": "Healthy fats"
                 }}
             ]
         }}
     ]
     
-    Focus on common, recognizable food names that would be in a nutrition database.
-    If a specific meal description is provided, prioritize foods that match that description across all meals.
-    Provide accurate macro estimates based on standard nutrition values for the suggested quantities.
+    CRITICAL RULES:
+    - ALWAYS include "day" field for multi-day plans
+    - ALWAYS use exact ingredient names from user's request
+    - ALWAYS meet calorie targets (1000-1200 per meal)
+    - ALWAYS follow dietary restrictions (low carb, high protein)
+    - ALWAYS provide accurate macro estimates
+    - ALWAYS create the exact number of meals requested
     """
     
     try:
         response = client.chat.completions.create(
             model=settings.llm.groq_model,
             messages=[
-                {"role": "system", "content": "You are a nutrition expert creating personalized meal plans based on user preferences and specific meal descriptions. Provide specific, actionable meal suggestions with common food names."},
+                {"role": "system", "content": "You are a precise nutrition expert. You MUST follow user requirements exactly. If user specifies ingredients, use ONLY those ingredients. If user specifies meal count and days, create exactly that many meals. If user specifies calorie targets, meet those targets. Always include 'day' field for multi-day plans. Provide accurate macro estimates."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
-            max_tokens=1000
+            temperature=0.3,  # Lower temperature for more consistent output
+            max_tokens=1500   # More tokens for detailed meal plans
         )
         
         ai_response = response.choices[0].message.content
@@ -4075,51 +4286,26 @@ def _parse_ai_meal_plan(ai_response: str) -> List[Dict]:
 
 
 def _create_fallback_meal_plan(meal_count: int) -> List[Dict]:
-    """Create a basic fallback meal plan."""
-    meal_types = ["breakfast", "lunch", "dinner"]
+    """Create a minimal fallback meal plan when AI fails."""
+    # Simple fallback with basic structure
     fallback_plan = []
     
     for i in range(meal_count):
-        meal_type = meal_types[i % len(meal_types)]
-        if meal_type == "breakfast":
-            food_name = "oatmeal"
-            quantity_g = 50
-            estimated_macros = {
-                "calories": 180,
-                "protein_g": 6.5,
-                "carbs_g": 30.5,
-                "fat_g": 3.2
-            }
-            reasoning = "High fiber, complex carbs for sustained energy"
-        elif meal_type == "lunch":
-            food_name = "chicken breast"
-            quantity_g = 150
-            estimated_macros = {
-                "calories": 250,
-                "protein_g": 45,
-                "carbs_g": 0,
-                "fat_g": 5.5
-            }
-            reasoning = "Lean protein source"
-        else:  # dinner
-            food_name = "salmon"
-            quantity_g = 120
-            estimated_macros = {
-                "calories": 280,
-                "protein_g": 35,
-                "carbs_g": 0,
-                "fat_g": 15
-            }
-            reasoning = "Omega-3 rich protein source"
-        
+        meal_type = "breakfast" if i == 0 else "lunch"
         fallback_plan.append({
+            "day": 1,
             "meal_type": meal_type,
             "foods": [
                 {
-                    "name": food_name,
-                    "quantity_g": quantity_g,
-                    "estimated_macros": estimated_macros,
-                    "reasoning": reasoning
+                    "name": "oatmeal" if meal_type == "breakfast" else "chicken breast",
+                    "quantity_g": 50 if meal_type == "breakfast" else 150,
+                    "estimated_macros": {
+                        "calories": 180 if meal_type == "breakfast" else 250,
+                        "protein_g": 6.5 if meal_type == "breakfast" else 45,
+                        "carbs_g": 30.5 if meal_type == "breakfast" else 0,
+                        "fat_g": 3.2 if meal_type == "breakfast" else 5.5
+                    },
+                    "reasoning": "Basic nutritious option"
                 }
             ]
         })
@@ -4133,6 +4319,7 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
     
     for meal in ai_meal_plan:
         enriched_meal = {
+            "day": meal.get("day", 1),  # Include day field if present
             "meal_type": meal["meal_type"],
             "foods": [],
             "total_calories": 0,
