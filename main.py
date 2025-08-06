@@ -84,7 +84,12 @@ def get_fitness_engine():
                 if database_url:
                     if database_url.startswith("postgres://"):
                         database_url = database_url.replace("postgres://", "postgresql://", 1)
-                    _fitness_engine = create_engine(database_url, pool_pre_ping=True, pool_recycle=3600)
+                    _fitness_engine = create_engine(
+                        database_url, 
+                        pool_pre_ping=True, 
+                        pool_recycle=3600,
+                        connect_args={"connect_timeout": 90, "command_timeout": 90}
+                    )
                     logger.info("Created fitness database engine using DATABASE_URL directly")
                 else:
                     _fitness_engine = create_engine("sqlite:///:memory:")
@@ -100,7 +105,12 @@ def get_nutrition_session_local():
         try:
             logger.info("Creating nutrition session local...")
             engine = get_nutrition_engine()
-            _NutritionSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+            _NutritionSessionLocal = sessionmaker(
+                autocommit=False, 
+                autoflush=False, 
+                bind=engine,
+                expire_on_commit=False  # Prevent session expiration issues
+            )
             logger.info("Successfully created nutrition session local")
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"
@@ -115,7 +125,12 @@ def get_fitness_session_local():
         try:
             logger.info("Creating fitness session local...")
             engine = get_fitness_engine()
-            _FitnessSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+            _FitnessSessionLocal = sessionmaker(
+                autocommit=False, 
+                autoflush=False, 
+                bind=engine,
+                expire_on_commit=False  # Prevent session expiration issues
+            )
             logger.info("Successfully created fitness session local")
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"
@@ -127,7 +142,12 @@ def get_fitness_session_local():
 def get_session_local():
     global _SessionLocal
     if _SessionLocal is None:
-        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_nutrition_engine())
+        _SessionLocal = sessionmaker(
+            autocommit=False, 
+            autoflush=False, 
+            bind=get_nutrition_engine(),
+            expire_on_commit=False  # Prevent session expiration issues
+        )
     return _SessionLocal
 
 @asynccontextmanager
@@ -154,7 +174,13 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Nutrition agent shutting down")
 
-app = FastAPI(title="Nutrition Agent", lifespan=lifespan)
+app = FastAPI(
+    title="Nutrition Agent", 
+    lifespan=lifespan,
+    # Increase timeout for long-running operations
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -217,7 +243,12 @@ def get_shared_db():
         # Use the same engine as get_fitness_engine() for consistency
         engine = get_fitness_engine()
         logger.info("Got fitness engine, creating session maker...")
-        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local = sessionmaker(
+            autocommit=False, 
+            autoflush=False, 
+            bind=engine,
+            expire_on_commit=False  # Prevent session expiration issues
+        )
         logger.info("Created session maker, creating session...")
         db = session_local()
         logger.info("Successfully connected to shared database")
@@ -2778,7 +2809,8 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
+            timeout=90  # 90 second timeout for AI requests
         )
         
         ai_response = response.choices[0].message.content
@@ -4254,7 +4286,8 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,  # Lower temperature for more consistent output
-            max_tokens=1500   # More tokens for detailed meal plans
+            max_tokens=1500,  # More tokens for detailed meal plans
+            timeout=90  # 90 second timeout for AI requests
         )
         
         ai_response = response.choices[0].message.content
