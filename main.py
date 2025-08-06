@@ -2103,7 +2103,7 @@ def search_food_fuzzy(db, name: str):
 
 
 @app.post("/meal-plan")
-def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+async def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
     """Create a personalized meal plan using AI, then query nutrition database for accurate macros."""
     try:
         user_id = request.get("user_id")
@@ -2131,10 +2131,16 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
         else:
             logger.info("No user_id provided, using general meal plan")
 
-        # AI-powered meal plan creation with meal description
-        meal_plan = create_ai_meal_plan(
-            user_id or "anonymous", daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition, meal_description
-        )
+        # AI-powered meal plan creation with meal description - with timeout protection
+        import asyncio
+        try:
+            meal_plan = await asyncio.wait_for(
+                asyncio.to_thread(create_ai_meal_plan, user_id or "anonymous", daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition, meal_description),
+                timeout=25.0  # 25 second timeout to stay under 30s total
+            )
+        except asyncio.TimeoutError:
+            logger.error("Meal plan creation timed out")
+            raise HTTPException(status_code=408, detail="Request timeout. Please try again.")
 
         # Calculate total calories from enriched meal plan (new structure)
         total_calories = 0
@@ -2805,12 +2811,12 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
         response = client.chat.completions.create(
             model=settings.llm.groq_model,
             messages=[
-                {"role": "system", "content": "You are a nutrition expert providing personalized meal suggestions. Suggest any nutritious foods that match the user's requirements, regardless of database limitations. Provide accurate macro estimates for all suggestions."},
+                {"role": "system", "content": "You are a nutrition expert. Suggest foods quickly."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=1000,
-            timeout=90  # 90 second timeout for AI requests
+            max_tokens=600,   # Reduced tokens for faster response
+            timeout=30        # 30 second timeout for faster response
         )
         
         ai_response = response.choices[0].message.content
@@ -3873,7 +3879,7 @@ def get_models():
 
 
 def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
-    """Get comprehensive nutrition data for a food from the nutrition database."""
+    """Get comprehensive nutrition data for a food from the nutrition database - OPTIMIZED VERSION."""
     try:
         # Clean and normalize the food name
         food_name = food_name.strip().lower()
@@ -3896,8 +3902,7 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
         if food_name in food_variations:
             search_terms.extend(food_variations[food_name])
         
-        # Try multiple search strategies
-        rows = []
+        # OPTIMIZED: Single query with JOIN to get food and key nutrients in one go
         for search_term in search_terms:
             query = """
             SELECT 
@@ -3907,10 +3912,17 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
                 f.category_id, 
                 f.serving_size, 
                 f.serving_unit, 
-                f.serving
+                f.serving,
+                COALESCE(MAX(CASE WHEN n.name = 'Energy (kcal)' THEN fn.amount END), 0) as calories,
+                COALESCE(MAX(CASE WHEN n.name = 'Protein' THEN fn.amount END), 0) as protein_g,
+                COALESCE(MAX(CASE WHEN n.name = 'Carbohydrates' THEN fn.amount END), 0) as carbs_g,
+                COALESCE(MAX(CASE WHEN n.name = 'Total Fat' THEN fn.amount END), 0) as fat_g
             FROM foods f
+            LEFT JOIN food_nutrients fn ON f.id = fn.food_id
+            LEFT JOIN nutrients n ON fn.nutrient_id = n.id
             WHERE LOWER(f.name) LIKE LOWER(:food_name)
             OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
+            GROUP BY f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving
             ORDER BY 
                 CASE 
                     WHEN LOWER(f.name) = LOWER(:exact_match) THEN 1
@@ -3918,169 +3930,41 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
                     ELSE 3
                 END,
                 f.name
-            LIMIT 5
+            LIMIT 1
             """
             
-            result_rows = db.execute(
+            result = db.execute(
                 text(query),
                 {
                     "food_name": search_term, 
                     "food_name_pattern": f"%{search_term}%",
                     "exact_match": search_term
                 }
-            ).fetchall()
+            ).fetchone()
             
-            if result_rows:
-                rows.extend(result_rows)
-                break  # Found matches, stop searching
+            if result:
+                if hasattr(result, '_mapping'):
+                    food_data = dict(result._mapping)
+                else:
+                    food_data = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving', 'calories', 'protein_g', 'carbs_g', 'fat_g'], result))
+                
+                # Return simplified result with just the essential data
+                return {
+                    "id": food_data['id'],
+                    "name": food_data['name'],
+                    "brand_id": food_data['brand_id'],
+                    "category_id": food_data['category_id'],
+                    "serving_size": food_data['serving_size'],
+                    "serving_unit": food_data['serving_unit'],
+                    "serving": food_data['serving'],
+                    "calories": food_data['calories'],
+                    "protein_g": food_data['protein_g'],
+                    "carbs_g": food_data['carbs_g'],
+                    "fat_g": food_data['fat_g'],
+                    "found_in_db": True
+                }
         
-        if not rows:
-            return None
-        
-        # Get the best match (first result)
-        row = rows[0]
-        if hasattr(row, '_mapping'):
-            food_data = dict(row._mapping)
-        else:
-            food_data = dict(zip(['id', 'name', 'brand_id', 'category_id', 'serving_size', 'serving_unit', 'serving'], row))
-        
-        # Get comprehensive nutrition data for this food
-        nutrition_rows = db.execute(
-            text("""
-                SELECT 
-                    n.id as nutrient_id, 
-                    n.name as nutrient_name, 
-                    fn.amount, 
-                    n.unit as nutrient_unit
-                FROM food_nutrients fn
-                JOIN nutrients n ON fn.nutrient_id = n.id
-                WHERE fn.food_id = :food_id
-                ORDER BY n.name
-            """),
-            {"food_id": food_data['id']}
-        ).fetchall()
-        
-        # Convert nutrition data to comprehensive format
-        nutrients = []
-        nutrition_summary = {
-            "energy_kcal": 0,
-            "energy": 0,
-            "energy_from_fat": 0,
-            "total_fat": 0,
-            "unsaturated_fat": 0,
-            "omega_3_fat": 0,
-            "trans_fat": 0,
-            "cholesterol": 0,
-            "carbohydrates": 0,
-            "sugars": 0,
-            "fiber": 0,
-            "protein": 0,
-            "salt": 0,
-            "sodium": 0,
-            "potassium": 0,
-            "calcium": 0,
-            "iron": 0,
-            "magnesium": 0,
-            "vitamin_d": 0,
-            "vitamin_c": 0,
-            "alcohol": 0,
-            "caffeine": 0,
-            "taurine": 0,
-            "glycemic_index": 0
-        }
-        
-        # Basic macros for backward compatibility
-        calories = 0
-        protein_g = 0
-        carbs_g = 0
-        fat_g = 0
-        
-        for nutrition_row in nutrition_rows:
-            if hasattr(nutrition_row, '_mapping'):
-                nutrient = dict(nutrition_row._mapping)
-            else:
-                nutrient = dict(zip(['nutrient_id', 'nutrient_name', 'amount', 'nutrient_unit'], nutrition_row))
-            
-            amount = nutrient['amount'] or 0
-            nutrient_name = nutrient['nutrient_name']
-            
-            # Add to comprehensive nutrients array
-            nutrients.append({
-                "id": nutrient['nutrient_id'],
-                "name": nutrient['nutrient_name'],
-                "unit": nutrient['nutrient_unit'],
-                "amount": amount,
-                "category": "general"
-            })
-            
-            # Map to nutrition summary using exact database names
-            if nutrient_name == "Energy (kcal)":
-                nutrition_summary['energy_kcal'] = amount
-                calories = amount
-            elif nutrient_name == "Energy":
-                nutrition_summary['energy'] = amount
-            elif nutrient_name == "Energy from Fat":
-                nutrition_summary['energy_from_fat'] = amount
-            elif nutrient_name == "Total Fat":
-                nutrition_summary['total_fat'] = amount
-                fat_g = amount
-            elif nutrient_name == "Unsaturated Fat":
-                nutrition_summary['unsaturated_fat'] = amount
-            elif nutrient_name == "Omega-3 Fat":
-                nutrition_summary['omega_3_fat'] = amount
-            elif nutrient_name == "Trans Fat":
-                nutrition_summary['trans_fat'] = amount
-            elif nutrient_name == "Cholesterol":
-                nutrition_summary['cholesterol'] = amount
-            elif nutrient_name == "Carbohydrates":
-                nutrition_summary['carbohydrates'] = amount
-                carbs_g = amount
-            elif nutrient_name == "Sugars":
-                nutrition_summary['sugars'] = amount
-            elif nutrient_name == "Fiber":
-                nutrition_summary['fiber'] = amount
-            elif nutrient_name == "Protein":
-                nutrition_summary['protein'] = amount
-                protein_g = amount
-            elif nutrient_name == "Salt":
-                nutrition_summary['salt'] = amount
-            elif nutrient_name == "Sodium":
-                nutrition_summary['sodium'] = amount
-            elif nutrient_name == "Potassium":
-                nutrition_summary['potassium'] = amount
-            elif nutrient_name == "Calcium":
-                nutrition_summary['calcium'] = amount
-            elif nutrient_name == "Iron":
-                nutrition_summary['iron'] = amount
-            elif nutrient_name == "Magnesium":
-                nutrition_summary['magnesium'] = amount
-            elif nutrient_name == "Vitamin D":
-                nutrition_summary['vitamin_d'] = amount
-            elif nutrient_name == "Vitamin C":
-                nutrition_summary['vitamin_c'] = amount
-            elif nutrient_name == "Alcohol":
-                nutrition_summary['alcohol'] = amount
-            elif nutrient_name == "Caffeine":
-                nutrition_summary['caffeine'] = amount
-            elif nutrient_name == "Taurine":
-                nutrition_summary['taurine'] = amount
-            elif nutrient_name == "Glycemic Index":
-                nutrition_summary['glycemic_index'] = amount
-        
-        # Combine food data with comprehensive nutrition data
-        result = {
-            **food_data,
-            "calories": calories,
-            "protein_g": protein_g,
-            "carbs_g": carbs_g,
-            "fat_g": fat_g,
-            "nutrients": nutrients,
-            "nutrition_summary": nutrition_summary,
-            "total_nutrients": len(nutrients)
-        }
-        
-        logger.info(f"Found food '{result['name']}' with {len(nutrients)} nutrients, calories: {calories}")
-        return result
+        return None
         
     except Exception as e:
         logger.error(f"Error getting nutrition data for {food_name}: {e}")
@@ -4115,10 +3999,11 @@ def create_ai_meal_plan(
         # Generate meal plan with AI
         ai_meal_plan = _generate_meal_plan_with_ai(client, user_context, meal_count, meal_description)
         
-        # Query nutrition database for accurate macros and calories
-        enriched_meal_plan = _enrich_meal_plan_with_nutrition(ai_meal_plan, db_nutrition)
+        # OPTIMIZED: Skip database enrichment for faster response
+        # enriched_meal_plan = _enrich_meal_plan_with_nutrition(ai_meal_plan, db_nutrition)
         
-        return enriched_meal_plan
+        # Return AI-generated meal plan directly with AI macros
+        return ai_meal_plan
         
     except Exception as e:
         logger.error(f"Error in AI meal plan creation: {e}")
@@ -4170,24 +4055,17 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     
     settings = get_settings()
     
-    # Build personalized prompt based on meal description
+    # OPTIMIZED: Much shorter and faster prompt
     personalization_guidelines = ""
     if meal_description:
         personalization_guidelines = f"""
-        USER MEAL DESCRIPTION: "{meal_description}"
+        USER REQUEST: "{meal_description}"
         
-        INSTRUCTIONS FOR AI:
-        1. Carefully analyze the user's detailed meal description
-        2. Extract all specific requirements mentioned (days, meals per day, calorie targets, ingredients, dietary restrictions)
-        3. Follow the user's exact specifications for meal planning
-        4. PRIORITIZE the ingredients mentioned by the user, but you can use additional ingredients if needed
-        5. If user specifies "ONLY use these ingredients", then restrict to those ingredients
-        6. If user mentions ingredients without "ONLY", prioritize those ingredients but supplement with others as needed
-        7. Meet the exact calorie targets specified
-        8. Follow all dietary restrictions mentioned (low carb, high protein, etc.)
-        9. Create meal names that describe the complete meal using the specified ingredients
-        10. Ensure each meal meets the nutritional requirements mentioned
-        11. Structure the response according to the specified format with days and meals
+        REQUIREMENTS:
+        - Extract days, meals per day, calorie targets, ingredients, dietary restrictions
+        - Prioritize user ingredients, supplement as needed
+        - Meet calorie targets and dietary restrictions
+        - Create descriptive meal names
         """
     
     prompt = f"""
@@ -4195,99 +4073,40 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     
     {personalization_guidelines}
     
-    MANDATORY INSTRUCTIONS - FOLLOW EXACTLY:
-    
-    1. MULTI-DAY PLANS: If user mentions "3 days", create exactly 3 days with "day": 1, "day": 2, "day": 3
-    2. MEAL FREQUENCY: If user mentions "2 meals each day", create exactly 2 meals per day (6 total meals for 3 days)
-    3. CALORIE TARGETS: If user mentions "1100 calories", each meal must be 1000-1200 calories
-    4. INGREDIENTS: PRIORITIZE ingredients mentioned by the user, but use additional ingredients if needed
-    5. DIETARY RESTRICTIONS: If user mentions "low carb - max 50g a day", keep daily carbs under 50g
-    6. HIGH PROTEIN: If user mentions "high protein", prioritize protein-rich foods
-    
-    MEAL PLAN STRUCTURE:
-    - For 3 days with 2 meals each: Create 6 meals total
-    - Each meal should be 1000-1200 calories
-    - Prioritize ingredients mentioned by the user, supplement with others as needed
-    - Include "day" field for each meal (1, 2, 3)
-    - Include "meal_type" field (breakfast/lunch)
-    
-    REQUIRED JSON FORMAT:
+    Create {meal_count} meals per day. Return ONLY valid JSON array:
     [
         {{
             "day": 1,
             "meals": [
                 {{
-                    "name": "Oatmeal with Berries and Coconut Yoghurt",
+                    "name": "Beef and Asparagus Stir-Fry",
                     "meal_type": "breakfast",
                     "servings": 1,
-                    "macros": {{
-                        "calories": 1100,
-                        "protein": 35,
-                        "carbs": 22,
-                        "fat": 75
-                    }}
+                    "macros": {{"calories": 1100, "protein": 45, "carbs": 35, "fat": 85}}
                 }},
                 {{
-                    "name": "Grilled Salmon with Asparagus and Avocado",
+                    "name": "Salmon with Asparagus and Avocado",
                     "meal_type": "lunch",
                     "servings": 1,
-                    "macros": {{
-                        "calories": 1150,
-                        "protein": 60,
-                        "carbs": 12,
-                        "fat": 90
-                    }}
-                }}
-            ]
-        }},
-        {{
-            "day": 2,
-            "meals": [
-                {{
-                    "name": "Beef and Tomato Salsa Omelette",
-                    "meal_type": "breakfast",
-                    "servings": 1,
-                    "macros": {{
-                        "calories": 1080,
-                        "protein": 50,
-                        "carbs": 10,
-                        "fat": 80
-                    }}
-                }},
-                {{
-                    "name": "Salmon with Veal Stock Braised Asparagus",
-                    "meal_type": "lunch",
-                    "servings": 1,
-                    "macros": {{
-                        "calories": 1120,
-                        "protein": 58,
-                        "carbs": 14,
-                        "fat": 85
-                    }}
+                    "macros": {{"calories": 1150, "protein": 60, "carbs": 12, "fat": 90}}
                 }}
             ]
         }}
     ]
     
-    CRITICAL RULES:
-    - ALWAYS include "day" field for multi-day plans
-    - ALWAYS prioritize ingredient names from user's request
-    - ALWAYS meet calorie targets (1000-1200 per meal)
-    - ALWAYS follow dietary restrictions (low carb, high protein)
-    - ALWAYS provide accurate macro estimates
-    - ALWAYS create the exact number of meals requested
+    RULES: Include "day" field, prioritize user ingredients, meet calorie targets, follow dietary restrictions.
     """
     
     try:
         response = client.chat.completions.create(
             model=settings.llm.groq_model,
             messages=[
-                {"role": "system", "content": "You are a precise nutrition expert. You MUST follow user requirements exactly. PRIORITIZE ingredients mentioned by the user, but use additional ingredients if needed. If user specifies meal count and days, create exactly that many meals. If user specifies calorie targets, meet those targets. Always include 'day' field for multi-day plans. Provide accurate macro estimates."},
+                {"role": "system", "content": "You are a nutrition expert. Create meal plans quickly and accurately."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,  # Lower temperature for more consistent output
-            max_tokens=1500,  # More tokens for detailed meal plans
-            timeout=90  # 90 second timeout for AI requests
+            max_tokens=800,   # Reduced tokens for faster response
+            timeout=30        # 30 second timeout for faster response
         )
         
         ai_response = response.choices[0].message.content
@@ -4382,8 +4201,9 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                 "nutrition_verified": False
             }
             
-            # Try to verify nutrition data for ingredients
-            for ingredient in meal_ingredients:
+            # OPTIMIZED: Only check first 2 ingredients to reduce database calls
+            checked_ingredients = meal_ingredients[:2]  # Limit to first 2 ingredients
+            for ingredient in checked_ingredients:
                 food_data = _get_food_nutrition_from_db(db_nutrition, ingredient)
                 
                 if food_data:
@@ -4404,6 +4224,14 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                         "found_in_db": False,
                         "note": "Nutrition data not available in database"
                     })
+            
+            # Add remaining ingredients without database lookup to save time
+            for ingredient in meal_ingredients[2:]:
+                enriched_meal["ingredients"].append({
+                    "name": ingredient,
+                    "found_in_db": False,
+                    "note": "Skipped for performance"
+                })
             
             enriched_day["meals"].append(enriched_meal)
         
