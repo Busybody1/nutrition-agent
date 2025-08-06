@@ -3918,21 +3918,21 @@ def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict]:
                 COALESCE(MAX(CASE WHEN n.name = 'Carbohydrates' THEN fn.amount END), 0) as carbs_g,
                 COALESCE(MAX(CASE WHEN n.name = 'Total Fat' THEN fn.amount END), 0) as fat_g
             FROM foods f
-            LEFT JOIN food_nutrients fn ON f.id = fn.food_id
-            LEFT JOIN nutrients n ON fn.nutrient_id = n.id
+                LEFT JOIN food_nutrients fn ON f.id = fn.food_id
+                LEFT JOIN nutrients n ON fn.nutrient_id = n.id
             WHERE LOWER(f.name) LIKE LOWER(:food_name)
             OR LOWER(f.name) LIKE LOWER(:food_name_pattern)
-            GROUP BY f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving
-            ORDER BY 
-                CASE 
-                    WHEN LOWER(f.name) = LOWER(:exact_match) THEN 1
-                    WHEN LOWER(f.name) LIKE LOWER(:exact_match) THEN 2
-                    ELSE 3
-                END,
-                f.name
-            LIMIT 1
-            """
-            
+                GROUP BY f.id, f.name, f.brand_id, f.category_id, f.serving_size, f.serving_unit, f.serving
+                ORDER BY 
+                    CASE 
+                        WHEN LOWER(f.name) = LOWER(:exact_match) THEN 1
+                        WHEN LOWER(f.name) LIKE LOWER(:exact_match) THEN 2
+                        ELSE 3
+                    END,
+                    f.name
+                LIMIT 1
+                """
+                
             result = db.execute(
                 text(query),
                 {
@@ -4210,7 +4210,7 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                     enriched_meal["ingredients"].append({
                         "name": ingredient,
                         "found_in_db": True,
-                        "nutrition": {
+                    "nutrition": {
                             "calories": food_data.get("calories", 0),
                             "protein": food_data.get("protein_g", 0),
                             "carbs": food_data.get("carbs_g", 0),
@@ -4218,11 +4218,11 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                         }
                     })
                     enriched_meal["nutrition_verified"] = True
-                else:
+            else:
                     enriched_meal["ingredients"].append({
                         "name": ingredient,
-                        "found_in_db": False,
-                        "note": "Nutrition data not available in database"
+                    "found_in_db": False,
+                    "note": "Nutrition data not available in database"
                     })
             
             # Add remaining ingredients without database lookup to save time
