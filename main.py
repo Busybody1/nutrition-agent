@@ -1765,11 +1765,20 @@ def log_food_to_calorie_log_with_details(db_nutrition, db_shared, entry: FoodLog
 
 def get_user_calorie_history(db, user_id: Any):
     try:
+        # Handle None or empty user_id
+        if not user_id:
+            logger.info("No user_id provided, returning empty history")
+            return []
+        
         # Check if food_logs table exists
         result = db.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'")).fetchone()
         if not result:
             logger.warning("food_logs table does not exist, returning empty history")
             return []
+        
+        # Convert user_id to UUID format for database query
+        user_uuid = _get_user_uuid(str(user_id))
+        logger.info(f"Querying user history for UUID: {user_uuid}")
         
         rows = db.execute(
             text(
@@ -1781,7 +1790,7 @@ def get_user_calorie_history(db, user_id: Any):
             LIMIT 100
             """
             ),
-            {"user_id": user_id},
+            {"user_id": user_uuid},
         ).fetchall()
         
         # Convert rows to dictionaries properly
@@ -1793,9 +1802,12 @@ def get_user_calorie_history(db, user_id: Any):
                 # Handle tuple case
                 columns = ['id', 'user_id', 'food_item_id', 'quantity_g', 'meal_type', 'consumed_at', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'serving_size', 'serving_unit', 'serving', 'notes', 'created_at']
                 result.append(dict(zip(columns, row)))
+        logger.info(f"Successfully retrieved {len(result)} history entries for user")
         return result
     except Exception as e:
         logger.error(f"Error getting user calorie history: {e}")
+        # Don't fail the entire request, just return empty history
+        logger.info("Returning empty history due to error, continuing with meal plan creation")
         return []
 
 
@@ -2071,11 +2083,19 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
 
         # Get user's food preferences and history from shared database
         user_history = []
+        user_data_available = False
+        
         if user_id:
             try:
                 user_history = get_user_calorie_history(db_shared, user_id)
+                user_data_available = len(user_history) > 0
+                if user_data_available:
+                    logger.info(f"Successfully fetched user data for user_id {user_id}: {len(user_history)} entries")
+                else:
+                    logger.info(f"No user history found for user_id {user_id}, proceeding with general meal plan")
             except Exception as user_data_error:
                 logger.warning(f"Could not fetch user data for user_id {user_id}: {user_data_error}")
+                logger.info("Proceeding with general meal plan")
                 # Continue with empty user history
         else:
             logger.info("No user_id provided, using general meal plan")
@@ -2085,22 +2105,34 @@ def create_meal_plan(request: Dict[str, Any], db_nutrition=Depends(get_nutrition
             user_id or "anonymous", daily_calories, meal_count, dietary_restrictions, user_history, db_nutrition, meal_description
         )
 
-        # Calculate total calories from enriched meal plan
-        total_calories = sum(meal["total_calories"] for meal in meal_plan)
+        # Calculate total calories from enriched meal plan (new structure)
+        total_calories = 0
+        total_meals = 0
+        for day_data in meal_plan:
+            for meal in day_data.get("meals", []):
+                total_calories += meal.get("macros", {}).get("calories", 0)
+                total_meals += 1
 
         return {
             "status": "success",
             "meal_plan": meal_plan,
             "total_calories": total_calories,
-            "meals": len(meal_plan),
+            "meals": total_meals,
             "ai_generated": True,
             "nutrition_verified": True,
             "meal_description": meal_description,
-            "user_data_available": len(user_history) > 0
+            "user_data_available": user_data_available,
+            "user_id": user_id or "anonymous"
         }
     except Exception as e:
         logger.error(f"Error creating AI meal plan: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to create meal plan: {e}")
+        # Provide more specific error messages
+        if "database" in str(e).lower() or "connection" in str(e).lower():
+            raise HTTPException(status_code=503, detail="Database connection error. Please try again later.")
+        elif "timeout" in str(e).lower():
+            raise HTTPException(status_code=408, detail="Request timeout. Please try again.")
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to create meal plan: {str(e)}")
 
 
 def generate_meal_plan(
@@ -2677,12 +2709,14 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
         1. Carefully analyze the user's detailed meal description
         2. Extract all specific requirements mentioned (ingredients, dietary preferences, calorie targets, meal frequency)
         3. Follow the user's exact specifications for meal suggestions
-        4. Use ONLY the ingredients mentioned by the user
-        5. Meet the exact calorie targets specified
-        6. Follow all dietary restrictions mentioned (low carb, high protein, etc.)
-        7. Suggest foods that match the user's preferences and requirements
-        8. Ensure suggestions meet the nutritional requirements mentioned
-        9. Provide accurate macro estimates for all suggested foods
+        4. PRIORITIZE the ingredients mentioned by the user, but you can use additional ingredients if needed
+        5. If user specifies "ONLY use these ingredients", then restrict to those ingredients
+        6. If user mentions ingredients without "ONLY", prioritize those ingredients but supplement with others as needed
+        7. Meet the exact calorie targets specified
+        8. Follow all dietary restrictions mentioned (low carb, high protein, etc.)
+        9. Suggest foods that match the user's preferences and requirements
+        10. Ensure suggestions meet the nutritional requirements mentioned
+        11. Provide accurate macro estimates for all suggested foods
         """
     
     prompt = f"""
@@ -4114,12 +4148,14 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
         1. Carefully analyze the user's detailed meal description
         2. Extract all specific requirements mentioned (days, meals per day, calorie targets, ingredients, dietary restrictions)
         3. Follow the user's exact specifications for meal planning
-        4. Use ONLY the ingredients mentioned by the user
-        5. Meet the exact calorie targets specified
-        6. Follow all dietary restrictions mentioned (low carb, high protein, etc.)
-        7. Create meal names that describe the complete meal using the specified ingredients
-        8. Ensure each meal meets the nutritional requirements mentioned
-        9. Structure the response according to the specified format with days and meals
+        4. PRIORITIZE the ingredients mentioned by the user, but you can use additional ingredients if needed
+        5. If user specifies "ONLY use these ingredients", then restrict to those ingredients
+        6. If user mentions ingredients without "ONLY", prioritize those ingredients but supplement with others as needed
+        7. Meet the exact calorie targets specified
+        8. Follow all dietary restrictions mentioned (low carb, high protein, etc.)
+        9. Create meal names that describe the complete meal using the specified ingredients
+        10. Ensure each meal meets the nutritional requirements mentioned
+        11. Structure the response according to the specified format with days and meals
         """
     
     prompt = f"""
@@ -4132,14 +4168,14 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     1. MULTI-DAY PLANS: If user mentions "3 days", create exactly 3 days with "day": 1, "day": 2, "day": 3
     2. MEAL FREQUENCY: If user mentions "2 meals each day", create exactly 2 meals per day (6 total meals for 3 days)
     3. CALORIE TARGETS: If user mentions "1100 calories", each meal must be 1000-1200 calories
-    4. SPECIFIC INGREDIENTS: If user lists ingredients, USE ONLY THOSE INGREDIENTS
+    4. INGREDIENTS: PRIORITIZE ingredients mentioned by the user, but use additional ingredients if needed
     5. DIETARY RESTRICTIONS: If user mentions "low carb - max 50g a day", keep daily carbs under 50g
     6. HIGH PROTEIN: If user mentions "high protein", prioritize protein-rich foods
     
     MEAL PLAN STRUCTURE:
     - For 3 days with 2 meals each: Create 6 meals total
     - Each meal should be 1000-1200 calories
-    - Use only the ingredients mentioned by the user
+    - Prioritize ingredients mentioned by the user, supplement with others as needed
     - Include "day" field for each meal (1, 2, 3)
     - Include "meal_type" field (breakfast/lunch)
     
@@ -4203,7 +4239,7 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
     
     CRITICAL RULES:
     - ALWAYS include "day" field for multi-day plans
-    - ALWAYS use exact ingredient names from user's request
+    - ALWAYS prioritize ingredient names from user's request
     - ALWAYS meet calorie targets (1000-1200 per meal)
     - ALWAYS follow dietary restrictions (low carb, high protein)
     - ALWAYS provide accurate macro estimates
@@ -4214,7 +4250,7 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
         response = client.chat.completions.create(
             model=settings.llm.groq_model,
             messages=[
-                {"role": "system", "content": "You are a precise nutrition expert. You MUST follow user requirements exactly. If user specifies ingredients, use ONLY those ingredients. If user specifies meal count and days, create exactly that many meals. If user specifies calorie targets, meet those targets. Always include 'day' field for multi-day plans. Provide accurate macro estimates."},
+                {"role": "system", "content": "You are a precise nutrition expert. You MUST follow user requirements exactly. PRIORITIZE ingredients mentioned by the user, but use additional ingredients if needed. If user specifies meal count and days, create exactly that many meals. If user specifies calorie targets, meet those targets. Always include 'day' field for multi-day plans. Provide accurate macro estimates."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,  # Lower temperature for more consistent output
