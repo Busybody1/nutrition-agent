@@ -11,6 +11,7 @@ import math
 from contextlib import asynccontextmanager
 import openai
 import uuid
+import time
 
 # Import models and utilities
 from shared import FoodLogEntry, DataValidator
@@ -1389,6 +1390,39 @@ def execute_tool(
     elif tool == "nutrition-goals":
         return track_nutrition_goals(params, db_shared)
 
+    elif tool == "create_recipe":
+        user_id = params.get("user_id", "anonymous")
+        recipe_description = params.get("recipe_description", "")
+        servings = params.get("servings", 1)
+        difficulty = params.get("difficulty", "easy")
+        cuisine = params.get("cuisine")
+        dietary_restrictions = params.get("dietary_restrictions", [])
+        
+        if not recipe_description:
+            raise HTTPException(status_code=400, detail="Recipe description is required")
+        
+        # Validate inputs
+        if servings < 1 or servings > 20:
+            raise HTTPException(status_code=400, detail="Servings must be between 1 and 20")
+        
+        valid_difficulties = ["easy", "medium", "hard"]
+        if difficulty not in valid_difficulties:
+            raise HTTPException(status_code=400, detail=f"Difficulty must be one of: {', '.join(valid_difficulties)}")
+        
+        # Create recipe
+        result = create_recipe(
+            db_nutrition=db_nutrition,
+            db_shared=db_shared,
+            user_id=user_id,
+            recipe_description=recipe_description,
+            servings=servings,
+            difficulty=difficulty,
+            cuisine=cuisine,
+            dietary_restrictions=dietary_restrictions
+        )
+        
+        return result
+
     else:
         raise HTTPException(status_code=400, detail="Unknown tool.")
 
@@ -2766,11 +2800,12 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
     2. Suggested quantity in grams
     3. Estimated macros (calories, protein, carbs, fat) based on the quantity
     4. Brief nutritional reasoning
+    5. List of ingredients with their individual macros
     
     Format your response as a JSON array with this structure:
     [
         {{
-            "name": "oatmeal",
+            "name": "oatmeal with berries",
             "quantity_g": 50,
             "estimated_macros": {{
                 "calories": 180,
@@ -2778,10 +2813,32 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
                 "carbs_g": 30.5,
                 "fat_g": 3.2
             }},
-            "reasoning": "High fiber, complex carbs for sustained energy"
+            "reasoning": "High fiber, complex carbs for sustained energy",
+            "ingredients": [
+                {{
+                    "name": "oatmeal",
+                    "quantity_g": 30,
+                    "macros": {{
+                        "calories": 110,
+                        "protein_g": 4.0,
+                        "carbs_g": 19.5,
+                        "fat_g": 2.0
+                    }}
+                }},
+                {{
+                    "name": "berries",
+                    "quantity_g": 20,
+                    "macros": {{
+                        "calories": 70,
+                        "protein_g": 2.5,
+                        "carbs_g": 11.0,
+                        "fat_g": 1.2
+                    }}
+                }}
+            ]
         }},
         {{
-            "name": "banana",
+            "name": "banana with peanut butter",
             "quantity_g": 120,
             "estimated_macros": {{
                 "calories": 105,
@@ -2789,7 +2846,29 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
                 "carbs_g": 27,
                 "fat_g": 0.4
             }},
-            "reasoning": "Natural sweetness and potassium"
+            "reasoning": "Natural sweetness and potassium",
+            "ingredients": [
+                {{
+                    "name": "banana",
+                    "quantity_g": 100,
+                    "macros": {{
+                        "calories": 89,
+                        "protein_g": 1.1,
+                        "carbs_g": 23,
+                        "fat_g": 0.3
+                    }}
+                }},
+                {{
+                    "name": "peanut butter",
+                    "quantity_g": 20,
+                    "macros": {{
+                        "calories": 16,
+                        "protein_g": 0.2,
+                        "carbs_g": 4,
+                        "fat_g": 0.1
+                    }}
+                }}
+            ]
         }}
     ]
     
@@ -2805,6 +2884,7 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
     - If a specific meal description is provided, prioritize foods that match that description
     - Provide accurate macro estimates based on standard nutrition values for the suggested quantities
     - Do not limit suggestions to only foods that might be in a database
+    - Include ingredients array with individual macros for each ingredient
     """
     
     try:
@@ -2815,7 +2895,7 @@ def _generate_ai_meal_suggestions(client, context: str, target_calories: Optiona
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=600,   # Reduced tokens for faster response
+            max_tokens=800,   # Increased tokens for ingredients array
             timeout=30        # 30 second timeout for faster response
         )
         
@@ -2859,6 +2939,7 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
         food_data = _get_food_nutrition_from_db(db, food_name)
         suggested_quantity = suggestion.get("quantity_g", 100)
         ai_estimated_macros = suggestion.get("estimated_macros", {})
+        ai_ingredients = suggestion.get("ingredients", [])
         
         if food_data:
             # Calculate nutrition based on suggested quantity
@@ -2872,6 +2953,58 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
             actual_protein = (base_protein * suggested_quantity) / 100
             actual_carbs = (base_carbs * suggested_quantity) / 100
             actual_fat = (base_fat * suggested_quantity) / 100
+            
+            # Enrich ingredients with database nutrition data
+            enriched_ingredients = []
+            for ingredient in ai_ingredients:
+                ingredient_name = ingredient.get("name", "")
+                ingredient_quantity = ingredient.get("quantity_g", 0)
+                ingredient_macros = ingredient.get("macros", {})
+                
+                # Try to get nutrition data from database for this ingredient
+                ingredient_food_data = _get_food_nutrition_from_db(db, ingredient_name)
+                
+                if ingredient_food_data:
+                    # Calculate actual nutrition based on ingredient quantity
+                    base_ingredient_calories = ingredient_food_data.get("calories", 0)
+                    base_ingredient_protein = ingredient_food_data.get("protein_g", 0)
+                    base_ingredient_carbs = ingredient_food_data.get("carbs_g", 0)
+                    base_ingredient_fat = ingredient_food_data.get("fat_g", 0)
+                    
+                    actual_ingredient_calories = (base_ingredient_calories * ingredient_quantity) / 100
+                    actual_ingredient_protein = (base_ingredient_protein * ingredient_quantity) / 100
+                    actual_ingredient_carbs = (base_ingredient_carbs * ingredient_quantity) / 100
+                    actual_ingredient_fat = (base_ingredient_fat * ingredient_quantity) / 100
+                    
+                    enriched_ingredient = {
+                        "name": ingredient_name,
+                        "quantity_g": ingredient_quantity,
+                        "macros": {
+                            "calories": round(actual_ingredient_calories, 1),
+                            "protein_g": round(actual_ingredient_protein, 1),
+                            "carbs_g": round(actual_ingredient_carbs, 1),
+                            "fat_g": round(actual_ingredient_fat, 1)
+                        },
+                        "nutrition_verified": True,
+                        "food_id": ingredient_food_data.get("id"),
+                        "nutrients": ingredient_food_data.get("nutrients", [])
+                    }
+                else:
+                    # Use AI-generated macros if database data not available
+                    enriched_ingredient = {
+                        "name": ingredient_name,
+                        "quantity_g": ingredient_quantity,
+                        "macros": {
+                            "calories": round(ingredient_macros.get("calories", 0), 1),
+                            "protein_g": round(ingredient_macros.get("protein_g", 0), 1),
+                            "carbs_g": round(ingredient_macros.get("carbs_g", 0), 1),
+                            "fat_g": round(ingredient_macros.get("fat_g", 0), 1)
+                        },
+                        "nutrition_verified": False,
+                        "note": "Nutrition data not available in database - using AI estimates"
+                    }
+                
+                enriched_ingredients.append(enriched_ingredient)
             
             enriched_suggestion = {
                 "id": food_data.get("id"),
@@ -2890,7 +3023,8 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
                 "fat_g": round(actual_fat, 1),
                 "nutrients": food_data.get("nutrients", []),
                 "nutrition_summary": food_data.get("nutrition_summary", {}),
-                "total_nutrients": food_data.get("total_nutrients", 0)
+                "total_nutrients": food_data.get("total_nutrients", 0),
+                "ingredients": enriched_ingredients
             }
         else:
             # Food not found in database, use AI-generated macros if available
@@ -2898,6 +3032,17 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
             ai_protein = ai_estimated_macros.get("protein_g", 0)
             ai_carbs = ai_estimated_macros.get("carbs_g", 0)
             ai_fat = ai_estimated_macros.get("fat_g", 0)
+            
+            # Keep original ingredients structure if no database data
+            enriched_ingredients = []
+            for ingredient in ai_ingredients:
+                enriched_ingredients.append({
+                    "name": ingredient.get("name", ""),
+                    "quantity_g": ingredient.get("quantity_g", 0),
+                    "macros": ingredient.get("macros", {}),
+                    "nutrition_verified": False,
+                    "note": "Using AI estimates"
+                })
             
             enriched_suggestion = {
                 "name": food_name,
@@ -2911,7 +3056,8 @@ def _enrich_suggestions_with_nutrition(ai_suggestions: List[Dict], db) -> List[D
                 "nutrients": [],
                 "nutrition_summary": {},
                 "total_nutrients": 0,
-                "note": "Nutrition data not available in database - using AI estimates"
+                "note": "Nutrition data not available in database - using AI estimates",
+                "ingredients": enriched_ingredients
             }
         
         enriched_suggestions.append(enriched_suggestion)
@@ -2973,19 +3119,34 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
             for food_name in general_foods:
                 food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
                 if food_data:
-                    suggestions.append({
-                        "name": food_name,
-                        "suggested_quantity_g": 100,
-                        "reasoning": f"Common nutritious food for {meal_type}",
-                        "found_in_db": True,
-                        "calories": food_data.get("calories", 0),
-                        "protein_g": food_data.get("protein_g", 0),
-                        "carbs_g": food_data.get("carbs_g", 0),
-                        "fat_g": food_data.get("fat_g", 0),
-                        "nutrients": food_data.get("nutrients", []),
-                        "nutrition_summary": food_data.get("nutrition_summary", {}),
-                        "total_nutrients": food_data.get("total_nutrients", 0)
-                    })
+                                    suggestions.append({
+                    "name": food_name,
+                    "suggested_quantity_g": 100,
+                    "reasoning": f"Common nutritious food for {meal_type}",
+                    "found_in_db": True,
+                    "calories": food_data.get("calories", 0),
+                    "protein_g": food_data.get("protein_g", 0),
+                    "carbs_g": food_data.get("carbs_g", 0),
+                    "fat_g": food_data.get("fat_g", 0),
+                    "nutrients": food_data.get("nutrients", []),
+                    "nutrition_summary": food_data.get("nutrition_summary", {}),
+                    "total_nutrients": food_data.get("total_nutrients", 0),
+                    "ingredients": [
+                        {
+                            "name": food_name,
+                            "quantity_g": 100,
+                            "macros": {
+                                "calories": food_data.get("calories", 0),
+                                "protein_g": food_data.get("protein_g", 0),
+                                "carbs_g": food_data.get("carbs_g", 0),
+                                "fat_g": food_data.get("fat_g", 0)
+                            },
+                            "nutrition_verified": True,
+                            "food_id": food_data.get("id"),
+                            "nutrients": food_data.get("nutrients", [])
+                        }
+                    ]
+                })
                 else:
                     suggestions.append({
                         "name": food_name,
@@ -2998,7 +3159,21 @@ def _get_fallback_meal_suggestions(db_nutrition, db_shared, user_id: str, meal_t
                         "fat_g": 0,
                         "nutrients": [],
                         "nutrition_summary": {},
-                        "total_nutrients": 0
+                        "total_nutrients": 0,
+                        "ingredients": [
+                            {
+                                "name": food_name,
+                                "quantity_g": 100,
+                                "macros": {
+                                    "calories": 0,
+                                    "protein_g": 0,
+                                    "carbs_g": 0,
+                                    "fat_g": 0
+                                },
+                                "nutrition_verified": False,
+                                "note": "Nutrition data not available in database"
+                            }
+                        ]
                     })
             return {
                 "meal_type": meal_type,
@@ -4082,19 +4257,59 @@ def _generate_meal_plan_with_ai(client, user_context: str, meal_count: int, meal
                     "name": "Beef and Asparagus Stir-Fry",
                     "meal_type": "breakfast",
                     "servings": 1,
-                    "macros": {{"calories": 1100, "protein": 45, "carbs": 35, "fat": 85}}
+                    "macros": {{"calories": 1100, "protein_g": 45, "carbs_g": 35, "fat_g": 85}},
+                    "ingredients": [
+                        {{
+                            "name": "beef",
+                            "quantity_g": 150,
+                            "macros": {{"calories": 450, "protein_g": 35, "carbs_g": 0, "fat_g": 30}}
+                        }},
+                        {{
+                            "name": "asparagus",
+                            "quantity_g": 100,
+                            "macros": {{"calories": 20, "protein_g": 2, "carbs_g": 4, "fat_g": 0}}
+                        }},
+                        {{
+                            "name": "olive oil",
+                            "quantity_g": 15,
+                            "macros": {{"calories": 130, "protein_g": 0, "carbs_g": 0, "fat_g": 15}}
+                        }}
+                    ]
                 }},
                 {{
                     "name": "Salmon with Asparagus and Avocado",
                     "meal_type": "lunch",
                     "servings": 1,
-                    "macros": {{"calories": 1150, "protein": 60, "carbs": 12, "fat": 90}}
+                    "macros": {{"calories": 1150, "protein_g": 60, "carbs_g": 12, "fat_g": 90}},
+                    "ingredients": [
+                        {{
+                            "name": "salmon",
+                            "quantity_g": 200,
+                            "macros": {{"calories": 400, "protein_g": 50, "carbs_g": 0, "fat_g": 20}}
+                        }},
+                        {{
+                            "name": "avocado",
+                            "quantity_g": 100,
+                            "macros": {{"calories": 160, "protein_g": 2, "carbs_g": 9, "fat_g": 15}}
+                        }},
+                        {{
+                            "name": "asparagus",
+                            "quantity_g": 150,
+                            "macros": {{"calories": 30, "protein_g": 3, "carbs_g": 6, "fat_g": 0}}
+                        }}
+                    ]
                 }}
             ]
         }}
     ]
     
-    RULES: Include "day" field, prioritize user ingredients, meet calorie targets, follow dietary restrictions.
+    RULES: 
+    - Include "day" field
+    - Prioritize user ingredients
+    - Meet calorie targets
+    - Follow dietary restrictions
+    - Include ingredients array with individual macros for each ingredient
+    - Provide realistic quantities and accurate macro estimates
     """
     
     try:
@@ -4149,20 +4364,77 @@ def _create_fallback_meal_plan(meal_count: int) -> List[Dict]:
     
     for i in range(meal_count):
         meal_type = "breakfast" if i == 0 else "lunch"
+        
+        if meal_type == "breakfast":
+            meal_name = "Oatmeal with Berries"
+            ingredients = [
+                {
+                    "name": "oatmeal",
+                    "quantity_g": 50,
+                    "macros": {
+                        "calories": 180,
+                        "protein_g": 6.5,
+                        "carbs_g": 30.5,
+                        "fat_g": 3.2
+                    }
+                },
+                {
+                    "name": "berries",
+                    "quantity_g": 30,
+                    "macros": {
+                        "calories": 15,
+                        "protein_g": 0.5,
+                        "carbs_g": 3.5,
+                        "fat_g": 0.2
+                    }
+                }
+            ]
+            total_macros = {
+                "calories": 195,
+                "protein_g": 7.0,
+                "carbs_g": 34.0,
+                "fat_g": 3.4
+            }
+        else:
+            meal_name = "Chicken Breast with Vegetables"
+            ingredients = [
+                {
+                    "name": "chicken breast",
+                    "quantity_g": 150,
+                    "macros": {
+                        "calories": 250,
+                        "protein_g": 45,
+                        "carbs_g": 0,
+                        "fat_g": 5.5
+                    }
+                },
+                {
+                    "name": "broccoli",
+                    "quantity_g": 100,
+                    "macros": {
+                        "calories": 35,
+                        "protein_g": 3.5,
+                        "carbs_g": 7,
+                        "fat_g": 0.5
+                    }
+                }
+            ]
+            total_macros = {
+                "calories": 285,
+                "protein_g": 48.5,
+                "carbs_g": 7,
+                "fat_g": 6.0
+            }
+        
         fallback_plan.append({
             "day": 1,
-            "meal_type": meal_type,
-            "foods": [
+            "meals": [
                 {
-                    "name": "oatmeal" if meal_type == "breakfast" else "chicken breast",
-                    "quantity_g": 50 if meal_type == "breakfast" else 150,
-                    "estimated_macros": {
-                        "calories": 180 if meal_type == "breakfast" else 250,
-                        "protein_g": 6.5 if meal_type == "breakfast" else 45,
-                        "carbs_g": 30.5 if meal_type == "breakfast" else 0,
-                        "fat_g": 3.2 if meal_type == "breakfast" else 5.5
-                    },
-                    "reasoning": "Basic nutritious option"
+                    "name": meal_name,
+                    "meal_type": meal_type,
+                    "servings": 1,
+                    "macros": total_macros,
+                    "ingredients": ingredients
                 }
             ]
         })
@@ -4188,9 +4460,7 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
             meal_type = meal.get("meal_type", "")
             servings = meal.get("servings", 1)
             ai_macros = meal.get("macros", {})
-            
-            # Extract ingredients from meal name for nutrition verification
-            meal_ingredients = _extract_ingredients_from_meal_name(meal_name)
+            ai_ingredients = meal.get("ingredients", [])
             
             enriched_meal = {
                 "name": meal_name,
@@ -4201,37 +4471,57 @@ def _enrich_meal_plan_with_nutrition(ai_meal_plan: List[Dict], db_nutrition) -> 
                 "nutrition_verified": False
             }
             
-            # OPTIMIZED: Only check first 2 ingredients to reduce database calls
-            checked_ingredients = meal_ingredients[:2]  # Limit to first 2 ingredients
-            for ingredient in checked_ingredients:
-                food_data = _get_food_nutrition_from_db(db_nutrition, ingredient)
+            # Enrich ingredients with database nutrition data
+            for ingredient in ai_ingredients:
+                ingredient_name = ingredient.get("name", "")
+                ingredient_quantity = ingredient.get("quantity_g", 0)
+                ingredient_macros = ingredient.get("macros", {})
+                
+                # Try to get nutrition data from database for this ingredient
+                food_data = _get_food_nutrition_from_db(db_nutrition, ingredient_name)
                 
                 if food_data:
-                    enriched_meal["ingredients"].append({
-                        "name": ingredient,
-                        "found_in_db": True,
-                    "nutrition": {
-                            "calories": food_data.get("calories", 0),
-                            "protein": food_data.get("protein_g", 0),
-                            "carbs": food_data.get("carbs_g", 0),
-                            "fat": food_data.get("fat_g", 0)
-                        }
-                    })
+                    # Calculate actual nutrition based on ingredient quantity
+                    base_calories = food_data.get("calories", 0)
+                    base_protein = food_data.get("protein_g", 0)
+                    base_carbs = food_data.get("carbs_g", 0)
+                    base_fat = food_data.get("fat_g", 0)
+                    
+                    actual_calories = (base_calories * ingredient_quantity) / 100
+                    actual_protein = (base_protein * ingredient_quantity) / 100
+                    actual_carbs = (base_carbs * ingredient_quantity) / 100
+                    actual_fat = (base_fat * ingredient_quantity) / 100
+                    
+                    enriched_ingredient = {
+                        "name": ingredient_name,
+                        "quantity_g": ingredient_quantity,
+                        "macros": {
+                            "calories": round(actual_calories, 1),
+                            "protein_g": round(actual_protein, 1),
+                            "carbs_g": round(actual_carbs, 1),
+                            "fat_g": round(actual_fat, 1)
+                        },
+                        "nutrition_verified": True,
+                        "food_id": food_data.get("id"),
+                        "nutrients": food_data.get("nutrients", [])
+                    }
                     enriched_meal["nutrition_verified"] = True
-            else:
-                    enriched_meal["ingredients"].append({
-                        "name": ingredient,
-                    "found_in_db": False,
-                    "note": "Nutrition data not available in database"
-                    })
-            
-            # Add remaining ingredients without database lookup to save time
-            for ingredient in meal_ingredients[2:]:
-                enriched_meal["ingredients"].append({
-                    "name": ingredient,
-                    "found_in_db": False,
-                    "note": "Skipped for performance"
-                })
+                else:
+                    # Use AI-generated macros if database data not available
+                    enriched_ingredient = {
+                        "name": ingredient_name,
+                        "quantity_g": ingredient_quantity,
+                        "macros": {
+                            "calories": round(ingredient_macros.get("calories", 0), 1),
+                            "protein_g": round(ingredient_macros.get("protein_g", 0), 1),
+                            "carbs_g": round(ingredient_macros.get("carbs_g", 0), 1),
+                            "fat_g": round(ingredient_macros.get("fat_g", 0), 1)
+                        },
+                        "nutrition_verified": False,
+                        "note": "Nutrition data not available in database - using AI estimates"
+                    }
+                
+                enriched_meal["ingredients"].append(enriched_ingredient)
             
             enriched_day["meals"].append(enriched_meal)
         
@@ -4672,18 +4962,603 @@ def debug_food_details(food_id: int, db=Depends(get_nutrition_db)):
         
         return {
             "status": "success",
-            "food": food_data,
-            "total_nutrients_found": len(nutrients),
-            "all_nutrients": nutrients,
-            "specific_nutrients_found": len(specific_nutrients),
-            "specific_nutrients": specific_nutrients,
-            "all_available_nutrient_names": all_nutrient_names[:20],  # First 20 for reference
-            "note": "This shows what nutrients are actually in the database vs what the search function is looking for"
+            "food": {
+                "id": food_data["id"],
+                "name": food_data["name"],
+                "brand_id": food_data["brand_id"],
+                "category_id": food_data["category_id"],
+                "serving_size": food_data["serving_size"],
+                "serving_unit": food_data["serving_unit"],
+                "serving": food_data["serving"],
+                "created_at": food_data["created_at"],
+                "nutrients": nutrients,
+                "specific_nutrients": specific_nutrients,
+                "total_nutrients": len(nutrients)
+            }
         }
-        
     except Exception as e:
-        logger.error(f"Error in debug_food_details: {e}")
         return {
             "status": "error",
             "error": str(e)
         }
+
+@app.post("/test-ingredients-structure")
+def test_ingredients_structure(request: Dict[str, Any], db_nutrition=Depends(get_nutrition_db), db_shared=Depends(get_shared_db)):
+    """Test endpoint to demonstrate the new ingredients structure with macros."""
+    try:
+        # Test meal suggestions with ingredients
+        meal_suggestions = get_meal_suggestions(
+            db_nutrition, 
+            db_shared, 
+            "test_user", 
+            "breakfast", 
+            500, 
+            "I want oatmeal with berries and nuts"
+        )
+        
+        # Test meal plan creation with ingredients
+        meal_plan = create_ai_meal_plan(
+            "test_user",
+            2000,
+            3,
+            [],
+            [],
+            db_nutrition,
+            "Create a meal plan with chicken, rice, and vegetables"
+        )
+        
+        return {
+            "status": "success",
+            "message": "Testing new ingredients structure with macros",
+            "meal_suggestions": meal_suggestions,
+            "meal_plan": meal_plan,
+            "ingredients_structure_explanation": {
+                "description": "Both meal suggestions and meal plans now include ingredients as an array of objects with macros",
+                "ingredients_format": {
+                    "name": "ingredient_name",
+                    "quantity_g": 100,
+                    "macros": {
+                        "calories": 150,
+                        "protein_g": 10,
+                        "carbs_g": 20,
+                        "fat_g": 5
+                    },
+                    "nutrition_verified": True,
+                    "food_id": 123,
+                    "nutrients": []
+                }
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+# Add after the existing meal suggestion functions, around line 3034
+
+def create_recipe(
+    db_nutrition, db_shared, user_id: str, recipe_description: str, 
+    servings: int = 1, difficulty: str = "easy", cuisine: Optional[str] = None,
+    dietary_restrictions: Optional[List[str]] = None
+):
+    """Create AI-powered recipes with detailed ingredients, instructions, and nutrition data."""
+    try:
+        settings = get_settings()
+        
+        # Initialize Groq client
+        client = openai.OpenAI(
+            api_key=settings.llm.groq_api_key,
+            base_url=settings.llm.groq_base_url
+        )
+        
+        # Get user's food preferences for context
+        user_preferences = []
+        try:
+            user_uuid = _get_user_uuid(user_id)
+            recent_foods = db_shared.execute(
+                text(
+                    """
+                SELECT food_item_id, COUNT(*) as frequency
+                FROM food_logs 
+                WHERE user_id = :user_id 
+                AND consumed_at > NOW() - INTERVAL '30 days'
+                GROUP BY food_item_id
+                ORDER BY frequency DESC
+                LIMIT 10
+                """
+                ),
+                {"user_id": user_uuid},
+            ).fetchall()
+
+            # Get food details for context
+            food_ids = [row[0] if not hasattr(row, '_mapping') else row._mapping['food_item_id'] for row in recent_foods]
+            
+            if food_ids:
+                placeholders = ",".join([":id" + str(i) for i in range(len(food_ids))])
+                params = {f"id{i}": food_id for i, food_id in enumerate(food_ids)}
+                
+                foods = db_nutrition.execute(
+                    text(
+                        f"""
+                    SELECT id, name
+                    FROM foods 
+                    WHERE id IN ({placeholders})
+                    """
+                    ),
+                    params,
+                ).fetchall()
+
+                for food in foods:
+                    if hasattr(food, '_mapping'):
+                        user_preferences.append(dict(food._mapping)["name"])
+                    else:
+                        user_preferences.append(food[1])  # Assuming name is second column
+
+        except Exception as e:
+            logger.warning(f"Could not fetch user preferences: {e}")
+
+        # Generate recipe with AI
+        recipe = _generate_recipe_with_ai(
+            client, recipe_description, servings, difficulty, cuisine, 
+            dietary_restrictions, user_preferences
+        )
+        
+        # Enrich recipe with nutrition data from database
+        enriched_recipe = _enrich_recipe_with_nutrition(recipe, db_nutrition)
+        
+        return {
+            "recipe": enriched_recipe,
+            "ai_generated": True,
+            "nutrition_verified": enriched_recipe.get("nutrition_verified", False),
+            "user_preferences_used": len(user_preferences) > 0,
+            "dietary_restrictions": dietary_restrictions or [],
+            "created_at": datetime.datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in recipe creation: {e}")
+        # Fallback to basic recipe
+        return _get_fallback_recipe(recipe_description, servings, difficulty)
+
+
+def _generate_recipe_with_ai(
+    client, recipe_description: str, servings: int, difficulty: str, 
+    cuisine: Optional[str], dietary_restrictions: Optional[List[str]], 
+    user_preferences: List[str]
+) -> Dict:
+    """Generate recipe using Groq AI."""
+    
+    settings = get_settings()
+    
+    # Build context for AI
+    context_parts = [
+        f"Recipe description: {recipe_description}",
+        f"Servings: {servings}",
+        f"Difficulty: {difficulty}"
+    ]
+    
+    if cuisine:
+        context_parts.append(f"Cuisine: {cuisine}")
+    
+    if dietary_restrictions:
+        context_parts.append(f"Dietary restrictions: {', '.join(dietary_restrictions)}")
+    
+    if user_preferences:
+        context_parts.append(f"User preferences: {', '.join(user_preferences[:5])}")
+    
+    context = " | ".join(context_parts)
+    
+    prompt = f"""
+    {context}
+    
+    Create a detailed recipe with the following JSON structure:
+    {{
+        "id": "recipe_001",
+        "name": "Recipe Name",
+        "description": "Detailed description of the recipe",
+        "servings": {servings},
+        "prep_time_minutes": 10,
+        "cook_time_minutes": 20,
+        "total_time_minutes": 30,
+        "ingredients": [
+            {{
+                "name": "Ingredient Name",
+                "quantity": 100,
+                "unit": "g",
+                "calories": 150,
+                "protein_g": 10,
+                "carbs_g": 20,
+                "fat_g": 5,
+                "fiber_g": 2,
+                "sugar_g": 1
+            }}
+        ],
+        "instructions": [
+            "Step 1: Detailed instruction",
+            "Step 2: Detailed instruction",
+            "Step 3: Detailed instruction"
+        ],
+        "nutrition": {{
+            "calories": 500,
+            "protein_g": 25,
+            "carbs_g": 45,
+            "fat_g": 20,
+            "fiber_g": 8,
+            "sugar_g": 5
+        }},
+        "tags": ["breakfast", "high-protein", "vegetarian"],
+        "difficulty": "{difficulty}",
+        "cuisine": "{cuisine or 'general'}"
+    }}
+    
+    NUTRITION REQUIREMENTS:
+    - Provide accurate nutrition data for each ingredient (calories, protein, carbs, fat, fiber, sugar)
+    - Use realistic quantities and common units (g, tbsp, tsp, cup, large/medium/small, oz, lb, ml, l)
+    - Calculate total recipe nutrition by summing all ingredients
+    - Ensure nutrition data is reasonable and realistic
+    - Include fiber and sugar content for each ingredient when applicable
+    
+    INGREDIENT REQUIREMENTS:
+    - Use specific, common ingredient names that can be found in nutrition databases
+    - Provide precise quantities with appropriate units
+    - Include all necessary ingredients for the recipe
+    - Consider serving size and adjust quantities accordingly
+    - Use fresh, whole ingredients when possible
+    
+    RECIPE REQUIREMENTS:
+    - Create a realistic recipe that matches the description
+    - Use common, accessible ingredients
+    - Provide detailed, step-by-step instructions
+    - Include appropriate tags based on ingredients and nutrition
+    - Ensure the recipe is suitable for the specified difficulty level
+    - Consider dietary restrictions if provided
+    - Use user preferences when relevant
+    - Make instructions clear and easy to follow
+    - Include proper cooking times and techniques
+    - Calculate total nutrition from individual ingredients
+    - Ensure all times are realistic and appropriate
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model=settings.llm.groq_model,
+            messages=[
+                {"role": "system", "content": "You are a professional chef and nutritionist. Create detailed, accurate recipes."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1200,
+            timeout=45
+        )
+        
+        ai_response = response.choices[0].message.content
+        return _parse_ai_recipe(ai_response)
+        
+    except Exception as e:
+        logger.error(f"Error generating recipe with AI: {e}")
+        return _create_fallback_recipe(recipe_description, servings, difficulty)
+
+
+def _parse_ai_recipe(ai_response: str) -> Dict:
+    """Parse AI response into structured recipe."""
+    try:
+        import json
+        import re
+        
+        # Find JSON object in the response
+        json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+        if json_match:
+            recipe = json.loads(json_match.group())
+            
+            # Ensure required fields exist
+            recipe.setdefault("id", f"recipe_{int(time.time())}")
+            recipe.setdefault("name", "AI Generated Recipe")
+            recipe.setdefault("description", "A delicious recipe created by AI")
+            recipe.setdefault("servings", 1)
+            recipe.setdefault("prep_time_minutes", 10)
+            recipe.setdefault("cook_time_minutes", 20)
+            recipe.setdefault("total_time_minutes", 30)
+            recipe.setdefault("ingredients", [])
+            recipe.setdefault("instructions", [])
+            recipe.setdefault("nutrition", {})
+            recipe.setdefault("tags", [])
+            recipe.setdefault("difficulty", "easy")
+            recipe.setdefault("cuisine", "general")
+            
+            return recipe
+        else:
+            logger.warning("Could not parse AI response as JSON")
+            return _create_fallback_recipe("Basic Recipe", 1, "easy")
+            
+    except Exception as e:
+        logger.error(f"Error parsing AI recipe: {e}")
+        return _create_fallback_recipe("Basic Recipe", 1, "easy")
+
+
+def _enrich_recipe_with_nutrition(recipe: Dict, db_nutrition) -> Dict:
+    """Enrich recipe with comprehensive nutrition data from database."""
+    enriched_recipe = recipe.copy()
+    
+    # Calculate total nutrition from ingredients
+    total_calories = 0
+    total_protein = 0
+    total_carbs = 0
+    total_fat = 0
+    total_fiber = 0
+    total_sugar = 0
+    
+    enriched_ingredients = []
+    verified_ingredients_count = 0
+    
+    for ingredient in recipe.get("ingredients", []):
+        ingredient_name = ingredient.get("name", "")
+        quantity = ingredient.get("quantity", 0)
+        unit = ingredient.get("unit", "g")
+        
+        # Try to get comprehensive nutrition data from database
+        food_data = _get_food_nutrition_from_db(db_nutrition, ingredient_name)
+        
+        if food_data:
+            # Calculate nutrition based on quantity and unit conversion
+            base_calories = food_data.get("calories", 0)
+            base_protein = food_data.get("protein_g", 0)
+            base_carbs = food_data.get("carbs_g", 0)
+            base_fat = food_data.get("fat_g", 0)
+            base_fiber = food_data.get("fiber_g", 0)
+            base_sugar = food_data.get("sugar_g", 0)
+            
+            # Convert units if necessary (comprehensive conversion)
+            conversion_factor = 1.0
+            if unit.lower() in ["tbsp", "tablespoon"]:
+                conversion_factor = 15  # 1 tbsp = 15g
+            elif unit.lower() in ["tsp", "teaspoon"]:
+                conversion_factor = 5   # 1 tsp = 5g
+            elif unit.lower() in ["cup"]:
+                conversion_factor = 240  # 1 cup = 240g (approximate)
+            elif unit.lower() in ["large", "medium", "small"]:
+                conversion_factor = 50   # 1 egg = 50g (approximate)
+            elif unit.lower() in ["oz", "ounce"]:
+                conversion_factor = 28.35  # 1 oz = 28.35g
+            elif unit.lower() in ["lb", "pound"]:
+                conversion_factor = 453.59  # 1 lb = 453.59g
+            elif unit.lower() in ["ml", "milliliter"]:
+                conversion_factor = 1.0  # 1 ml ≈ 1g for most liquids
+            elif unit.lower() in ["l", "liter"]:
+                conversion_factor = 1000  # 1 liter = 1000g
+            
+            actual_quantity = quantity * conversion_factor
+            
+            # Calculate nutrition based on actual quantity
+            calories = (base_calories * actual_quantity) / 100
+            protein = (base_protein * actual_quantity) / 100
+            carbs = (base_carbs * actual_quantity) / 100
+            fat = (base_fat * actual_quantity) / 100
+            fiber = (base_fiber * actual_quantity) / 100
+            sugar = (base_sugar * actual_quantity) / 100
+            
+            enriched_ingredient = {
+                "name": ingredient_name,
+                "quantity": quantity,
+                "unit": unit,
+                "actual_quantity_g": round(actual_quantity, 1),
+                "calories": round(calories, 1),
+                "protein_g": round(protein, 1),
+                "carbs_g": round(carbs, 1),
+                "fat_g": round(fat, 1),
+                "fiber_g": round(fiber, 1),
+                "sugar_g": round(sugar, 1),
+                "nutrition_verified": True,
+                "food_id": food_data.get("id"),
+                "nutrients": food_data.get("nutrients", []),
+                "nutrition_summary": food_data.get("nutrition_summary", {}),
+                "total_nutrients": food_data.get("total_nutrients", 0),
+                "database_source": "verified"
+            }
+            
+            # Add to totals
+            total_calories += calories
+            total_protein += protein
+            total_carbs += carbs
+            total_fat += fat
+            total_fiber += fiber
+            total_sugar += sugar
+            verified_ingredients_count += 1
+            
+        else:
+            # Use AI-generated nutrition if database data not available
+            ai_calories = ingredient.get("calories", 0)
+            ai_protein = ingredient.get("protein_g", 0)
+            ai_carbs = ingredient.get("carbs_g", 0)
+            ai_fat = ingredient.get("fat_g", 0)
+            ai_fiber = ingredient.get("fiber_g", 0)
+            ai_sugar = ingredient.get("sugar_g", 0)
+            
+            enriched_ingredient = {
+                "name": ingredient_name,
+                "quantity": quantity,
+                "unit": unit,
+                "actual_quantity_g": quantity,  # Assume grams if no conversion
+                "calories": round(ai_calories, 1),
+                "protein_g": round(ai_protein, 1),
+                "carbs_g": round(ai_carbs, 1),
+                "fat_g": round(ai_fat, 1),
+                "fiber_g": round(ai_fiber, 1),
+                "sugar_g": round(ai_sugar, 1),
+                "nutrition_verified": False,
+                "food_id": None,
+                "nutrients": [],
+                "nutrition_summary": {},
+                "total_nutrients": 0,
+                "database_source": "ai_estimated",
+                "note": f"Nutrition data for '{ingredient_name}' not available in database - using AI estimates"
+            }
+            
+            # Add to totals
+            total_calories += ai_calories
+            total_protein += ai_protein
+            total_carbs += ai_carbs
+            total_fat += ai_fat
+            total_fiber += ai_fiber
+            total_sugar += ai_sugar
+        
+        enriched_ingredients.append(enriched_ingredient)
+    
+    # Update recipe with enriched data
+    enriched_recipe["ingredients"] = enriched_ingredients
+    
+    # Enhanced nutrition summary
+    enriched_recipe["nutrition"] = {
+        "calories": round(total_calories, 1),
+        "protein_g": round(total_protein, 1),
+        "carbs_g": round(total_carbs, 1),
+        "fat_g": round(total_fat, 1),
+        "fiber_g": round(total_fiber, 1),
+        "sugar_g": round(total_sugar, 1)
+    }
+    
+    # Calculate verification percentage
+    total_ingredients = len(enriched_ingredients)
+    verification_percentage = (verified_ingredients_count / total_ingredients * 100) if total_ingredients > 0 else 0
+    
+    enriched_recipe["nutrition_verified"] = verification_percentage >= 50  # At least 50% verified
+    enriched_recipe["nutrition_verification_percentage"] = round(verification_percentage, 1)
+    enriched_recipe["verified_ingredients_count"] = verified_ingredients_count
+    enriched_recipe["total_ingredients_count"] = total_ingredients
+    
+    # Add nutrition quality indicators
+    if verification_percentage >= 80:
+        enriched_recipe["nutrition_quality"] = "excellent"
+    elif verification_percentage >= 60:
+        enriched_recipe["nutrition_quality"] = "good"
+    elif verification_percentage >= 40:
+        enriched_recipe["nutrition_quality"] = "fair"
+    else:
+        enriched_recipe["nutrition_quality"] = "estimated"
+    
+    return enriched_recipe
+
+
+def _create_fallback_recipe(description: str, servings: int, difficulty: str) -> Dict:
+    """Create a fallback recipe when AI fails."""
+    import time
+    
+    return {
+        "id": f"recipe_{int(time.time())}",
+        "name": "Simple Recipe",
+        "description": description or "A simple, nutritious recipe",
+        "servings": servings,
+        "prep_time_minutes": 10,
+        "cook_time_minutes": 20,
+        "total_time_minutes": 30,
+        "ingredients": [
+            {
+                "name": "chicken breast",
+                "quantity": 150,
+                "unit": "g",
+                "calories": 250,
+                "protein_g": 45,
+                "carbs_g": 0,
+                "fat_g": 5.5,
+                "nutrition_verified": False
+            },
+            {
+                "name": "brown rice",
+                "quantity": 100,
+                "unit": "g",
+                "calories": 110,
+                "protein_g": 2.5,
+                "carbs_g": 23,
+                "fat_g": 0.9,
+                "nutrition_verified": False
+            },
+            {
+                "name": "broccoli",
+                "quantity": 100,
+                "unit": "g",
+                "calories": 35,
+                "protein_g": 3.5,
+                "carbs_g": 7,
+                "fat_g": 0.5,
+                "nutrition_verified": False
+            }
+        ],
+        "instructions": [
+            "Cook the chicken breast until fully cooked.",
+            "Prepare brown rice according to package instructions.",
+            "Steam the broccoli until tender.",
+            "Combine all ingredients and serve hot."
+        ],
+        "nutrition": {
+            "calories": 395,
+            "protein_g": 51,
+            "carbs_g": 30,
+            "fat_g": 6.9,
+            "fiber_g": 7,
+            "sugar_g": 2
+        },
+        "tags": ["main-dish", "high-protein", "balanced"],
+        "difficulty": difficulty,
+        "cuisine": "general",
+        "nutrition_verified": False
+    }
+
+
+def _get_fallback_recipe(description: str, servings: int, difficulty: str) -> Dict:
+    """Get fallback recipe when recipe creation fails."""
+    return {
+        "recipe": _create_fallback_recipe(description, servings, difficulty),
+        "ai_generated": False,
+        "nutrition_verified": False,
+        "fallback_used": True,
+        "message": "Using fallback recipe due to AI generation failure",
+        "created_at": datetime.datetime.utcnow().isoformat()
+    }
+
+
+# Add the new endpoint after the existing meal suggestion endpoints
+@app.post("/create-recipe")
+def create_recipe_endpoint(
+    request: Dict[str, Any], 
+    db_nutrition=Depends(get_nutrition_db), 
+    db_shared=Depends(get_shared_db)
+):
+    """Create AI-powered recipes with detailed ingredients, instructions, and nutrition data."""
+    try:
+        user_id = request.get("user_id", "anonymous")
+        recipe_description = request.get("recipe_description", "")
+        servings = request.get("servings", 1)
+        difficulty = request.get("difficulty", "easy")
+        cuisine = request.get("cuisine")
+        dietary_restrictions = request.get("dietary_restrictions", [])
+        
+        if not recipe_description:
+            raise HTTPException(status_code=400, detail="Recipe description is required")
+        
+        # Validate inputs
+        if servings < 1 or servings > 20:
+            raise HTTPException(status_code=400, detail="Servings must be between 1 and 20")
+        
+        valid_difficulties = ["easy", "medium", "hard"]
+        if difficulty not in valid_difficulties:
+            raise HTTPException(status_code=400, detail=f"Difficulty must be one of: {', '.join(valid_difficulties)}")
+        
+        # Create recipe
+        result = create_recipe(
+            db_nutrition=db_nutrition,
+            db_shared=db_shared,
+            user_id=user_id,
+            recipe_description=recipe_description,
+            servings=servings,
+            difficulty=difficulty,
+            cuisine=cuisine,
+            dietary_restrictions=dietary_restrictions
+        )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in create_recipe_endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create recipe: {str(e)}")

@@ -218,6 +218,7 @@
                 <div class="tab" onclick="showTab('logging')">Food Logging</div>
                 <div class="tab" onclick="showTab('suggestions')">Meal Suggestions</div>
                 <div class="tab" onclick="showTab('analysis')">Nutrition Analysis</div>
+                <div class="tab" onclick="showTab('recipes')">Recipe Creation</div>
                 <div class="tab" onclick="showTab('feedback')">Feedback & Bugs</div>
             </div>
 
@@ -554,6 +555,108 @@
                     <button class="btn" onclick="trackGoals()">Track Goals</button>
                     <div id="goalsResponse" class="response"></div>
                 </div>
+            </div>
+
+            <!-- Recipe Creation Tab -->
+            <div id="recipes" class="tab-content">
+                <div class="section">
+                    <h2>🍳 Create Recipe</h2>
+                    <p>Create AI-powered recipes with detailed ingredients, instructions, and nutrition data.</p>
+                    <div class="form-group">
+                        <label for="recipeUserId">User ID:</label>
+                        <input type="text" id="recipeUserId" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="recipeDescription">Recipe Description:</label>
+                        <textarea id="recipeDescription" rows="3" placeholder="Describe the recipe you want to create, e.g., 'A high-protein breakfast omelette with spinach and feta cheese'"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="recipeServings">Servings:</label>
+                        <input type="number" id="recipeServings" value="1" min="1" max="20" placeholder="Number of servings">
+                    </div>
+                    <div class="form-group">
+                        <label for="recipeDifficulty">Difficulty:</label>
+                        <select id="recipeDifficulty">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="recipeCuisine">Cuisine (optional):</label>
+                        <input type="text" id="recipeCuisine" placeholder="e.g., Italian, Mexican, Asian">
+                    </div>
+                    <div class="form-group">
+                        <label for="recipeDietaryRestrictions">Dietary Restrictions (optional):</label>
+                        <input type="text" id="recipeDietaryRestrictions" placeholder="e.g., vegetarian, gluten-free, low-carb">
+                    </div>
+                    <button class="btn" onclick="createRecipe()">Create Recipe</button>
+                    <div id="recipeResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🎯 Quick Recipe Tests</h2>
+                    <p>Quick test buttons for common recipe scenarios.</p>
+                    <div class="form-group">
+                        <label for="quickRecipeUser">User ID:</label>
+                        <input type="text" id="quickRecipeUser" value="test-user-123" placeholder="Enter user ID">
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="testQuickRecipe('high-protein breakfast omelette')">🥚 Breakfast Omelette</button>
+                        <button class="btn btn-secondary" onclick="testQuickRecipe('vegetarian pasta with tomato sauce')">🍝 Vegetarian Pasta</button>
+                        <button class="btn btn-secondary" onclick="testQuickRecipe('grilled chicken salad')">🥗 Chicken Salad</button>
+                        <button class="btn btn-secondary" onclick="testQuickRecipe('chocolate chip cookies')">🍪 Chocolate Cookies</button>
+                        <button class="btn btn-secondary" onclick="testQuickRecipe('smoothie bowl with berries')">🥤 Smoothie Bowl</button>
+                        <button class="btn btn-secondary" onclick="testQuickRecipe('beef stir fry with vegetables')">🥩 Beef Stir Fry</button>
+                    </div>
+                    <div id="quickRecipeResponse" class="response"></div>
+                </div>
+
+                <div class="section">
+                    <h2>🧪 Test Recipe via Execute Tool</h2>
+                    <p>Test recipe creation using the execute-tool endpoint.</p>
+                    <div class="form-group">
+                        <label for="toolRecipeDescription">Recipe Description:</label>
+                        <textarea id="toolRecipeDescription" rows="3" placeholder="Describe the recipe you want to create"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="toolRecipeServings">Servings:</label>
+                        <input type="number" id="toolRecipeServings" value="2" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="toolRecipeDifficulty">Difficulty:</label>
+                        <select id="toolRecipeDifficulty">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                                         <button class="btn" onclick="testRecipeViaTool()">Test via Execute Tool</button>
+                     <div id="toolRecipeResponse" class="response"></div>
+                 </div>
+
+                 <div class="section">
+                     <h2>🧪 Test Recipe Nutrition Verification</h2>
+                     <p>Test recipe creation with comprehensive nutrition database verification.</p>
+                     <div class="form-group">
+                         <label for="testNutritionRecipeDescription">Recipe Description:</label>
+                         <textarea id="testNutritionRecipeDescription" rows="3" placeholder="Describe the recipe you want to test"></textarea>
+                     </div>
+                     <div class="form-group">
+                         <label for="testNutritionServings">Servings:</label>
+                         <input type="number" id="testNutritionServings" value="2" min="1" max="20">
+                     </div>
+                     <div class="form-group">
+                         <label for="testNutritionDifficulty">Difficulty:</label>
+                         <select id="testNutritionDifficulty">
+                             <option value="easy">Easy</option>
+                             <option value="medium">Medium</option>
+                             <option value="hard">Hard</option>
+                         </select>
+                     </div>
+                     <button class="btn" onclick="testRecipeNutrition()">Test Recipe Nutrition</button>
+                     <div id="testNutritionResponse" class="response"></div>
+                 </div>
             </div>
 
             <!-- Feedback Tab -->
@@ -967,6 +1070,97 @@
             document.getElementById('feedbackDescription').value = '';
             document.getElementById('feedbackEmail').value = '';
         }
+
+        async function createRecipe() {
+            const userId = document.getElementById('recipeUserId').value;
+            const description = document.getElementById('recipeDescription').value;
+            const servings = parseInt(document.getElementById('recipeServings').value);
+            const difficulty = document.getElementById('recipeDifficulty').value;
+            const cuisine = document.getElementById('recipeCuisine').value;
+            const dietaryRestrictions = document.getElementById('recipeDietaryRestrictions').value;
+
+            if (!description.trim()) {
+                alert('Please enter a recipe description');
+                return;
+            }
+
+            const params = {
+                user_id: userId,
+                recipe_description: description,
+                servings: servings,
+                difficulty: difficulty
+            };
+
+            if (cuisine && cuisine.trim() !== '') {
+                params.cuisine = cuisine;
+            }
+
+            if (dietaryRestrictions && dietaryRestrictions.trim() !== '') {
+                params.dietary_restrictions = dietaryRestrictions.split(',').map(r => r.trim()).filter(r => r);
+            }
+
+            const response = await makeRequest('/create-recipe', 'POST', params);
+            displayResponse('recipeResponse', response, response.success ? 'success' : 'error');
+        }
+
+        async function testQuickRecipe(description) {
+            const userId = document.getElementById('quickRecipeUser').value;
+            
+            const params = {
+                user_id: userId,
+                recipe_description: description,
+                servings: 2,
+                difficulty: 'easy'
+            };
+
+            const response = await makeRequest('/create-recipe', 'POST', params);
+            displayResponse('quickRecipeResponse', response, response.success ? 'success' : 'error');
+        }
+
+                 async function testRecipeViaTool() {
+             const description = document.getElementById('toolRecipeDescription').value;
+             const servings = parseInt(document.getElementById('toolRecipeServings').value);
+             const difficulty = document.getElementById('toolRecipeDifficulty').value;
+
+             if (!description.trim()) {
+                 alert('Please enter a recipe description');
+                 return;
+             }
+
+             const params = {
+                 user_id: 'test-user-123',
+                 recipe_description: description,
+                 servings: servings,
+                 difficulty: difficulty
+             };
+
+             const response = await makeRequest('/execute-tool', 'POST', {
+                 tool: 'create_recipe',
+                 params: params
+             });
+             displayResponse('toolRecipeResponse', response, response.success ? 'success' : 'error');
+         }
+
+         async function testRecipeNutrition() {
+             const description = document.getElementById('testNutritionRecipeDescription').value;
+             const servings = parseInt(document.getElementById('testNutritionServings').value);
+             const difficulty = document.getElementById('testNutritionDifficulty').value;
+
+             if (!description.trim()) {
+                 alert('Please enter a recipe description');
+                 return;
+             }
+
+             const params = {
+                 user_id: 'test-user-123',
+                 recipe_description: description,
+                 servings: servings,
+                 difficulty: difficulty
+             };
+
+             const response = await makeRequest('/test-recipe-nutrition', 'POST', params);
+             displayResponse('testNutritionResponse', response, response.success ? 'success' : 'error');
+         }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
