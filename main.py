@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 import openai
 import uuid
 import time
+import asyncio
+from datetime import timezone
 
 # Import models and utilities
 from shared import FoodLogEntry, DataValidator
@@ -65,9 +67,79 @@ def validate_environment():
 from fastapi import FastAPI, Depends, HTTPException, Body, Request
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
-from shared.session_middleware import SessionValidationMiddleware, UserAuthenticationMiddleware
+from shared.session_middleware import SessionValidationMiddleware
 import httpx
 from fastapi.staticfiles import StaticFiles
+
+# Authentication dependency
+async def require_authentication(request: Request) -> Dict[str, Any]:
+    """Dependency to require authentication for protected endpoints."""
+    try:
+        # Extract session token from request
+        session_token = None
+        
+        # Check Authorization header first
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_token = auth_header.split(" ")[1]
+        
+        # Check X-Session-Token header
+        if not session_token:
+            session_token = request.headers.get("X-Session-Token")
+        
+        # Check query parameter
+        if not session_token:
+            session_token = request.query_params.get("session_token")
+        
+        # Check cookies
+        if not session_token:
+            session_token = request.cookies.get("session_token")
+        
+        if not session_token:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required"
+            )
+        
+        # Validate session using session manager
+        if not _session_manager:
+            # Initialize session manager if not available
+            from shared.session_manager import FrameworkSessionManager
+            session_manager = FrameworkSessionManager("nutrition")
+            await session_manager.initialize()
+        else:
+            session_manager = _session_manager
+        
+        # Validate session
+        if not await session_manager.validate_session(session_token):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired session"
+            )
+        
+        # Get session data
+        session_data = await session_manager.get_session(session_token)
+        if not session_data:
+            raise HTTPException(
+                status_code=401,
+                detail="Session data not found"
+            )
+        
+        # Return user context
+        return {
+            "user_id": session_data.get("user_id"),
+            "session_data": session_data,
+            "authenticated": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Authentication error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Authentication service error"
+        )
 
 # Lazy database initialization
 _nutrition_engine = None
@@ -272,10 +344,7 @@ app.add_middleware(
     agent_type="nutrition"
 )
 
-app.add_middleware(
-    UserAuthenticationMiddleware,
-    session_manager=None  # Will be set during initialization
-)
+
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -6620,7 +6689,7 @@ async def get_performance_metrics():
             "error_rate": _performance_monitor.get_error_rate(),
             "throughput_rps": _performance_monitor.get_throughput(),
             "system_stats": _performance_monitor.system_stats,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.datetime.now(timezone.utc).isoformat()
         }
         
         return {
@@ -6649,7 +6718,7 @@ async def get_performance_dashboard():
             "data": {
                 "dashboard": dashboard,
                 "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.datetime.now(timezone.utc).isoformat()
             },
             "status": 200
         }
@@ -6713,7 +6782,7 @@ async def get_performance_health():
                 "min_throughput": 10     # 10 RPS
             },
             "agent": "nutrition",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.datetime.now(timezone.utc).isoformat()
         }
         
         # Determine health status
@@ -6771,7 +6840,7 @@ async def receive_supervisor_broadcast(request: dict):
                 "message_type": message_type,
                 "from_agent": from_agent,
                 "timestamp": timestamp,
-                "processed_at": datetime.now(timezone.utc).isoformat()
+                "processed_at": datetime.datetime.now(timezone.utc).isoformat()
             },
             "status": 200
         }
