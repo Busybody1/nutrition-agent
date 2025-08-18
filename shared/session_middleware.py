@@ -141,6 +141,30 @@ class SessionValidationMiddleware:
         self.agent_type = agent_type
         self.session_manager = FrameworkSessionManager(agent_type)
     
+    def _extract_session_token(self, request: Request) -> Optional[str]:
+        """Extract session token from request headers or query parameters."""
+        # Check Authorization header first
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            return auth_header.split(" ")[1]
+        
+        # Check X-Session-Token header
+        session_header = request.headers.get("X-Session-Token")
+        if session_header:
+            return session_header
+        
+        # Check query parameter
+        session_param = request.query_params.get("session_token")
+        if session_param:
+            return session_param
+        
+        # Check cookies
+        session_cookie = request.cookies.get("session_token")
+        if session_cookie:
+            return session_cookie
+        
+        return None
+    
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             # Initialize session manager
@@ -150,7 +174,7 @@ class SessionValidationMiddleware:
             request = Request(scope, receive)
             
             # Extract session token
-            session_token = self.session_manager._extract_session_token(request)
+            session_token = self._extract_session_token(request)
             
             if session_token:
                 # Validate session

@@ -340,7 +340,6 @@ app.add_middleware(
 # Note: These will be properly initialized when session manager is available
 app.add_middleware(
     SessionValidationMiddleware,
-    session_manager=None,  # Will be set during initialization
     agent_type="nutrition"
 )
 
