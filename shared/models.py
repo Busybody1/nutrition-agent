@@ -1,51 +1,159 @@
 """
-Core Pydantic models for the AI Agent Framework.
+Core Pydantic models for the Nutrition Agent.
 
-This module defines the data models used across all agent services
+This module defines the data models used by the nutrition agent service
 for consistent data validation and serialization.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
+# Helper function for UTC timestamps
+def utc_now():
+    """Get current UTC timestamp."""
+    return datetime.now(timezone.utc)
+
 # SQLAlchemy ORM models for database schema
 from sqlalchemy import Boolean, Column, DateTime
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Float, ForeignKey, Integer, String, Table
-from sqlalchemy.dialects.postgresql import UUID as SAUUID
+from sqlalchemy import Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID as SAUUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Index
 
 Base = declarative_base()
 
+# =============================================================================
+# MULTI-USER SCALABILITY TABLES
+# =============================================================================
+
+class UserSessionORM(Base):
+    """User session management for multi-user support across all agents."""
+    __tablename__ = "user_sessions"
+    
+    id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    session_token = Column(String(255), unique=True, nullable=False)
+    agent_type = Column(String(50), nullable=False)  # 'supervisor', 'nutrition', 'workout', 'activity', 'vision'
+    conversation_id = Column(SAUUID(as_uuid=True), nullable=False)
+    agent_context = Column(JSONB, default={})
+    last_activity = Column(DateTime, nullable=False, default=utc_now)
+    expires_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    
+    # Relationships
+    user = relationship("UserORM", back_populates="sessions")
+    conversations = relationship("AgentConversationSessionORM", back_populates="session")
+
+class AgentConversationSessionORM(Base):
+    """Agent-specific conversation sessions for multi-user support."""
+    __tablename__ = "agent_conversation_sessions"
+    
+    id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    session_id = Column(SAUUID(as_uuid=True), ForeignKey("user_sessions.id"), nullable=False)
+    agent_type = Column(String(50), nullable=False)  # 'supervisor', 'nutrition', 'workout', 'activity', 'vision'
+    conversation_type = Column(String(50), nullable=False)  # specific to each agent
+    current_state = Column(JSONB, nullable=False, default={})
+    conversation_history = Column(JSONB, default=[])
+    agent_responses = Column(JSONB, default=[])
+    context_data = Column(JSONB, default={})
+    agent_specific_data = Column(JSONB, default={})  # nutrition goals, workout plans, activity tracking, vision analysis
+    meta_data = Column(JSONB, default={})
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    last_message_at = Column(DateTime, nullable=False, default=utc_now)
+    
+    # Relationships
+    user = relationship("UserORM", back_populates="agent_conversations")
+    session = relationship("UserSessionORM", back_populates="conversations")
+    messages = relationship("MessageHistoryORM", back_populates="conversation")
+
+class InterAgentCommunicationORM(Base):
+    """Cross-agent communication tracking for multi-user support."""
+    __tablename__ = "inter_agent_communications"
+    
+    id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    source_agent = Column(String(50), nullable=False)
+    target_agent = Column(String(50), nullable=False)
+    request_type = Column(String(100), nullable=False)
+    request_data = Column(JSONB, default={})
+    response_data = Column(JSONB, default={})
+    status = Column(String(20), default="pending")  # 'pending', 'processing', 'completed', 'failed'
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    completed_at = Column(DateTime)
+    processing_time_ms = Column(Integer)
+    
+    # Relationships
+    user = relationship("UserORM", back_populates="inter_agent_communications")
+
+class MessageHistoryORM(Base):
+    """Message history persistence for multi-user support."""
+    __tablename__ = "message_history"
+    
+    id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    conversation_id = Column(SAUUID(as_uuid=True), ForeignKey("agent_conversation_sessions.id"), nullable=False)
+    message_type = Column(String(50), nullable=False)  # 'user', 'assistant', 'system'
+    content = Column(Text, nullable=False)
+    meta_data = Column(JSONB, default={})
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    
+    # Relationships
+    user = relationship("UserORM", back_populates="message_history")
+    conversation = relationship("AgentConversationSessionORM", back_populates="messages")
+
+class UserAgentPreferencesORM(Base):
+    """User preferences for specific agents."""
+    __tablename__ = "user_agent_preferences"
+    
+    id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    agent_type = Column(String(50), nullable=False)
+    preferences = Column(JSONB, default={})
+    last_used = Column(DateTime, nullable=False, default=utc_now)
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    
+    # Relationships
+    user = relationship("UserORM", back_populates="agent_preferences")
+    
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint('user_id', 'agent_type', name='uq_user_agent_preferences'),
+    )
+
+# =============================================================================
+# EXISTING NUTRITION-SPECIFIC MODELS
+# =============================================================================
 
 class UserORM(Base):
+    """User model for the nutrition agent."""
     __tablename__ = "users"
+    
     id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String, unique=True, nullable=False)
-    username = Column(String, unique=True, nullable=False)
-    first_name = Column(String, nullable=False)
-    last_name = Column(String, nullable=False)
-    role = Column(String, default="user")
-    age = Column(Integer)
-    gender = Column(String)
-    height_cm = Column(Float)
-    weight_kg = Column(Float)
-    activity_level = Column(String)
-    primary_goal = Column(String)
-    target_weight_kg = Column(Float)
-    daily_calorie_target = Column(Integer)
-    dietary_restrictions = Column(String)
-    allergies = Column(String)
-    preferred_exercises = Column(String)
-    created_at = Column(DateTime, nullable=False)
-    updated_at = Column(DateTime, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    username = Column(String(100), unique=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    
+    # Relationships for multi-user support
+    sessions = relationship("UserSessionORM", back_populates="user")
+    agent_conversations = relationship("AgentConversationSessionORM", back_populates="user")
+    inter_agent_communications = relationship("InterAgentCommunicationORM", back_populates="user")
+    message_history = relationship("MessageHistoryORM", back_populates="user")
+    agent_preferences = relationship("UserAgentPreferencesORM", back_populates="user")
 
 
 class FoodItemORM(Base):
@@ -138,7 +246,7 @@ class ActivityLogORM(Base):
     user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     steps = Column(Integer, nullable=False)
     date = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
 
 
 class ActivityGoalORM(Base):
@@ -146,9 +254,9 @@ class ActivityGoalORM(Base):
     id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     goal = Column(Integer, nullable=False)  # daily step goal
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
 
 
@@ -253,10 +361,10 @@ class User(BaseModel):
 
     # Timestamps
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Account creation time"
+        default_factory=utc_now, description="Account creation time"
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update time"
+        default_factory=utc_now, description="Last update time"
     )
 
     # Authentication
@@ -337,10 +445,10 @@ class FoodItem(BaseModel):
     source: str = Field(default="user_input", description="Data source")
     verified: bool = Field(default=False, description="Verified nutrition data")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation time"
+        default_factory=utc_now, description="Creation time"
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update time"
+        default_factory=utc_now, description="Last update time"
     )
 
     @field_serializer("created_at", "updated_at")
@@ -372,7 +480,7 @@ class FoodLogEntry(BaseModel):
     # Metadata
     notes: Optional[str] = Field(None, description="User notes")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Log creation time"
+        default_factory=utc_now, description="Log creation time"
     )
 
     @field_serializer("created_at", "consumed_at")
@@ -413,10 +521,10 @@ class Exercise(BaseModel):
     source: str = Field(default="database", description="Data source")
     verified: bool = Field(default=False, description="Verified exercise data")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation time"
+        default_factory=utc_now, description="Creation time"
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update time"
+        default_factory=utc_now, description="Last update time"
     )
 
     @field_serializer("created_at", "updated_at")
@@ -461,7 +569,7 @@ class WorkoutLog(BaseModel):
     notes: Optional[str] = Field(None, description="User notes")
     rating: Optional[int] = Field(None, ge=1, le=5, description="Workout rating (1-5)")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Log creation time"
+        default_factory=utc_now, description="Log creation time"
     )
 
     @field_serializer("created_at", "started_at", "completed_at")
@@ -493,7 +601,7 @@ class AgentRequest(BaseModel):
 
     # Timing
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Request timestamp"
+        default_factory=utc_now, description="Request timestamp"
     )
     timeout_seconds: int = Field(default=30, description="Request timeout in seconds")
 
@@ -523,7 +631,7 @@ class AgentResponse(BaseModel):
         None, description="Processing time in milliseconds"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Response timestamp"
+        default_factory=utc_now, description="Response timestamp"
     )
 
     @field_serializer("timestamp")
@@ -548,7 +656,7 @@ class ConversationMessage(BaseModel):
 
     # Metadata
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Message timestamp"
+        default_factory=utc_now, description="Message timestamp"
     )
     agent_responses: List[AgentResponse] = Field(
         default_factory=list, description="Agent responses"

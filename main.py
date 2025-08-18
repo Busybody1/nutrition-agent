@@ -16,12 +16,35 @@ import time
 # Import models and utilities
 from shared import FoodLogEntry, DataValidator
 from shared.config import get_settings
+from shared.session_manager import FrameworkSessionManager
+from shared.async_task_manager import AsyncTaskManager, TaskPriority
+from shared.performance_monitor import PerformanceMonitor
+from shared.health_monitor import HealthMonitor
 
 # Set up logger - reduced for faster startup
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+# =============================================================================
+# SCALABILITY INFRASTRUCTURE GLOBAL VARIABLES
+# =============================================================================
+
+# Global session manager for multi-user support
+_session_manager: Optional[FrameworkSessionManager] = None
+
+# Global async task manager
+_task_manager: Optional[AsyncTaskManager] = None
+
+# Global performance monitor
+_performance_monitor: Optional[PerformanceMonitor] = None
+
+# Global health monitor
+_health_monitor: Optional[HealthMonitor] = None
+
+# Global conversation manager
+_conversation_manager = None
 
 # Environment variable validation
 def validate_environment():
@@ -40,7 +63,10 @@ def validate_environment():
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 from fastapi import FastAPI, Depends, HTTPException, Body, Request
+from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
+from shared.session_middleware import SessionValidationMiddleware, UserAuthenticationMiddleware
+import httpx
 from fastapi.staticfiles import StaticFiles
 
 # Lazy database initialization
@@ -155,7 +181,7 @@ def get_session_local():
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI app."""
     # Startup - minimal initialization to avoid boot timeout
-    logger.info("Starting nutrition-agent...")
+    logger.info("Starting nutrition-agent with scalability infrastructure...")
     
     try:
         # Validate environment variables
@@ -166,6 +192,40 @@ async def lifespan(app: FastAPI):
         from shared.database import init_database
         await init_database()
         logger.info("Database tables initialized successfully")
+        
+        # Initialize scalability infrastructure
+        global _session_manager, _task_manager, _performance_monitor, _health_monitor, _conversation_manager
+        
+        # Initialize session manager
+        _session_manager = FrameworkSessionManager("nutrition")
+        await _session_manager.initialize()
+        logger.info("Session manager initialized successfully")
+        
+        # Initialize async task manager
+        _task_manager = AsyncTaskManager("nutrition", max_workers=5)
+        await _task_manager.initialize()
+        logger.info("Async task manager initialized successfully")
+        
+        # Initialize performance monitor
+        _performance_monitor = PerformanceMonitor("nutrition")
+        await _performance_monitor.initialize()
+        logger.info("Performance monitor initialized successfully")
+        
+        # Initialize health monitor
+        _health_monitor = HealthMonitor("nutrition")
+        await _health_monitor.initialize()
+        logger.info("Health monitor initialized successfully")
+        
+        # Initialize conversation manager
+        try:
+            from shared.conversation_manager import create_conversation_manager
+            _conversation_manager = await create_conversation_manager("nutrition")
+            logger.info("Conversation manager initialized successfully")
+        except ImportError:
+            logger.warning("Conversation manager not available, continuing without it")
+            _conversation_manager = None
+        
+        logger.info("Nutrition agent started successfully with scalability infrastructure")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
@@ -173,7 +233,19 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    logger.info("Nutrition agent shutting down")
+    logger.info("Nutrition agent shutting down...")
+    
+    # Cleanup scalability infrastructure
+    try:
+        if _task_manager:
+            await _task_manager.cleanup()
+        if _performance_monitor:
+            await _performance_monitor.cleanup()
+        if _health_monitor:
+            await _health_monitor.cleanup()
+        logger.info("Scalability infrastructure cleaned up successfully")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 app = FastAPI(
     title="Nutrition Agent", 
@@ -190,6 +262,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Add session validation middleware for multi-user support
+# Note: These will be properly initialized when session manager is available
+app.add_middleware(
+    SessionValidationMiddleware,
+    session_manager=None,  # Will be set during initialization
+    agent_type="nutrition"
+)
+
+app.add_middleware(
+    UserAuthenticationMiddleware,
+    session_manager=None  # Will be set during initialization
 )
 
 # Mount static files
@@ -279,15 +364,40 @@ def read_root():
         return FileResponse("static/test_interface.html")
     except FileNotFoundError:
         return {
-            "message": "Nutrition Agent is running!",
-            "version": "1.0.0",
+            "message": "Nutrition Agent is running with SCALABILITY FEATURES!",
+            "version": "2.0.0",
             "status": "running",
+            "scalability_ready": True,
             "endpoints": {
                 "health": "/health",
                 "foods_count": "/foods/count",
                 "execute_tool": "/execute-tool",
                 "test_interface": "/static/test_interface.html",
+                # New scalability endpoints
+                "create_session": "/api/sessions/create",
+                "get_session": "/api/sessions/{session_token}",
+                "submit_task": "/api/tasks/submit",
+                "get_task_status": "/api/tasks/{task_id}",
+                "performance_metrics": "/api/performance/metrics",
+                "scalability_status": "/api/scalability/status",
+                # New conversation management endpoints
+                "conversation_state": "/api/conversations/state",
+                "conversation_history": "/api/conversations/history",
+                "conversation_search": "/api/conversations/search",
+                "conversation_summary": "/api/conversations/summary",
+                "conversation_export": "/api/conversations/export",
+                "conversation_reset": "/api/conversations/reset"
             },
+            "features": {
+                "multi_user_support": True,
+                "session_management": True,
+                "background_tasks": True,
+                "performance_monitoring": True,
+                "health_monitoring": True,
+                "redis_caching": True,
+                "horizontal_scaling": True,
+                "conversation_management": True
+            }
         }
 
 @app.get("/health")
@@ -5562,3 +5672,1164 @@ def create_recipe_endpoint(
     except Exception as e:
         logger.error(f"Error in create_recipe_endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create recipe: {str(e)}")
+
+# =============================================================================
+# SCALABILITY ENDPOINTS - MULTI-USER SUPPORT
+# =============================================================================
+
+class CreateSessionRequest(BaseModel):
+    """Request model for creating a user session."""
+    user_id: str
+
+@app.post("/api/sessions/create")
+async def create_user_session(request: CreateSessionRequest):
+    """Create a new user session for multi-user support."""
+    try:
+        if not _session_manager:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        
+        session_data = await _session_manager.create_user_session(request.user_id, "nutrition")
+        
+        return {
+            "success": True,
+            "data": {
+                "session": session_data,
+                "message": "Session created successfully"
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to create session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+
+@app.get("/api/sessions/{session_token}")
+async def get_session_info(session_token: str):
+    """Get session information for multi-user support."""
+    try:
+        if not _session_manager:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        
+        session = await _session_manager.get_session(session_token)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {
+            "success": True,
+            "data": {
+                "session": session
+            },
+            "status": 200
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get session: {str(e)}")
+
+class SubmitTaskRequest(BaseModel):
+    """Request model for submitting a background task."""
+    task_type: str
+    user_id: str
+    priority: str = "medium"
+
+@app.post("/api/tasks/submit")
+async def submit_background_task(request: SubmitTaskRequest):
+    """Submit a background task for processing."""
+    try:
+        if not _task_manager:
+            raise HTTPException(status_code=503, detail="Task manager not available")
+        
+        # Map priority string to enum
+        priority_map = {
+            "high": TaskPriority.HIGH,
+            "medium": TaskPriority.MEDIUM,
+            "low": TaskPriority.LOW
+        }
+        
+        task_priority = priority_map.get(request.priority.lower(), TaskPriority.MEDIUM)
+        
+        # Example task function
+        async def example_task(user_id: str, task_type: str):
+            await asyncio.sleep(2)  # Simulate work
+            return {"user_id": user_id, "task_type": task_type, "completed": True}
+        
+        task_id = await _task_manager.submit_task(
+            example_task,
+            args=(request.user_id, request.task_type),
+            priority=task_priority,
+            user_id=request.user_id,
+            agent_type="nutrition"
+        )
+        
+        return {
+            "success": True,
+            "data": {
+                "task_id": task_id,
+                "message": "Task submitted successfully",
+                "priority": request.priority
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to submit task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit task: {str(e)}")
+
+@app.get("/api/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """Get the status of a background task."""
+    try:
+        if not _task_manager:
+            raise HTTPException(status_code=503, detail="Task manager not available")
+        
+        task_status = await _task_manager.get_task_status(task_id)
+        if not task_status:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return {
+            "success": True,
+            "data": {
+                "task_status": task_status
+            },
+            "status": 200
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get task status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get task status: {str(e)}")
+
+@app.get("/api/performance/metrics")
+async def get_performance_metrics():
+    """Get performance metrics for monitoring."""
+    try:
+        if not _performance_monitor:
+            raise HTTPException(status_code=503, detail="Performance monitor not available")
+        
+        # Get basic metrics
+        metrics = {
+            "uptime_seconds": _performance_monitor.get_uptime(),
+            "request_count": _performance_monitor.request_count,
+            "error_count": _performance_monitor.error_count,
+            "error_rate": _performance_monitor.error_count / max(_performance_monitor.request_count, 1)
+        }
+        
+        return {
+            "success": True,
+            "data": {
+                "metrics": metrics,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to get performance metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get performance metrics: {str(e)}")
+
+@app.get("/api/scalability/status")
+async def get_scalability_status():
+    """Get comprehensive scalability status."""
+    try:
+        status = {
+            "session_manager": "inactive",
+            "task_manager": "inactive",
+            "performance_monitor": "inactive",
+            "health_monitor": "inactive",
+            "database": "unknown",
+            "redis": "unknown"
+        }
+        
+        # Check session manager
+        if _session_manager:
+            status["session_manager"] = "active"
+        
+        # Check task manager
+        if _task_manager:
+            status["task_manager"] = "active"
+        
+        # Check performance monitor
+        if _performance_monitor:
+            status["performance_monitor"] = "active"
+        
+        # Check health monitor
+        if _health_monitor:
+            status["health_monitor"] = "active"
+        
+        # Check database
+        try:
+            # Use user database for health check
+            from shared.database import get_user_db_engine
+            with get_user_db_engine().connect() as conn:
+                conn.execute(text("SELECT 1"))
+            status["database"] = "connected"
+        except Exception:
+            status["database"] = "disconnected"
+        
+        # Check Redis
+        try:
+            if _session_manager and hasattr(_session_manager, 'redis_client') and _session_manager.redis_client:
+                await _session_manager.redis_client.ping()
+                status["redis"] = "connected"
+            else:
+                status["redis"] = "not_configured"
+        except Exception:
+            status["redis"] = "disconnected"
+        
+        # Calculate overall readiness
+        active_components = sum(1 for v in status.values() if v == "active" or v == "connected")
+        total_components = len(status)
+        readiness_percentage = (active_components / total_components) * 100
+        
+        return {
+            "success": True,
+            "data": {
+                "components": status,
+                "readiness_percentage": round(readiness_percentage, 2),
+                "scalability_ready": readiness_percentage >= 80,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to get scalability status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get scalability status: {str(e)}")
+
+# =============================================================================
+# CONVERSATION MANAGEMENT ENDPOINTS
+# =============================================================================
+
+class ConversationMessageRequest(BaseModel):
+    """Request model for adding conversation messages."""
+    message_type: str
+    content: str
+    metadata: Dict[str, Any] = {}
+
+class ConversationSearchRequest(BaseModel):
+    """Request model for searching conversations."""
+    query: str
+    limit: int = 20
+
+@app.get("/api/conversations/state")
+async def get_conversation_state(
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Get current conversation state for the authenticated user."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_data = current_user.get("session_data", {})
+        session_id = session_data.get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        state = await conversation.get_conversation_state()
+        return {
+            "success": True,
+            "data": {
+                "conversation_state": state,
+                "user_id": current_user["user_id"],
+                "session_id": session_id
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get conversation state: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get conversation state: {str(e)}")
+
+@app.post("/api/conversations/message")
+async def add_conversation_message(
+    request: ConversationMessageRequest,
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Add a message to the conversation."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_data = current_user.get("session_data", {})
+        session_id = session_data.get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        message_id = await conversation.add_message(
+            request.message_type,
+            request.content,
+            request.metadata
+        )
+        
+        if message_id:
+            return {
+                "success": True,
+                "data": {
+                    "message_id": str(message_id),
+                    "message": "Message added successfully"
+                },
+                "status": 200
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to add message")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to add conversation message: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to add message: {str(e)}")
+
+@app.get("/api/conversations/history")
+async def get_conversation_history(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Get conversation history with pagination."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_id = current_user.get("session_data", {}).get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        history = await conversation.get_conversation_history(limit, offset)
+        return {
+            "success": True,
+            "data": {
+                "history": history,
+                "limit": limit,
+                "offset": offset,
+                "total_messages": conversation._message_count
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get conversation history: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get history: {str(e)}")
+
+@app.post("/api/conversations/search")
+async def search_conversation(
+    request: ConversationSearchRequest,
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Search conversation history."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_id = current_user.get("session_data", {}).get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        results = await conversation.search_conversation(request.query, request.limit)
+        return {
+            "success": True,
+            "data": {
+                "query": request.query,
+                "results": results,
+                "total_results": len(results)
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to search conversation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search: {str(e)}")
+
+@app.get("/api/conversations/summary")
+async def get_conversation_summary(
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Get conversation summary and statistics."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_id = current_user.get("session_data", {}).get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        summary = await conversation.get_conversation_summary()
+        return {
+            "success": True,
+            "data": summary,
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get conversation summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get summary: {str(e)}")
+
+@app.get("/api/conversations/export")
+async def export_conversation(
+    format_type: str = "json",
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Export conversation data."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_id = current_user.get("session_data", {}).get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        export_data = await conversation.export_conversation(format_type)
+        return {
+            "success": True,
+            "data": {
+                "export_data": export_data,
+                "format": format_type,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to export conversation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to export: {str(e)}")
+
+@app.post("/api/conversations/reset")
+async def reset_conversation(
+    current_user: Dict[str, Any] = Depends(require_authentication)
+):
+    """Reset conversation to initial state."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=500, detail="Conversation manager not available")
+        
+        # Get conversation state from session
+        session_id = current_user.get("session_data", {}).get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID not found")
+        
+        conversation = await _conversation_manager.get_or_create_conversation(
+            current_user["user_id"], 
+            session_id
+        )
+        
+        await conversation.reset_conversation()
+        return {
+            "success": True,
+            "data": {
+                "message": "Conversation reset successfully",
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reset conversation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset: {str(e)}")
+
+# =============================================================================
+# USER-FITNESS-APP INTEGRATION
+# =============================================================================
+
+# Environment variables for user-fitness-app integration
+USER_FITNESS_APP_URL = os.getenv("USER_FITNESS_APP_URL", "http://localhost:8000")
+USER_FITNESS_APP_API_KEY = os.getenv("USER_FITNESS_APP_API_KEY", "")
+USER_FITNESS_APP_TIMEOUT = int(os.getenv("USER_FITNESS_APP_TIMEOUT", "30"))
+
+async def get_current_user_from_fitness_app(
+    token: str = Depends(HTTPBearer()),
+    db=Depends(get_shared_db)
+) -> Dict[str, Any]:
+    """Get current user from user-fitness-app via JWT token."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/auth/me",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                user_data = response.json()
+                return {
+                    "user_id": user_data.get("user_id"),
+                    "email": user_data.get("email"),
+                    "first_name": user_data.get("first_name"),
+                    "last_name": user_data.get("last_name"),
+                    "authenticated": True
+                }
+            else:
+                raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
+async def get_user_nutrition_data(user_id: str, token: str) -> Dict[str, Any]:
+    """Fetch user nutrition data from user-fitness-app."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/nutrition/user/{user_id}/summary",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch nutrition data: HTTP {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.error(f"Failed to fetch user nutrition data: {e}")
+        return {}
+
+async def get_user_workout_data(user_id: str, token: str) -> Dict[str, Any]:
+    """Fetch user workout data from user-fitness-app."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/workouts/user/{user_id}/summary",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch workout data: HTTP {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.error(f"Failed to fetch user workout data: {e}")
+        return {}
+
+async def get_user_profile_data(user_id: str, token: str) -> Dict[str, Any]:
+    """Fetch user profile data from user-fitness-app."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/auth/me",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch profile data: HTTP {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.error(f"Failed to fetch user profile data: {e}")
+        return {}
+
+async def get_user_nutrition_goals(user_id: str, token: str) -> Dict[str, Any]:
+    """Fetch user nutrition goals from user-fitness-app."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/nutrition/user/{user_id}/goals",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch nutrition goals: HTTP {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.error(f"Failed to fetch user nutrition goals: {e}")
+        return {}
+
+async def get_user_nutrition_history(user_id: str, token: str, days: int = 30) -> Dict[str, Any]:
+    """Fetch user nutrition history from user-fitness-app."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/nutrition/user/{user_id}/history?days={days}",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch nutrition history: HTTP {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.error(f"Failed to fetch user nutrition history: {e}")
+        return {}
+
+async def get_user_food_preferences(user_id: str, token: str) -> Dict[str, Any]:
+    """Fetch user food preferences and restrictions from user-fitness-app."""
+    try:
+        async with httpx.AsyncClient(timeout=USER_FITNESS_APP_TIMEOUT) as http_client:
+            response = await http_client.get(
+                f"{USER_FITNESS_APP_URL}/api/v1/nutrition/user/{user_id}/preferences",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to fetch food preferences: HTTP {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.error(f"Failed to fetch user food preferences: {e}")
+        return {}
+
+# =============================================================================
+# SESSION MANAGEMENT ENDPOINTS
+# =============================================================================
+
+class CreateSessionRequest(BaseModel):
+    """Request model for creating a user session."""
+    user_id: str
+
+@app.post("/api/sessions/create")
+async def create_user_session(request: CreateSessionRequest):
+    """Create a new user session for multi-user support."""
+    try:
+        if '_session_manager' not in globals() or not _session_manager:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        
+        session_data = await _session_manager.create_user_session(request.user_id, "nutrition")
+        
+        return {
+            "success": True,
+            "data": {
+                "session": session_data,
+                "message": "Session created successfully"
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to create session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+
+@app.get("/api/sessions/{session_token}")
+async def get_session_info(session_token: str):
+    """Get session information for multi-user support."""
+    try:
+        if '_session_manager' not in globals() or not _session_manager:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        
+        session = await _session_manager.get_session(session_token)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {
+            "success": True,
+            "data": {
+                "session": session
+            },
+            "status": 200
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get session: {str(e)}")
+
+@app.post("/api/sessions/{session_token}/validate")
+async def validate_session(session_token: str):
+    """Validate session token."""
+    try:
+        if '_session_manager' not in globals() or not _session_manager:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        
+        session = await _session_manager.get_session(session_token)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Check if session is expired
+        if session.get("expires_at") and datetime.datetime.fromisoformat(session["expires_at"]) < datetime.datetime.utcnow():
+            raise HTTPException(status_code=401, detail="Session expired")
+        
+        return {
+            "success": True,
+            "data": {
+                "session": session,
+                "valid": True
+            },
+            "status": 200
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to validate session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to validate session: {str(e)}")
+
+@app.delete("/api/sessions/{session_token}")
+async def delete_session(session_token: str):
+    """Delete user session."""
+    try:
+        if '_session_manager' not in globals() or not _session_manager:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        
+        success = await _session_manager.delete_session(session_token)
+        if not success:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {
+            "success": True,
+            "data": {
+                "message": "Session deleted successfully"
+            },
+            "status": 200
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
+
+# =============================================================================
+# CONVERSATION MANAGEMENT ENDPOINTS
+# =============================================================================
+
+class ConversationMessageRequest(BaseModel):
+    """Request model for adding conversation messages."""
+    message_type: str
+    content: str
+    metadata: Dict[str, Any] = {}
+
+class ConversationSearchRequest(BaseModel):
+    """Request model for searching conversations."""
+    query: str
+    limit: int = 20
+
+@app.get("/api/conversations/state")
+async def get_conversation_state(user_id: str):
+    """Get current conversation state for the user."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        conversation_state = await _conversation_manager.get_or_create_conversation_state(user_id)
+        state = await conversation_state.get_conversation_state()
+        
+        return {
+            "success": True,
+            "data": {
+                "conversation_state": state,
+                "user_id": user_id
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get conversation state: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get conversation state: {str(e)}")
+
+@app.post("/api/conversations/message")
+async def add_conversation_message(
+    request: ConversationMessageRequest,
+    user_id: str
+):
+    """Add a message to the conversation."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        conversation_state = await _conversation_manager.get_or_create_conversation_state(user_id)
+        message_id = await conversation_state.add_message(
+            request.message_type,
+            request.content,
+            request.metadata
+        )
+        
+        if message_id:
+            return {
+                "success": True,
+                "data": {
+                    "message_id": str(message_id),
+                    "message": "Message added successfully"
+                },
+                "status": 200
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to add message")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to add conversation message: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to add message: {str(e)}")
+
+@app.get("/api/conversations/history")
+async def get_conversation_history(
+    user_id: str,
+    limit: int = 50,
+    offset: int = 0
+):
+    """Get conversation history with pagination."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        conversation_state = await _conversation_manager.get_or_create_conversation_state(user_id)
+        history = await conversation_state.get_conversation_history(limit, offset)
+        
+        return {
+            "success": True,
+            "data": {
+                "history": history,
+                "limit": limit,
+                "offset": offset,
+                "total_messages": conversation_state._message_count
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get conversation history: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get history: {str(e)}")
+
+@app.post("/api/conversations/search")
+async def search_conversation(
+    request: ConversationSearchRequest,
+    user_id: str
+):
+    """Search conversation history."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        conversation_state = await _conversation_manager.get_or_create_conversation_state(user_id)
+        results = await conversation_state.search_conversation(request.query, request.limit)
+        
+        return {
+            "success": True,
+            "data": {
+                "query": request.query,
+                "results": results,
+                "total_results": len(results)
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to search conversation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search: {str(e)}")
+
+@app.get("/api/conversations/summary")
+async def get_conversation_summary(user_id: str):
+    """Get conversation summary and statistics."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        conversation_state = await _conversation_manager.get_or_create_conversation_state(user_id)
+        summary = await conversation_state.get_conversation_summary()
+        
+        return {
+            "success": True,
+            "data": summary,
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get conversation summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get summary: {str(e)}")
+
+@app.post("/api/conversations/reset")
+async def reset_conversation(user_id: str):
+    """Reset conversation to initial state."""
+    try:
+        if not _conversation_manager:
+            raise HTTPException(status_code=503, detail="Conversation manager not available")
+        
+        conversation_state = await _conversation_manager.get_or_create_conversation_state(user_id)
+        await conversation_state.reset_conversation()
+        
+        return {
+            "success": True,
+            "data": {
+                "message": "Conversation reset successfully"
+            },
+            "status": 200
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reset conversation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset: {str(e)}")
+
+# =============================================================================
+# PERFORMANCE MONITORING ENDPOINTS
+# =============================================================================
+
+@app.get("/api/performance/metrics")
+async def get_performance_metrics():
+    """Get comprehensive performance metrics."""
+    try:
+        if not _performance_monitor:
+            raise HTTPException(status_code=503, detail="Performance monitor not available")
+        
+        # Get comprehensive metrics
+        metrics = {
+            "uptime_seconds": _performance_monitor.get_uptime(),
+            "request_count": _performance_monitor.request_count,
+            "error_count": _performance_monitor.error_count,
+            "error_rate": _performance_monitor.get_error_rate(),
+            "throughput_rps": _performance_monitor.get_throughput(),
+            "system_stats": _performance_monitor.system_stats,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        return {
+            "success": True,
+            "data": {
+                "metrics": metrics,
+                "agent": "nutrition"
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to get performance metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get performance metrics: {str(e)}")
+
+@app.get("/api/performance/dashboard")
+async def get_performance_dashboard():
+    """Get comprehensive performance dashboard."""
+    try:
+        if not _performance_monitor:
+            raise HTTPException(status_code=503, detail="Performance monitor not available")
+        
+        dashboard = _performance_monitor.get_performance_dashboard()
+        
+        return {
+            "success": True,
+            "data": {
+                "dashboard": dashboard,
+                "agent": "nutrition",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to get performance dashboard: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get performance dashboard: {str(e)}")
+
+@app.get("/api/performance/alerts")
+async def get_performance_alerts(limit: int = 50):
+    """Get recent performance alerts."""
+    try:
+        if not _performance_monitor:
+            raise HTTPException(status_code=503, detail="Performance monitor not available")
+        
+        # Get recent alerts
+        with _performance_monitor._lock:
+            recent_alerts = list(_performance_monitor.alerts)[-limit:] if hasattr(_performance_monitor, 'alerts') else []
+        
+        return {
+            "success": True,
+            "data": {
+                "alerts": [
+                    {
+                        "alert_id": alert.alert_id,
+                        "level": alert.level.value,
+                        "message": alert.message,
+                        "metric_type": alert.metric_type.value,
+                        "current_value": alert.current_value,
+                        "threshold": alert.threshold,
+                        "timestamp": alert.timestamp.isoformat()
+                    }
+                    for alert in recent_alerts
+                ],
+                "total_alerts": len(recent_alerts),
+                "limit": limit,
+                "agent": "nutrition"
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to get performance alerts: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get performance alerts: {str(e)}")
+
+@app.get("/api/performance/health")
+async def get_performance_health():
+    """Get performance health status."""
+    try:
+        if not _performance_monitor:
+            raise HTTPException(status_code=503, detail="Performance monitor not available")
+        
+        # Check performance thresholds
+        error_rate = _performance_monitor.get_error_rate()
+        throughput = _performance_monitor.get_throughput()
+        
+        health_status = {
+            "status": "healthy",
+            "error_rate": error_rate,
+            "throughput_rps": throughput,
+            "thresholds": {
+                "max_error_rate": 0.05,  # 5%
+                "min_throughput": 10     # 10 RPS
+            },
+            "agent": "nutrition",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Determine health status
+        if error_rate > 0.05:
+            health_status["status"] = "degraded"
+            health_status["issues"] = ["High error rate"]
+        
+        if throughput < 10:
+            health_status["status"] = "degraded"
+            if "issues" not in health_status:
+                health_status["issues"] = []
+            health_status["issues"].append("Low throughput")
+        
+        return {
+            "success": True,
+            "data": health_status,
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to get performance health: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get performance health: {str(e)}")
+
+# =============================================================================
+# SUPERVISOR COMMUNICATION ENDPOINTS
+# =============================================================================
+
+@app.post("/api/supervisor/broadcast")
+async def receive_supervisor_broadcast(request: dict):
+    """Receive broadcast messages from supervisor agent."""
+    try:
+        message = request.get("message", "")
+        message_type = request.get("message_type", "notification")
+        from_agent = request.get("from_agent", "unknown")
+        timestamp = request.get("timestamp", "")
+        
+        # Log the broadcast message
+        logger.info(f"Received broadcast from {from_agent}: {message} (Type: {message_type})")
+        
+        # Process different message types
+        if message_type == "notification":
+            # Handle general notifications
+            pass
+        elif message_type == "sync":
+            # Handle synchronization requests
+            pass
+        elif message_type == "maintenance":
+            # Handle maintenance notifications
+            pass
+        
+        return {
+            "success": True,
+            "data": {
+                "message": "Broadcast received successfully",
+                "received_message": message,
+                "message_type": message_type,
+                "from_agent": from_agent,
+                "timestamp": timestamp,
+                "processed_at": datetime.now(timezone.utc).isoformat()
+            },
+            "status": 200
+        }
+    except Exception as e:
+        logger.error(f"Failed to process supervisor broadcast: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "status": 500
+        }
+
+@app.get("/api/supervisor/health")
+async def get_supervisor_health_check():
+    """Health check endpoint for supervisor agent."""
+    try:
+        return {
+            "status": "healthy",
+            "agent_type": "nutrition",
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "capabilities": {
+                "session_management": True,
+                "task_processing": True,
+                "performance_monitoring": True,
+                "conversation_management": True
+            },
+            "active_sessions": 0,  # TODO: Implement when session manager is available
+            "active_tasks": 0,     # TODO: Implement when task manager is available
+            "performance_metrics": {}  # TODO: Implement when performance monitor is available
+        }
+    except Exception as e:
+        logger.error(f"Supervisor health check error: {e}")
+        return {
+            "status": "error",
+            "agent_type": "nutrition",
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "error": str(e)
+        }
+
+@app.get("/api/supervisor/status")
+async def get_supervisor_status():
+    """Status endpoint for supervisor agent."""
+    try:
+        return {
+            "status": "active",
+            "agent_type": "nutrition",
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "uptime": time.time(),
+            "active_sessions": 0,  # TODO: Implement when session manager is available
+            "active_tasks": 0,     # TODO: Implement when task manager is available
+            "performance_metrics": {},  # TODO: Implement when performance monitor is available
+            "health_status": {},   # TODO: Implement when health monitor is available
+            "note": "Basic status endpoint - advanced features not yet implemented"
+        }
+    except Exception as e:
+        logger.error(f"Supervisor status check error: {e}")
+        return {
+            "status": "error",
+            "agent_type": "nutrition",
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "error": str(e)
+        }

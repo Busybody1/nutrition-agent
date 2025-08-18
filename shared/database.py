@@ -418,3 +418,51 @@ def get_fitness_db_engine():
         logger.error(f"Failed to create fitness database engine: {error_msg}\n{traceback.format_exc()}")
         # Return a dummy engine for fallback
         return create_engine("sqlite:///:memory:")
+
+
+def get_user_db_engine():
+    """Get user database engine with lazy initialization."""
+    try:
+        settings = get_settings()
+        if settings.multi_db.user_database_uri:
+            db_url = settings.multi_db.user_database_uri
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql://", 1)
+            logger.info(f"Using user database: {db_url[:50]}...")
+            engine = create_engine(
+                db_url,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                pool_size=10,
+                max_overflow=20,
+                echo=False,
+                connect_args={
+                    "connect_timeout": 10,
+                    "application_name": "nutrition-agent-user"
+                }
+            )
+            # Test connection
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Successfully created user database engine")
+            return engine
+        else:
+            # Fallback to main database if user_database_uri is not provided
+            db_url = settings.database.url
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql://", 1)
+            logger.info(f"Using main database for user data: {db_url[:50]}...")
+            engine = create_engine(
+                db_url,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                pool_size=10,
+                max_overflow=20,
+                echo=False
+            )
+            logger.info("Successfully created main database engine for user data")
+            return engine
+    except Exception as e:
+        logger.error(f"Failed to create user database engine: {e}")
+        # Return a dummy engine for fallback
+        return create_engine("sqlite:///:memory:")

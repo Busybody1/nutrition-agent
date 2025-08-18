@@ -171,9 +171,13 @@ class FeatureFlags(BaseModel):
 
 
 class MultiDatabaseSettings(BaseModel):
-    nutrition_db_uri: Optional[str] = Field(default=None, alias="NUTRITION_DB_URI")
-    workout_db_uri: Optional[str] = Field(default=None, alias="WORKOUT_DB_URI")
-    model_config = ConfigDict(env_prefix="", extra="ignore", populate_by_name=True)
+    """Multi-database configuration settings."""
+    
+    nutrition_db_uri: Optional[str] = Field(default=None)
+    workout_db_uri: Optional[str] = Field(default=None)
+    user_database_uri: Optional[str] = Field(default=None)  # NEW: User database URI
+    
+    model_config = ConfigDict(env_prefix="", extra="ignore")
 
 
 class Settings(BaseModel):
@@ -326,6 +330,7 @@ def get_settings() -> Settings:
         "_multi_db_data": {
             "nutrition_db_uri": env_vars.get("NUTRITION_DB_URI"),
             "workout_db_uri": env_vars.get("WORKOUT_DB_URI"),
+            "user_database_uri": env_vars.get("USER_DATABASE_URI"),
         },
     }
 
