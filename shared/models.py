@@ -157,7 +157,7 @@ class UserORM(Base):
 
 
 class FoodItemORM(Base):
-    __tablename__ = "food_items"
+    __tablename__ = "foods"
     id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     brand = Column(String)
@@ -190,7 +190,7 @@ class FoodLogEntryORM(Base):
     id = Column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(SAUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     food_item_id = Column(
-        SAUUID(as_uuid=True), ForeignKey("food_items.id"), nullable=False
+        SAUUID(as_uuid=True), ForeignKey("foods.id"), nullable=False
     )
     quantity_g = Column(Float, nullable=False)
     meal_type = Column(String, nullable=False)

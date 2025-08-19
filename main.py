@@ -16,7 +16,8 @@ import asyncio
 from datetime import timezone
 
 # Import models and utilities
-from shared import FoodLogEntry, DataValidator
+from shared.models import FoodLogEntry
+from shared.utils import DataValidator
 from shared.config import get_settings
 from shared.session_manager import FrameworkSessionManager
 from shared.async_task_manager import AsyncTaskManager, TaskPriority
@@ -290,8 +291,8 @@ async def lifespan(app: FastAPI):
         
         # Initialize conversation manager
         try:
-            from shared.conversation_manager import create_conversation_manager
-            _conversation_manager = await create_conversation_manager("nutrition")
+            from shared.conversation_manager import ConversationStateManager
+            _conversation_manager = ConversationStateManager("nutrition")
             logger.info("Conversation manager initialized successfully")
         except ImportError:
             logger.warning("Conversation manager not available, continuing without it")
@@ -1610,6 +1611,780 @@ def convert_nutrition_id_to_uuid(nutrition_id: int) -> str:
     """Convert nutrition database integer ID to UUID format for shared database."""
     import uuid
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"nutrition_food_{nutrition_id}"))
+
+def _get_food_nutrition_from_db(db, food_name: str) -> Optional[Dict[str, Any]]:
+    """Get food nutrition data from database by name."""
+    try:
+        # Search for food by name (case-insensitive)
+        food_row = db.execute(
+            text("""
+                SELECT id, name, category_id, serving_size, serving_unit, serving 
+                FROM foods 
+                WHERE LOWER(name) LIKE LOWER(:food_name)
+                LIMIT 1
+            """),
+            {"food_name": f"%{food_name}%"}
+        ).fetchone()
+        
+        if not food_row:
+            return None
+        
+        food_data = dict(food_row._mapping) if hasattr(food_row, '_mapping') else dict(zip(['id', 'name', 'category_id', 'serving_size', 'serving_unit', 'serving'], food_row))
+        
+        # Get nutrition data from food_nutrients table
+        nutrition_rows = db.execute(
+            text("""
+                SELECT n.name as nutrient_name, fn.amount, n.unit
+                FROM food_nutrients fn
+                JOIN nutrients n ON fn.nutrient_id = n.id
+                WHERE fn.food_id = :food_id
+            """),
+            {"food_id": food_data['id']}
+        ).fetchall()
+        
+        # Convert nutrition data to a dictionary
+        nutrition_data = {}
+        for row in nutrition_rows:
+            if hasattr(row, '_mapping'):
+                nutrient = dict(row._mapping)
+            else:
+                nutrient = dict(zip(['nutrient_name', 'amount', 'unit'], row))
+            
+            nutrient_name = nutrient['nutrient_name'].lower()
+            amount = nutrient['amount'] or 0
+            
+            # Map nutrient names to our expected fields
+            if 'calorie' in nutrient_name or 'energy' in nutrient_name:
+                nutrition_data['calories'] = amount
+            elif 'protein' in nutrient_name:
+                nutrition_data['protein_g'] = amount
+            elif 'carbohydrate' in nutrient_name or 'carb' in nutrient_name:
+                nutrition_data['carbs_g'] = amount
+            elif 'fat' in nutrient_name and 'total' in nutrient_name:
+                nutrition_data['fat_g'] = amount
+            elif 'fat' in nutrient_name:
+                nutrition_data['fat_g'] = amount
+            elif 'fiber' in nutrient_name:
+                nutrition_data['fiber_g'] = amount
+            elif 'sugar' in nutrient_name:
+                nutrition_data['sugar_g'] = amount
+            elif 'sodium' in nutrient_name:
+                nutrition_data['sodium_mg'] = amount
+            elif 'cholesterol' in nutrient_name:
+                nutrition_data['cholesterol_mg'] = amount
+            elif 'vitamin a' in nutrient_name:
+                nutrition_data['vitamin_a_iu'] = amount
+            elif 'vitamin c' in nutrient_name:
+                nutrition_data['vitamin_c_mg'] = amount
+            elif 'vitamin d' in nutrient_name:
+                nutrition_data['vitamin_d_iu'] = amount
+            elif 'calcium' in nutrient_name:
+                nutrition_data['calcium_mg'] = amount
+            elif 'iron' in nutrient_name:
+                nutrition_data['iron_mg'] = amount
+        
+        # Set default values if not found
+        nutrition_data.setdefault('calories', 0)
+        nutrition_data.setdefault('protein_g', 0)
+        nutrition_data.setdefault('carbs_g', 0)
+        nutrition_data.setdefault('fat_g', 0)
+        nutrition_data.setdefault('fiber_g', 0)
+        nutrition_data.setdefault('sugar_g', 0)
+        nutrition_data.setdefault('sodium_mg', 0)
+        nutrition_data.setdefault('cholesterol_mg', 0)
+        nutrition_data.setdefault('vitamin_a_iu', 0)
+        nutrition_data.setdefault('vitamin_c_mg', 0)
+        nutrition_data.setdefault('vitamin_d_iu', 0)
+        nutrition_data.setdefault('calcium_mg', 0)
+        nutrition_data.setdefault('iron_mg', 0)
+        
+        # Combine food details with nutrition data
+        food_data.update(nutrition_data)
+        return food_data
+        
+    except Exception as e:
+        logger.error(f"Error getting food nutrition from database: {e}")
+        return None
+
+def _get_general_foods_for_meal_type(db, meal_type: str) -> List[str]:
+    """Get general food suggestions for a specific meal type."""
+    try:
+        # Define meal-appropriate foods based on meal type
+        meal_foods = {
+            "breakfast": ["oatmeal", "eggs", "yogurt", "banana", "apple", "bread", "milk", "cereal"],
+            "lunch": ["chicken", "rice", "salad", "sandwich", "soup", "pasta", "vegetables"],
+            "dinner": ["salmon", "steak", "pasta", "rice", "vegetables", "potato", "fish"],
+            "snack": ["nuts", "fruit", "yogurt", "cheese", "crackers", "smoothie"]
+        }
+        
+        # Get foods from the specified meal type
+        foods = meal_foods.get(meal_type.lower(), ["oatmeal", "chicken", "rice", "vegetables"])
+        
+        # Try to find these foods in the database
+        available_foods = []
+        for food_name in foods:
+            food_data = _get_food_nutrition_from_db(db, food_name)
+            if food_data:
+                available_foods.append(food_name)
+        
+        # If no foods found in database, return the original list
+        return available_foods if available_foods else foods
+        
+    except Exception as e:
+        logger.error(f"Error getting general foods for meal type: {e}")
+        # Return fallback foods
+        return ["oatmeal", "chicken", "rice", "vegetables"]
+
+def create_ai_meal_plan(
+    user_id: str,
+    daily_calories: int,
+    meal_count: int,
+    dietary_restrictions: List[str],
+    user_history: List[Dict],
+    db_nutrition,
+    meal_description: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Create AI-powered meal plan using Groq LLM."""
+    try:
+        from shared.config import get_settings
+        import openai
+        
+        settings = get_settings()
+        
+        # Initialize Groq client
+        client = openai.OpenAI(
+            api_key=settings.llm.groq_api_key,
+            base_url=settings.llm.groq_base_url
+        )
+        
+        # Prepare context for AI
+        context_parts = [
+            f"User ID: {user_id}",
+            f"Daily calorie target: {daily_calories}",
+            f"Meals per day: {meal_count}",
+            f"Dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}"
+        ]
+        
+        # Add meal description if provided
+        if meal_description:
+            context_parts.append(f"Meal description: {meal_description}")
+        
+        # Add user history context
+        if user_history:
+            recent_foods = [entry.get("name", "unknown") for entry in user_history[:5]]
+            context_parts.append(f"Recent foods: {', '.join(recent_foods)}")
+        
+        context = " | ".join(context_parts)
+        
+        # Generate AI meal plan
+        ai_meal_plan = _generate_ai_meal_plan(client, context, daily_calories, meal_count, dietary_restrictions, meal_description)
+        
+        # Enrich with nutrition database data
+        enriched_meal_plan = _enrich_meal_plan_with_nutrition(ai_meal_plan, db_nutrition)
+        
+        return enriched_meal_plan
+        
+    except Exception as e:
+        logger.error(f"Error creating AI meal plan: {e}")
+        # Fallback to rule-based meal plan
+        return _create_fallback_meal_plan(db_nutrition, daily_calories, meal_count, dietary_restrictions, user_history)
+
+def _generate_ai_meal_plan(
+    client,
+    context: str,
+    daily_calories: int,
+    meal_count: int,
+    dietary_restrictions: List[str],
+    meal_description: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Generate meal plan using Groq AI."""
+    
+    # Get settings for model configuration
+    from shared.config import get_settings
+    settings = get_settings()
+    
+    # Build personalized prompt
+    personalization_guidelines = ""
+    if meal_description:
+        personalization_guidelines = f"""
+        USER MEAL DESCRIPTION: "{meal_description}"
+        
+        INSTRUCTIONS FOR AI:
+        1. Carefully analyze the user's detailed meal description
+        2. Extract all specific requirements mentioned (ingredients, dietary preferences, calorie targets)
+        3. Follow the user's exact specifications for meal planning
+        4. PRIORITIZE the ingredients mentioned by the user
+        5. Meet the exact calorie targets specified
+        6. Follow all dietary restrictions mentioned
+        7. Create a {meal_count}-day meal plan with {daily_calories // meal_count} calories per meal
+        """
+    
+    prompt = f"""
+    {context}
+    
+    {personalization_guidelines}
+    
+    Create a {meal_count}-day meal plan. For each day, provide:
+    1. Day number
+    2. List of meals with:
+       - Meal type (breakfast, lunch, dinner, snack)
+       - Food items with quantities
+       - Estimated macros (calories, protein, carbs, fat)
+       - Total calories for the day
+    
+    Format your response as a JSON array with this structure:
+    [
+        {{
+            "day": 1,
+            "meals": [
+                {{
+                    "meal_type": "breakfast",
+                    "foods": [
+                        {{
+                            "name": "oatmeal",
+                            "quantity_g": 50,
+                            "calories": 180,
+                            "protein_g": 6.5,
+                            "carbs_g": 30.5,
+                            "fat_g": 3.2
+                        }}
+                    ],
+                    "total_calories": 180
+                }}
+            ],
+            "total_calories": 180
+        }}
+    ]
+    
+    Guidelines:
+    - Ensure total daily calories match {daily_calories}
+    - Include diverse, nutritious foods
+    - Consider dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}
+    - Provide realistic portion sizes
+    - Focus on whole foods and balanced nutrition
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model=settings.llm.groq_model,
+            messages=[
+                {"role": "system", "content": "You are a nutrition expert. Create meal plans quickly."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1200,
+            timeout=30
+        )
+        
+        ai_response = response.choices[0].message.content
+        return _parse_ai_meal_plan(ai_response)
+        
+    except Exception as e:
+        logger.error(f"Error generating AI meal plan: {e}")
+        return []
+
+def _parse_ai_meal_plan(ai_response: str) -> List[Dict[str, Any]]:
+    """Parse AI response into structured meal plan."""
+    try:
+        import json
+        import re
+        
+        # Find JSON array in the response
+        json_match = re.search(r'\[.*\]', ai_response, re.DOTALL)
+        if json_match:
+            meal_plan = json.loads(json_match.group())
+            return meal_plan
+        else:
+            logger.warning("Could not parse AI meal plan response as JSON")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error parsing AI meal plan: {e}")
+        return []
+
+def _enrich_meal_plan_with_nutrition(
+    ai_meal_plan: List[Dict[str, Any]], 
+    db_nutrition
+) -> List[Dict[str, Any]]:
+    """Enrich AI meal plan with nutrition database data."""
+    enriched_plan = []
+    
+    for day_data in ai_meal_plan:
+        enriched_day = {
+            "day": day_data.get("day", 1),
+            "meals": [],
+            "total_calories": 0,
+            "total_protein_g": 0,
+            "total_carbs_g": 0,
+            "total_fat_g": 0
+        }
+        
+        for meal in day_data.get("meals", []):
+            enriched_meal = {
+                "meal_type": meal.get("meal_type", "unknown"),
+                "foods": [],
+                "total_calories": 0,
+                "total_protein_g": 0,
+                "total_carbs_g": 0,
+                "total_fat_g": 0
+            }
+            
+            for food in meal.get("foods", []):
+                food_name = food.get("name", "")
+                suggested_quantity = food.get("quantity_g", 100)
+                
+                # Get nutrition data from database
+                food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+                
+                if food_data:
+                    # Calculate nutrition based on suggested quantity
+                    base_calories = food_data.get("calories", 0)
+                    base_protein = food_data.get("protein_g", 0)
+                    base_carbs = food_data.get("carbs_g", 0)
+                    base_fat = food_data.get("fat_g", 0)
+                    
+                    actual_calories = (base_calories * suggested_quantity) / 100
+                    actual_protein = (base_protein * suggested_quantity) / 100
+                    actual_carbs = (base_carbs * suggested_quantity) / 100
+                    actual_fat = (base_fat * suggested_quantity) / 100
+                    
+                    enriched_food = {
+                        "id": food_data.get("id"),
+                        "name": food_data.get("name", food_name),
+                        "quantity_g": suggested_quantity,
+                        "calories": round(actual_calories, 1),
+                        "protein_g": round(actual_protein, 1),
+                        "carbs_g": round(actual_carbs, 1),
+                        "fat_g": round(actual_fat, 1),
+                        "nutrition_verified": True,
+                        "nutrients": food_data.get("nutrients", [])
+                    }
+                else:
+                    # Use AI-generated data if database data not available
+                    enriched_food = {
+                        "name": food_name,
+                        "quantity_g": suggested_quantity,
+                        "calories": round(food.get("calories", 0), 1),
+                        "protein_g": round(food.get("protein_g", 0), 1),
+                        "carbs_g": round(food.get("carbs_g", 0), 1),
+                        "fat_g": round(food.get("fat_g", 0), 1),
+                        "nutrition_verified": False,
+                        "note": "Nutrition data not available in database - using AI estimates"
+                    }
+                
+                enriched_meal["foods"].append(enriched_food)
+                enriched_meal["total_calories"] += enriched_food["calories"]
+                enriched_meal["total_protein_g"] += enriched_food["protein_g"]
+                enriched_meal["total_carbs_g"] += enriched_food["carbs_g"]
+                enriched_meal["total_fat_g"] += enriched_food["fat_g"]
+            
+            enriched_day["meals"].append(enriched_meal)
+            enriched_day["total_calories"] += enriched_meal["total_calories"]
+            enriched_day["total_protein_g"] += enriched_meal["total_protein_g"]
+            enriched_day["total_carbs_g"] += enriched_meal["total_carbs_g"]
+            enriched_day["total_fat_g"] += enriched_meal["total_fat_g"]
+        
+        enriched_plan.append(enriched_day)
+    
+    return enriched_plan
+
+def _create_fallback_meal_plan(
+    db_nutrition,
+    daily_calories: int,
+    meal_count: int,
+    dietary_restrictions: List[str],
+    user_history: List[Dict]
+) -> List[Dict[str, Any]]:
+    """Create fallback meal plan when AI fails."""
+    try:
+        # Simple rule-based meal plan
+        calories_per_meal = daily_calories // meal_count
+        
+        meal_plan = []
+        for day in range(1, min(meal_count + 1, 8)):  # Max 7 days
+            day_data = {
+                "day": day,
+                "meals": [],
+                "total_calories": 0,
+                "total_protein_g": 0,
+                "total_carbs_g": 0,
+                "total_fat_g": 0
+            }
+            
+            # Create meals for this day
+            meal_types = ["breakfast", "lunch", "dinner"]
+            for i, meal_type in enumerate(meal_types[:meal_count]):
+                meal = {
+                    "meal_type": meal_type,
+                    "foods": [],
+                    "total_calories": 0,
+                    "total_protein_g": 0,
+                    "total_carbs_g": 0,
+                    "total_fat_g": 0
+                }
+                
+                # Get general foods for this meal type
+                general_foods = _get_general_foods_for_meal_type(db_nutrition, meal_type)
+                
+                # Add foods to meal
+                meal_calories = 0
+                for food_name in general_foods[:3]:  # Max 3 foods per meal
+                    food_data = _get_food_nutrition_from_db(db_nutrition, food_name)
+                    if food_data and meal_calories < calories_per_meal:
+                        # Calculate quantity to reach target calories
+                        base_calories = food_data.get("calories", 100)
+                        if base_calories > 0:
+                            quantity = min(200, (calories_per_meal - meal_calories) * 100 / base_calories)
+                            
+                            food = {
+                                "name": food_name,
+                                "quantity_g": round(quantity, 0),
+                                "calories": round((base_calories * quantity) / 100, 1),
+                                "protein_g": round((food_data.get("protein_g", 0) * quantity) / 100, 1),
+                                "carbs_g": round((food_data.get("carbs_g", 0) * quantity) / 100, 1),
+                                "fat_g": round((food_data.get("fat_g", 0) * quantity) / 100, 1),
+                                "nutrition_verified": True
+                            }
+                            
+                            meal["foods"].append(food)
+                            meal["total_calories"] += food["calories"]
+                            meal["total_protein_g"] += food["protein_g"]
+                            meal["total_carbs_g"] += food["carbs_g"]
+                            meal["total_fat_g"] += food["fat_g"]
+                            meal_calories += food["calories"]
+                
+                day_data["meals"].append(meal)
+                day_data["total_calories"] += meal["total_calories"]
+                day_data["total_protein_g"] += meal["total_protein_g"]
+                day_data["total_carbs_g"] += meal["total_carbs_g"]
+                day_data["total_fat_g"] += meal["total_fat_g"]
+            
+            meal_plan.append(day_data)
+        
+        return meal_plan
+        
+    except Exception as e:
+        logger.error(f"Error creating fallback meal plan: {e}")
+        # Return minimal meal plan
+        return [
+            {
+                "day": 1,
+                "meals": [
+                    {
+                        "meal_type": "breakfast",
+                        "foods": [
+                            {
+                                "name": "oatmeal",
+                                "quantity_g": 100,
+                                "calories": 150,
+                                "protein_g": 5,
+                                "carbs_g": 27,
+                                "fat_g": 3,
+                                "nutrition_verified": False
+                            }
+                        ],
+                        "total_calories": 150,
+                        "total_protein_g": 5,
+                        "total_carbs_g": 27,
+                        "total_fat_g": 3
+                    }
+                ],
+                "total_calories": 150,
+                "total_protein_g": 5,
+                "total_carbs_g": 27,
+                "total_fat_g": 3
+            }
+        ]
+
+def get_models():
+    """Get the required models for the nutrition agent."""
+    from shared.models import FoodItem, FoodLogEntry, NutritionInfo
+    return FoodItem, FoodLogEntry, NutritionInfo
+
+def create_recipe(
+    db_nutrition,
+    db_shared,
+    user_id: str,
+    recipe_description: str,
+    servings: int = 1,
+    difficulty: str = "easy",
+    cuisine: Optional[str] = None,
+    dietary_restrictions: List[str] = []
+) -> Dict[str, Any]:
+    """Create a recipe based on user description."""
+    try:
+        from shared.config import get_settings
+        import openai
+        
+        settings = get_settings()
+        
+        # Initialize Groq client
+        client = openai.OpenAI(
+            api_key=settings.llm.groq_api_key,
+            base_url=settings.llm.groq_base_url
+        )
+        
+        # Generate recipe using AI
+        prompt = f"""
+        Create a recipe based on this description: "{recipe_description}"
+        
+        Requirements:
+        - Servings: {servings}
+        - Difficulty: {difficulty}
+        - Cuisine: {cuisine if cuisine else 'Any'}
+        - Dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}
+        
+        Provide the recipe in this JSON format:
+        {{
+            "name": "Recipe Name",
+            "description": "Recipe description",
+            "servings": {servings},
+            "difficulty": "{difficulty}",
+            "cuisine": "{cuisine if cuisine else 'Any'}",
+            "prep_time_minutes": 15,
+            "cook_time_minutes": 30,
+            "total_time_minutes": 45,
+            "ingredients": [
+                {{
+                    "name": "ingredient name",
+                    "quantity": "100g",
+                    "notes": "optional notes"
+                }}
+            ],
+            "instructions": [
+                "Step 1: ...",
+                "Step 2: ..."
+            ],
+            "nutrition_per_serving": {{
+                "calories": 300,
+                "protein_g": 15,
+                "carbs_g": 45,
+                "fat_g": 10
+            }},
+            "tags": ["tag1", "tag2"],
+            "dietary_restrictions": {dietary_restrictions}
+        }}
+        """
+        
+        try:
+            response = client.chat.completions.create(
+                model=settings.llm.groq_model,
+                messages=[
+                    {"role": "system", "content": "You are a culinary expert. Create detailed recipes quickly."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=800,
+                timeout=30
+            )
+            
+            ai_response = response.choices[0].message.content
+            recipe = _parse_recipe_response(ai_response)
+            
+            # Enrich recipe with nutrition data from database
+            enriched_recipe = _enrich_recipe_with_nutrition(recipe, db_nutrition)
+            
+            return {
+                "status": "success",
+                "recipe": enriched_recipe,
+                "ai_generated": True,
+                "user_id": user_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating AI recipe: {e}")
+            # Return fallback recipe
+            return {
+                "status": "success",
+                "recipe": _create_fallback_recipe(recipe_description, servings, difficulty, cuisine, dietary_restrictions),
+                "ai_generated": False,
+                "fallback_used": True,
+                "user_id": user_id
+            }
+        
+    except Exception as e:
+        logger.error(f"Error creating recipe: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "user_id": user_id
+        }
+
+def _parse_recipe_response(ai_response: str) -> Dict[str, Any]:
+    """Parse AI response into structured recipe."""
+    try:
+        import json
+        import re
+        
+        # Find JSON object in the response
+        json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+        if json_match:
+            recipe = json.loads(json_match.group())
+            return recipe
+        else:
+            logger.warning("Could not parse AI recipe response as JSON")
+            return {}
+            
+    except Exception as e:
+        logger.error(f"Error parsing AI recipe: {e}")
+        return {}
+
+def _enrich_recipe_with_nutrition(recipe: Dict[str, Any], db_nutrition) -> Dict[str, Any]:
+    """Enrich recipe with nutrition database data."""
+    try:
+        # Enrich ingredients with nutrition data
+        enriched_ingredients = []
+        total_nutrition = {
+            "calories": 0,
+            "protein_g": 0,
+            "carbs_g": 0,
+            "fat_g": 0
+        }
+        
+        for ingredient in recipe.get("ingredients", []):
+            ingredient_name = ingredient.get("name", "")
+            
+            # Get nutrition data from database
+            food_data = _get_food_nutrition_from_db(db_nutrition, ingredient_name)
+            
+            if food_data:
+                # Estimate quantity in grams (simplified)
+                quantity_text = ingredient.get("quantity", "100g")
+                quantity_g = _estimate_quantity_from_text(quantity_text)
+                
+                # Calculate nutrition based on quantity
+                base_calories = food_data.get("calories", 0)
+                base_protein = food_data.get("protein_g", 0)
+                base_carbs = food_data.get("carbs_g", 0)
+                base_fat = food_data.get("fat_g", 0)
+                
+                actual_calories = (base_calories * quantity_g) / 100
+                actual_protein = (base_protein * quantity_g) / 100
+                actual_carbs = (base_carbs * quantity_g) / 100
+                actual_fat = (base_fat * quantity_g) / 100
+                
+                enriched_ingredient = {
+                    **ingredient,
+                    "quantity_g": quantity_g,
+                    "nutrition": {
+                        "calories": round(actual_calories, 1),
+                        "protein_g": round(actual_protein, 1),
+                        "carbs_g": round(actual_carbs, 1),
+                        "fat_g": round(actual_fat, 1)
+                    },
+                    "nutrition_verified": True
+                }
+                
+                # Add to total nutrition
+                total_nutrition["calories"] += actual_calories
+                total_nutrition["total_protein_g"] += actual_protein
+                total_nutrition["total_carbs_g"] += actual_carbs
+                total_nutrition["total_fat_g"] += actual_fat
+            else:
+                enriched_ingredient = {
+                    **ingredient,
+                    "nutrition_verified": False,
+                    "note": "Nutrition data not available in database"
+                }
+            
+            enriched_ingredients.append(enriched_ingredient)
+        
+        # Update recipe with enriched data
+        recipe["ingredients"] = enriched_ingredients
+        recipe["total_nutrition"] = {
+            "calories": round(total_nutrition["calories"], 1),
+            "protein_g": round(total_nutrition["total_protein_g"], 1),
+            "carbs_g": round(total_nutrition["total_carbs_g"], 1),
+            "fat_g": round(total_nutrition["total_fat_g"], 1)
+        }
+        
+        return recipe
+        
+    except Exception as e:
+        logger.error(f"Error enriching recipe with nutrition: {e}")
+        return recipe
+
+def _estimate_quantity_from_text(quantity_text: str) -> float:
+    """Estimate quantity in grams from text description."""
+    try:
+        import re
+        
+        # Common conversions
+        conversions = {
+            "cup": 240,
+            "tbsp": 15,
+            "tsp": 5,
+            "ounce": 28.35,
+            "pound": 453.59,
+            "gram": 1,
+            "g": 1,
+            "kg": 1000
+        }
+        
+        # Extract number and unit
+        match = re.search(r'(\d+(?:\.\d+)?)\s*([a-zA-Z]+)', quantity_text.lower())
+        if match:
+            number = float(match.group(1))
+            unit = match.group(2)
+            
+            # Find matching unit
+            for unit_key, grams in conversions.items():
+                if unit_key in unit or unit.startswith(unit_key):
+                    return number * grams
+            
+            # Default to grams if no match
+            return number
+        else:
+            # Try to extract just a number
+            number_match = re.search(r'(\d+(?:\.\d+)?)', quantity_text)
+            if number_match:
+                return float(number_match.group(1))
+            
+            # Default to 100g
+            return 100.0
+            
+    except Exception:
+        return 100.0
+
+def _create_fallback_recipe(
+    recipe_description: str,
+    servings: int,
+    difficulty: str,
+    cuisine: Optional[str],
+    dietary_restrictions: List[str]
+) -> Dict[str, Any]:
+    """Create a fallback recipe when AI fails."""
+    return {
+        "name": f"Recipe based on: {recipe_description[:50]}...",
+        "description": recipe_description,
+        "servings": servings,
+        "difficulty": difficulty,
+        "cuisine": cuisine or "Any",
+        "prep_time_minutes": 15,
+        "cook_time_minutes": 30,
+        "total_time_minutes": 45,
+        "ingredients": [
+            {
+                "name": "ingredient",
+                "quantity": "100g",
+                "notes": "Adjust based on your preferences"
+            }
+        ],
+        "instructions": [
+            "1. Prepare ingredients as described",
+            "2. Follow standard cooking methods",
+            "3. Adjust seasoning to taste"
+        ],
+        "nutrition_per_serving": {
+            "calories": 300,
+            "protein_g": 15,
+            "carbs_g": 45,
+            "fat_g": 10
+        },
+        "tags": ["fallback", "custom"],
+        "dietary_restrictions": dietary_restrictions,
+        "note": "This is a fallback recipe. Consider regenerating for more specific instructions."
+    }
 
 def convert_uuid_to_nutrition_id(food_uuid: str) -> int:
     """Extract original nutrition database ID from UUID (if possible)."""
