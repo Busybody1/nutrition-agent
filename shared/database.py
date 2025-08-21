@@ -61,7 +61,7 @@ class DatabaseManager:
             pool_recycle=3600,
         )
 
-        # Create sync engine for migrations and tests
+        # Create sync engine for compatibility
         self._sync_engine = create_engine(
             self.settings.database.url,
             echo=self.settings.debug,
@@ -201,147 +201,10 @@ async def close_database():
 
 
 # Database initialization utilities
+# Table creation removed - tables are managed manually in PostgreSQL
 async def init_database():
-    """Initialize database with tables and indexes."""
-    from sqlalchemy import (
-        Boolean,
-        Column,
-        DateTime,
-        Float,
-        Integer,
-        MetaData,
-        String,
-        Table,
-        Text,
-    )
-    from sqlalchemy.dialects.postgresql import UUID as PGUUID
-
-    settings = get_settings()
-
-    # Create sync engine for migrations
-    db_url = settings.database.url
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(db_url)
-    metadata = MetaData()
-
-    # Define tables
-    users = Table(
-        "users",
-        metadata,
-        Column("id", PGUUID, primary_key=True),
-        Column("email", String(255), unique=True, nullable=False),
-        Column("username", String(50), unique=True, nullable=False),
-        Column("first_name", String(100), nullable=False),
-        Column("last_name", String(100), nullable=False),
-        Column("role", String(20), nullable=False, default="user"),
-        Column("age", Integer),
-        Column("height_cm", Float),
-        Column("weight_kg", Float),
-        Column("primary_goal", String(50)),
-        Column("daily_calorie_target", Integer),
-        Column("created_at", DateTime, nullable=False),
-        Column("updated_at", DateTime, nullable=False),
-        Column("is_active", Boolean, default=True),
-        Column("is_verified", Boolean, default=False),
-    )
-
-    # Create 'foods' table (not 'food_items') as expected by nutrition agent
-    foods = Table(
-        "foods",
-        metadata,
-        Column("id", PGUUID, primary_key=True),
-        Column("name", String(255), nullable=False),
-        Column("brand_id", String(255)),
-        Column("category_id", String(100), nullable=False),
-        Column("serving_size", Float, nullable=False),
-        Column("serving_unit", String(50), nullable=False),
-        Column("serving", String(100)),
-        Column("calories", Float, nullable=False),
-        Column("protein_g", Float, nullable=False),
-        Column("carbs_g", Float, nullable=False),
-        Column("fat_g", Float, nullable=False),
-        Column("fiber_g", Float, default=0),
-        Column("sugar_g", Float, default=0),
-        Column("source", String(50), default="user_input"),
-        Column("verified", Boolean, default=False),
-        Column("created_at", DateTime, nullable=False),
-        Column("updated_at", DateTime, nullable=False),
-    )
-
-    # Create 'food_logs' table with additional serving columns
-    food_logs = Table(
-        "food_logs",
-        metadata,
-        Column("id", PGUUID, primary_key=True),
-        Column("user_id", PGUUID, nullable=False),
-        Column("food_item_id", PGUUID, nullable=False),
-        Column("quantity_g", Float, nullable=False),
-        Column("meal_type", String(20), nullable=False),
-        Column("consumed_at", DateTime, nullable=False),
-        Column("calories", Float, nullable=False),
-        Column("protein_g", Float, nullable=False),
-        Column("carbs_g", Float, nullable=False),
-        Column("fat_g", Float, nullable=False),
-        Column("serving_size", Float),  # Additional serving columns
-        Column("serving_unit", String(50)),
-        Column("serving", String(100)),
-        Column("notes", Text),
-        Column("created_at", DateTime, nullable=False),
-    )
-
-    workout_logs = Table(
-        "workout_logs",
-        metadata,
-        Column("id", PGUUID, primary_key=True),
-        Column("user_id", PGUUID, nullable=False),
-        Column("name", String(255), nullable=False),
-        Column("duration_minutes", Integer, nullable=False),
-        Column("started_at", DateTime, nullable=False),
-        Column("completed_at", DateTime),
-        Column("calories_burned", Integer),
-        Column("notes", Text),
-        Column("created_at", DateTime, nullable=False),
-    )
-
-    # Create tables
-    metadata.create_all(engine)
-
-    # Create indexes
-    with engine.connect() as conn:
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"))
-        conn.execute(
-            text("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-        )
-        conn.execute(
-            text("CREATE INDEX IF NOT EXISTS idx_foods_name ON foods(name)")
-        )
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS idx_foods_category_id ON foods(category_id)"
-            )
-        )
-        conn.execute(
-            text("CREATE INDEX IF NOT EXISTS idx_food_logs_user_id ON food_logs(user_id)")
-        )
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS idx_food_logs_consumed_at ON food_logs(consumed_at)"
-            )
-        )
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS idx_workout_logs_user_id ON workout_logs(user_id)"
-            )
-        )
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS idx_workout_logs_started_at ON workout_logs(started_at)"
-            )
-        )
-        conn.commit()
-
-    engine.dispose()
+    """Tables are managed manually in PostgreSQL - this function does nothing."""
+    pass
 
 
 def get_nutrition_db_engine():

@@ -130,7 +130,7 @@ async def require_authentication(request: Request) -> Dict[str, Any]:
         
     except HTTPException:
         raise
-        except Exception as e:
+    except Exception as e:
         logger.error(f"Authentication error: {e}")
         raise HTTPException(
             status_code=500,
