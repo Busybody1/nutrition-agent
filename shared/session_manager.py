@@ -213,10 +213,44 @@ class FrameworkSessionManager:
             return 0
     
     def _generate_session_token(self, user_id: str) -> str:
-        """Generate cryptographically secure session token."""
-        random_bytes = secrets.token_bytes(32)
-        user_hash = hashlib.sha256(str(user_id).encode()).hexdigest()
-        return f"{user_hash}:{random_bytes.hex()}"
+        """Generate a secure session token."""
+        # Create a unique token using user_id, timestamp, and random data
+        timestamp = str(int(datetime.utcnow().timestamp()))
+        random_data = secrets.token_hex(16)
+        token_data = f"{user_id}:{timestamp}:{random_data}"
+        
+        # Hash the token data for security
+        hashed_token = hashlib.sha256(token_data.encode()).hexdigest()
+        return hashed_token[:32]  # Return first 32 characters
+    
+    def _extract_session_token(self, request) -> Optional[str]:
+        """Extract session token from request object."""
+        try:
+            # Check Authorization header first
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                return auth_header.split(" ")[1]
+            
+            # Check X-Session-Token header
+            session_token = request.headers.get("X-Session-Token")
+            if session_token:
+                return session_token
+            
+            # Check query parameter
+            session_token = request.query_params.get("session_token")
+            if session_token:
+                return session_token
+            
+            # Check cookies
+            session_token = request.cookies.get("session_token")
+            if session_token:
+                return session_token
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting session token: {e}")
+            return None
     
     async def _store_session_in_db(self, session_data: Dict[str, Any]):
         """Store session data in database."""

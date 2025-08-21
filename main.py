@@ -130,7 +130,7 @@ async def require_authentication(request: Request) -> Dict[str, Any]:
         
     except HTTPException:
         raise
-    except Exception as e:
+        except Exception as e:
         logger.error(f"Authentication error: {e}")
         raise HTTPException(
             status_code=500,
@@ -341,7 +341,7 @@ def get_shared_db():
 @app.get("/")
 def read_root():
     """Nutrition Agent root endpoint."""
-    return {
+        return {
             "message": "Nutrition Agent is running with SCALABILITY FEATURES!",
             "version": "2.0.0",
             "status": "running",
@@ -401,9 +401,15 @@ def detailed_health_check():
     """Detailed health check with database testing."""
     try:
         # Test main database connection (for writes)
+        main_db_status = "not_configured"
+        try:
         fitness_engine = get_fitness_engine()
         with fitness_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+            main_db_status = "connected"
+        except Exception as e:
+            logger.warning(f"Main database not accessible: {e}")
+            main_db_status = "unavailable"
         
         # Test nutrition database connection (for reads) - optional
         nutrition_status = "not_configured"
@@ -416,21 +422,49 @@ def detailed_health_check():
             logger.warning(f"Nutrition database not accessible: {e}")
             nutrition_status = "unavailable"
         
+        # Determine overall status
+        if main_db_status == "connected":
+            overall_status = "healthy"
+        elif main_db_status == "unavailable" and nutrition_status == "unavailable":
+            overall_status = "unhealthy"
+        else:
+            overall_status = "degraded"
+        
         return {
-            "status": "healthy", 
+            "status": overall_status, 
             "agent": "nutrition",
-            "main_database": "connected",
+            "main_database": main_db_status,
             "nutrition_database": nutrition_status,
-            "timestamp": datetime.datetime.utcnow().isoformat()
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "message": "Health check completed successfully"
         }
     except Exception as e:
         logger.error(f"Detailed health check failed: {e}")
         return {
-            "status": "degraded", 
+            "status": "unhealthy", 
             "agent": "nutrition",
             "error": str(e),
-            "timestamp": datetime.datetime.utcnow().isoformat()
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "message": "Health check failed with error"
         }
+
+@app.get("/test")
+def test_endpoint():
+    """Simple test endpoint that doesn't require database access."""
+        return {
+        "status": "success",
+        "message": "Nutrition Agent is running!",
+        "agent": "nutrition",
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "components": {
+            "session_manager": _session_manager is not None,
+            "task_manager": _task_manager is not None,
+            "performance_monitor": _performance_monitor is not None,
+            "health_monitor": _health_monitor is not None,
+            "conversation_manager": _conversation_manager is not None,
+            "user_data_access": _user_data_access is not None
+        }
+    }
 
 # =============================================================================
 # CORE NUTRITION ENDPOINTS
@@ -526,12 +560,12 @@ async def execute_tool(
             return await calculate_calories(parameters, user_id, db)
         elif tool_name == "nutrition_recommendations":
             return await get_nutrition_recommendations(parameters, user_id, db)
-        else:
+                else:
             raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
             
     except HTTPException:
         raise
-    except Exception as e:
+        except Exception as e:
         logger.error(f"Error executing tool {tool_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
 
@@ -598,7 +632,7 @@ async def calculate_calories(parameters: Dict[str, Any], user_id: str, db) -> Di
         # Basic BMR calculation (Mifflin-St Jeor Equation)
         if user_profile.get("gender") == "female":
             bmr = 10 * weight + 6.25 * height - 5 * age - 161
-        else:
+                else:
             bmr = 10 * weight + 6.25 * height - 5 * age + 5
         
         # Activity multiplier
@@ -643,7 +677,7 @@ async def get_nutrition_recommendations(parameters: Dict[str, Any], user_id: str
         if _user_data_access:
             user_nutrition_data = await _user_data_access.get_user_nutrition_data(user_id)
             user_profile = await _user_data_access.get_user_profile(user_id)
-        else:
+                    else:
             user_nutrition_data = {"targets": [], "recent_logs": [], "meal_plans": []}
             user_profile = {}
         
@@ -653,7 +687,7 @@ async def get_nutrition_recommendations(parameters: Dict[str, Any], user_id: str
         
         # Generate recommendations based on user data and parameters
         recommendations = {
-            "user_id": user_id,
+                "user_id": user_id,
             "goal": goal,
             "focus_area": focus_area,
             "recommendations": [],
@@ -686,13 +720,13 @@ async def get_nutrition_recommendations(parameters: Dict[str, Any], user_id: str
                 "Choose lean protein sources",
                 "Limit processed foods and added sugars"
             ]
-        
-        return {
-            "status": "success",
+            
+            return {
+                "status": "success",
             "recommendations": recommendations
         }
         
-    except Exception as e:
+        except Exception as e:
         logger.error(f"Error getting nutrition recommendations: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get nutrition recommendations: {str(e)}")
 
@@ -713,12 +747,12 @@ async def get_user_nutrition_data(request: Request):
                 "user_profile": user_profile,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-        else:
+                else:
             raise HTTPException(status_code=500, detail="User data access not available")
             
     except HTTPException:
         raise
-    except Exception as e:
+        except Exception as e:
         logger.error(f"Failed to get user nutrition data: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get user nutrition data: {str(e)}")
 
@@ -741,7 +775,7 @@ async def create_session(request: Request):
         
         # Create session
         session_data = await _session_manager.create_user_session(user_id, "nutrition")
-        
+
         return {
             "status": "success",
             "session_data": session_data
@@ -762,7 +796,7 @@ async def get_session_info(session_token: str):
         session_data = await _session_manager.get_session(session_token)
         if not session_data:
             raise HTTPException(status_code=404, detail="Session not found")
-        
+
         return {
             "status": "success",
             "session_data": session_data
@@ -790,7 +824,7 @@ async def submit_task(
         
         # Submit task
         task_id = await _task_manager.submit_task(task_type, data)
-        
+
         return {
             "status": "success",
             "task_id": task_id,
@@ -812,7 +846,7 @@ async def get_task_status(task_id: str):
         task_status = await _task_manager.get_task_status(task_id)
         if not task_status:
             raise HTTPException(status_code=404, detail="Task not found")
-        
+
         return {
             "status": "success",
             "task_status": task_status
@@ -832,7 +866,7 @@ async def get_performance_metrics():
         
         metrics = await _performance_monitor.get_metrics()
         summary = await _performance_monitor.get_performance_summary()
-        
+
         return {
             "status": "success",
             "metrics": metrics,
@@ -858,28 +892,28 @@ async def get_scalability_status():
         # Check session manager
         if _session_manager:
             status_data["components"]["session_manager"] = "healthy"
-        else:
+                else:
             status_data["components"]["session_manager"] = "unavailable"
             status_data["status"] = "degraded"
         
         # Check task manager
         if _task_manager:
             status_data["components"]["task_manager"] = "healthy"
-        else:
+                else:
             status_data["components"]["task_manager"] = "unavailable"
             status_data["status"] = "degraded"
         
         # Check performance monitor
         if _performance_monitor:
             status_data["components"]["performance_monitor"] = "healthy"
-        else:
+                    else:
             status_data["components"]["performance_monitor"] = "unavailable"
             status_data["status"] = "degraded"
         
         # Check health monitor
         if _health_monitor:
             status_data["components"]["health_monitor"] = "healthy"
-        else:
+                    else:
             status_data["components"]["health_monitor"] = "unavailable"
             status_data["status"] = "degraded"
         
@@ -889,15 +923,15 @@ async def get_scalability_status():
             with fitness_engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             status_data["components"]["main_database"] = "healthy"
-        except Exception as e:
+    except Exception as e:
             status_data["components"]["main_database"] = f"unhealthy: {str(e)}"
             status_data["status"] = "degraded"
         
         return status_data
-        
+            
     except Exception as e:
         logger.error(f"Error getting scalability status: {e}")
-        return {
+            return {
             "status": "error",
             "error": str(e),
             "timestamp": datetime.datetime.utcnow().isoformat()
@@ -920,7 +954,7 @@ async def get_conversation_state(request: Request):
         
         # Get conversation state
         conversation_state = await _conversation_manager.get_conversation_state(user_id)
-        
+
         return {
             "status": "success",
             "conversation_state": conversation_state
@@ -948,7 +982,7 @@ async def add_conversation_message(
         
         # Add message
         message_data = await _conversation_manager.add_message(user_id, message, role)
-        
+
         return {
             "status": "success",
             "message_data": message_data
@@ -1057,7 +1091,7 @@ async def reset_conversation(request: Request):
         success = await _conversation_manager.reset_conversation(user_id)
         
         if success:
-            return {
+                return {
                 "status": "success",
                 "message": "Conversation reset successfully"
             }
@@ -1092,9 +1126,9 @@ async def supervisor_broadcast(request: Request):
         elif message_type == "cleanup":
             # Perform cleanup if requested
             return {"status": "cleanup_completed", "agent": "nutrition"}
-        else:
+                else:
             return {"status": "received", "message_type": message_type}
-            
+        
     except Exception as e:
         logger.error(f"Error handling supervisor broadcast: {e}")
         return {"status": "error", "error": str(e)}
@@ -1102,7 +1136,7 @@ async def supervisor_broadcast(request: Request):
 @app.get("/api/supervisor/health")
 async def supervisor_health_check():
     """Health check endpoint for supervisor agent."""
-    return {
+        return {
         "status": "healthy",
         "agent_type": "nutrition",
         "timestamp": datetime.datetime.utcnow().isoformat(),
@@ -1117,7 +1151,7 @@ async def supervisor_health_check():
 @app.get("/api/supervisor/status")
 async def supervisor_status():
     """Status endpoint for supervisor agent."""
-    return {
+        return {
         "status": "active",
         "agent_type": "nutrition",
         "timestamp": datetime.datetime.utcnow().isoformat(),
@@ -1141,9 +1175,9 @@ async def get_performance_dashboard():
             raise HTTPException(status_code=503, detail="Performance monitor not available")
         
         summary = await _performance_monitor.get_performance_summary()
-        
-        return {
-            "status": "success",
+            
+            return {
+                "status": "success",
             "dashboard": summary
         }
     except HTTPException:
@@ -1194,7 +1228,7 @@ async def get_performance_health():
     """Get performance health status."""
     try:
         if not _performance_monitor:
-            return {
+        return {
                 "status": "unhealthy",
                 "message": "Performance monitor not available",
                 "timestamp": datetime.datetime.utcnow().isoformat()
@@ -1209,7 +1243,7 @@ async def get_performance_health():
         }
     except Exception as e:
         logger.error(f"Error getting performance health: {e}")
-        return {
+    return {
             "status": "unhealthy",
             "error": str(e),
             "timestamp": datetime.datetime.utcnow().isoformat()

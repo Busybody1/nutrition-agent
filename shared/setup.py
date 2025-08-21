@@ -1,7 +1,12 @@
 from setuptools import find_packages, setup
+import os
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+# Try to read README.md, fallback to empty string if not found
+try:
+    with open("README.md", "r", encoding="utf-8") as fh:
+        long_description = fh.read()
+except FileNotFoundError:
+    long_description = "Shared library for AI Agent Framework"
 
 setup(
     name="shared",
