@@ -341,43 +341,43 @@ def get_shared_db():
 @app.get("/")
 def read_root():
     """Nutrition Agent root endpoint."""
-        return {
-            "message": "Nutrition Agent is running with SCALABILITY FEATURES!",
-            "version": "2.0.0",
-            "status": "running",
-            "scalability_ready": True,
-            "endpoints": {
-                "health": "/health",
-                "foods_count": "/foods/count",
-                "execute_tool": "/execute-tool",
-                "user_nutrition_data": "/api/user/nutrition-data",
+    return {
+        "message": "Nutrition Agent is running with SCALABILITY FEATURES!",
+        "version": "2.0.0",
+        "status": "running",
+        "scalability_ready": True,
+        "endpoints": {
+            "health": "/health",
+            "foods_count": "/foods/count",
+            "execute_tool": "/execute-tool",
+            "user_nutrition_data": "/api/user/nutrition-data",
 
-                # Core scalability endpoints
-                "create_session": "/api/sessions/create",
-                "get_session": "/api/sessions/{session_token}",
-                "submit_task": "/api/tasks/submit",
-                "get_task_status": "/api/tasks/{task_id}",
-                "performance_metrics": "/api/performance/metrics",
-                "scalability_status": "/api/scalability/status",
-                # Conversation management endpoints
-                "conversation_state": "/api/conversations/state",
-                "conversation_history": "/api/conversations/history",
-                "conversation_search": "/api/conversations/search",
-                "conversation_summary": "/api/conversations/summary",
-                "conversation_export": "/api/conversations/export",
-                "conversation_reset": "/api/conversations/reset"
-            },
-            "features": {
-                "multi_user_support": True,
-                "session_management": True,
-                "background_tasks": True,
-                "performance_monitoring": True,
-                "health_monitoring": True,
-                "redis_caching": True,
-                "horizontal_scaling": True,
-                "conversation_management": True
-            }
+            # Core scalability endpoints
+            "create_session": "/api/sessions/create",
+            "get_session": "/api/sessions/{session_token}",
+            "submit_task": "/api/tasks/submit",
+            "get_task_status": "/api/tasks/{task_id}",
+            "performance_metrics": "/api/performance/metrics",
+            "scalability_status": "/api/scalability/status",
+            # Conversation management endpoints
+            "conversation_state": "/api/conversations/state",
+            "conversation_history": "/api/conversations/history",
+            "conversation_search": "/api/conversations/search",
+            "conversation_summary": "/api/conversations/summary",
+            "conversation_export": "/api/conversations/export",
+            "conversation_reset": "/api/conversations/reset"
+        },
+        "features": {
+            "multi_user_support": True,
+            "session_management": True,
+            "background_tasks": True,
+            "performance_monitoring": True,
+            "health_monitoring": True,
+            "redis_caching": True,
+            "horizontal_scaling": True,
+            "conversation_management": True
         }
+    }
 
 @app.get("/health")
 def health_check():
@@ -403,10 +403,10 @@ def detailed_health_check():
         # Test main database connection (for writes)
         main_db_status = "not_configured"
         try:
-        fitness_engine = get_fitness_engine()
-        with fitness_engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-            main_db_status = "connected"
+            fitness_engine = get_fitness_engine()
+            with fitness_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                main_db_status = "connected"
         except Exception as e:
             logger.warning(f"Main database not accessible: {e}")
             main_db_status = "unavailable"
