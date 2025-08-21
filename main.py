@@ -636,7 +636,7 @@ async def calculate_calories(parameters: Dict[str, Any], user_id: str) -> Dict[s
         # Basic BMR calculation (Mifflin-St Jeor Equation)
         if user_profile.get("gender") == "female":
             bmr = 10 * weight + 6.25 * height - 5 * age - 161
-                else:
+        else:
             bmr = 10 * weight + 6.25 * height - 5 * age + 5
         
         # Activity multiplier
@@ -751,12 +751,12 @@ async def get_user_nutrition_data(request: Request):
                 "user_profile": user_profile,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-                else:
+        else:
             raise HTTPException(status_code=500, detail="User data access not available")
             
     except HTTPException:
         raise
-        except Exception as e:
+    except Exception as e:
         logger.error(f"Failed to get user nutrition data: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get user nutrition data: {str(e)}")
 
@@ -1130,7 +1130,7 @@ async def supervisor_broadcast(request: Request):
         elif message_type == "cleanup":
             # Perform cleanup if requested
             return {"status": "cleanup_completed", "agent": "nutrition"}
-                else:
+        else:
             return {"status": "received", "message_type": message_type}
         
     except Exception as e:
