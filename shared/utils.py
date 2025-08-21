@@ -219,70 +219,7 @@ class ErrorHandler:
         }
 
 
-class PerformanceMonitor:
-    """Performance monitoring utilities."""
-
-    def __init__(self):
-        self.metrics: Dict[str, List[float]] = {}
-
-    def time_function(self, func_name: str):
-        """Decorator to time function execution."""
-
-        def decorator(func: F) -> F:
-            @functools.wraps(func)
-            async def async_wrapper(*args, **kwargs):
-                start_time = time.time()
-                try:
-                    result = await func(*args, **kwargs)
-                    return result
-                finally:
-                    execution_time = time.time() - start_time
-                    self.record_metric(func_name, execution_time)
-
-            @functools.wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                start_time = time.time()
-                try:
-                    result = func(*args, **kwargs)
-                    return result
-                finally:
-                    execution_time = time.time() - start_time
-                    self.record_metric(func_name, execution_time)
-
-            if asyncio.iscoroutinefunction(func):
-                return async_wrapper
-            else:
-                return sync_wrapper
-
-        return decorator
-
-    def record_metric(self, name: str, value: float):
-        """Record a performance metric."""
-        if name not in self.metrics:
-            self.metrics[name] = []
-        self.metrics[name].append(value)
-
-        # Keep only last 1000 measurements
-        if len(self.metrics[name]) > 1000:
-            self.metrics[name] = self.metrics[name][-1000:]
-
-    def get_statistics(self, name: str) -> Dict[str, float]:
-        """Get statistics for a metric."""
-        if name not in self.metrics or not self.metrics[name]:
-            return {}
-
-        values = self.metrics[name]
-        return {
-            "count": len(values),
-            "min": min(values),
-            "max": max(values),
-            "mean": sum(values) / len(values),
-            "median": sorted(values)[len(values) // 2],
-        }
-
-
-# Global performance monitor
-performance_monitor = PerformanceMonitor()
+# Performance monitoring removed - simplified architecture
 
 
 class DataValidator:
