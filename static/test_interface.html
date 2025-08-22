@@ -190,6 +190,27 @@
         .description-note strong {
             color: #d63031;
         }
+
+        /* New styles for connection status */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #e0f2f7;
+            border: 1px solid #c6e4f1;
+            color: #3498db;
+        }
+
+        .status-indicator {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        .status-text {
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -200,19 +221,26 @@
         </div>
 
         <div class="content">
-            <div class="highlight">
-                <h3>🚀 Powered by Groq AI</h3>
-                <p>Advanced AI-powered nutrition planning with natural language descriptions</p>
-            </div>
-
-            <div class="description-note">
-                <strong>⚠️ Important:</strong> All AI functions now require a <strong>description</strong> parameter. 
-                Provide natural language descriptions of what you want (e.g., "I need a meal plan for weight loss with Mediterranean flavors").
-            </div>
-
+            <h1>Groq AI Test Interface</h1>
+            <p class="description-note">
+                <strong>Note:</strong> All nutrition operations now use the unified <code>/execute-tool</code> endpoint for consistent API access.
+            </p>
+            
+            <!-- Connection Status Section -->
             <div class="section">
-                <h2>🍽️ Create Meal Plan</h2>
-                <p>Get personalized meal plans based on your preferences, dietary restrictions, and fitness goals using Groq AI.</p>
+                <h2>🔗 Connection Status</h2>
+                <p>Current API endpoint: <code id="apiEndpoint">Loading...</code></p>
+                <div id="connectionStatus" class="connection-status">
+                    <span class="status-indicator">⏳</span>
+                    <span class="status-text">Testing connection...</span>
+                </div>
+                <button class="btn" onclick="testConnection()">🔄 Test Connection</button>
+            </div>
+            
+            <!-- Meal Plan Creation Section -->
+            <div class="section">
+                <h2>🍽️ Meal Plan Creation</h2>
+                <p>Create personalized meal plans with Groq AI.</p>
                 
                 <div class="form-group">
                     <label for="mealUser">User ID:</label>
@@ -431,7 +459,8 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8001';
+        // Configuration
+        const API_BASE = 'https://fitness-nutrition-agent.herokuapp.com';
 
         async function makeRequest(endpoint, data) {
             try {
@@ -592,6 +621,51 @@
             const result = await makeRequest('/execute-tool', data);
             showResult('testResult', result);
         }
+
+        async function testConnection() {
+            const apiEndpoint = document.getElementById('apiEndpoint');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const statusIndicator = connectionStatus.querySelector('.status-indicator');
+            const statusText = connectionStatus.querySelector('.status-text');
+
+            statusIndicator.textContent = '⏳';
+            statusText.textContent = 'Testing connection...';
+            connectionStatus.style.backgroundColor = '#e0f2f7';
+            connectionStatus.style.borderColor = '#c6e4f1';
+            connectionStatus.style.color = '#3498db';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                if (response.ok) {
+                    statusIndicator.textContent = '✅';
+                    statusText.textContent = 'Connection successful!';
+                    connectionStatus.style.backgroundColor = '#e8f5e9';
+                    connectionStatus.style.borderColor = '#a5d6a7';
+                    connectionStatus.style.color = '#2e7d32';
+                } else {
+                    statusIndicator.textContent = '❌';
+                    statusText.textContent = 'Connection failed. Status: ' + response.status;
+                    connectionStatus.style.backgroundColor = '#ffebee';
+                    connectionStatus.style.borderColor = '#ef9a9a';
+                    connectionStatus.style.color = '#d32f2f';
+                }
+            } catch (error) {
+                statusIndicator.textContent = '❌';
+                statusText.textContent = 'Connection failed: ' + error.message;
+                connectionStatus.style.backgroundColor = '#ffebee';
+                connectionStatus.style.borderColor = '#ef9a9a';
+                connectionStatus.style.color = '#d32f2f';
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Display current API endpoint
+            document.getElementById('apiEndpoint').textContent = API_BASE;
+            
+            // Test connection on page load
+            testConnection();
+        });
     </script>
 </body>
 </html> 
