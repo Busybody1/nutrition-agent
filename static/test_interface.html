@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nutrition Agent - GPT-4o Test Interface</title>
+    <title>Nutrition Agent - Groq AI Test Interface</title>
     <style>
         * {
             margin: 0;
@@ -104,14 +104,15 @@
         .btn {
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
             color: white;
-            padding: 15px 30px;
             border: none;
+            padding: 15px 30px;
             border-radius: 10px;
-            cursor: pointer;
             font-size: 16px;
             font-weight: 600;
+            cursor: pointer;
             transition: all 0.3s ease;
-            margin: 5px;
+            margin-right: 15px;
+            margin-bottom: 15px;
         }
 
         .btn:hover {
@@ -120,603 +121,476 @@
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
         .btn-secondary:hover {
-            box-shadow: 0 10px 25px rgba(168, 237, 234, 0.3);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
         }
 
-        .response {
-            margin-top: 25px;
+        .result {
+            margin-top: 20px;
             padding: 20px;
             border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            white-space: pre-wrap;
-            max-height: 500px;
-            overflow-y: auto;
+            background: #f8f9fa;
+            border-left: 4px solid #ff9a9e;
+        }
+
+        .result h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .result pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
             font-size: 14px;
             line-height: 1.5;
         }
 
-        .response.success {
-            background: #d4edda;
-            border: 2px solid #c3e6cb;
-            color: #155724;
-        }
-
-        .response.error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
-        }
-
-        .response.info {
-            background: #d1ecf1;
-            border: 2px solid #bee5eb;
-            color: #0c5460;
-        }
-
-        .grid-2 {
+        .grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
+            margin-top: 20px;
         }
 
-        .grid-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-        }
-
-        .feature-highlight {
+        .highlight {
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
             color: white;
             padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
+            border-radius: 15px;
             text-align: center;
+            margin-bottom: 30px;
         }
 
-        .feature-highlight h3 {
+        .highlight h3 {
+            font-size: 1.6em;
             margin-bottom: 10px;
-            font-size: 1.3em;
         }
 
-        .feature-highlight p {
-            opacity: 0.9;
-            margin: 0;
+        .highlight p {
+            font-size: 1.1em;
+            opacity: 0.95;
         }
 
-        .nutrition-form {
-            background: white;
+        .description-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
             border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-            border: 2px solid #fecfef;
+            margin-bottom: 20px;
+            font-size: 0.95em;
         }
 
-        .nutrition-form h4 {
-            color: #ff9a9e;
-            margin-bottom: 15px;
-            font-size: 1.2em;
+        .description-note strong {
+            color: #d63031;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🍎 Nutrition Agent - GPT-4o</h1>
-            <p>AI-powered nutrition planning and advice using OpenAI GPT-4o for personalized meal recommendations</p>
+            <h1>🍎 Nutrition Agent - Groq AI</h1>
+            <p>AI-powered nutrition planning and advice using Groq AI for personalized meal recommendations</p>
         </div>
 
         <div class="content">
-            <div class="feature-highlight">
-                <h3>🚀 Powered by GPT-4o</h3>
-                <p>Intelligent nutrition analysis and personalized meal planning</p>
+            <div class="highlight">
+                <h3>🚀 Powered by Groq AI</h3>
+                <p>Advanced AI-powered nutrition planning with natural language descriptions</p>
             </div>
 
-            <!-- Meal Planning Section -->
+            <div class="description-note">
+                <strong>⚠️ Important:</strong> All AI functions now require a <strong>description</strong> parameter. 
+                Provide natural language descriptions of what you want (e.g., "I need a meal plan for weight loss with Mediterranean flavors").
+            </div>
+
             <div class="section">
-                <h2>🍽️ AI Meal Planning</h2>
-                <p>Get personalized meal plans based on your preferences, dietary restrictions, and fitness goals using GPT-4o AI.</p>
+                <h2>🍽️ Create Meal Plan</h2>
+                <p>Get personalized meal plans based on your preferences, dietary restrictions, and fitness goals using Groq AI.</p>
                 
-                <div class="nutrition-form">
-                    <h4>Meal Plan Preferences</h4>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label for="mealPlanUserId">User ID:</label>
-                            <input type="text" id="mealPlanUserId" value="test-user-123" placeholder="Enter user ID">
-                        </div>
-                        <div class="form-group">
-                            <label for="mealPlanType">Meal Plan Type:</label>
-                            <select id="mealPlanType">
-                                <option value="daily">Daily Plan</option>
-                                <option value="weekly">Weekly Plan</option>
-                                <option value="monthly">Monthly Plan</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label for="dietaryRestrictions">Dietary Restrictions:</label>
-                            <select id="dietaryRestrictions">
-                                <option value="none">None</option>
-                                <option value="vegetarian">Vegetarian</option>
-                                <option value="vegan">Vegan</option>
-                                <option value="gluten-free">Gluten-Free</option>
-                                <option value="keto">Keto</option>
-                                <option value="paleo">Paleo</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="calorieGoal">Daily Calorie Goal:</label>
-                            <input type="number" id="calorieGoal" value="2000" placeholder="Enter calorie goal">
-                        </div>
-                    </div>
-                    
+                <div class="form-group">
+                    <label for="mealUser">User ID:</label>
+                    <input type="text" id="mealUser" value="test_user_123" placeholder="Enter user ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="mealDescription">Description (Required):</label>
+                    <textarea id="mealDescription" rows="3" placeholder="Describe your meal plan needs (e.g., 'I need a meal plan for weight loss with Mediterranean flavors, no nuts, targeting 1800 calories per day')"></textarea>
+                </div>
+
+                <div class="grid">
                     <div class="form-group">
-                        <label for="fitnessGoals">Fitness Goals:</label>
-                        <textarea id="fitnessGoals" rows="3" placeholder="Describe your fitness goals (e.g., weight loss, muscle gain, maintenance)">I want to maintain my current weight while building muscle through strength training</textarea>
+                        <label for="mealCalories">Daily Calories:</label>
+                        <input type="number" id="mealCalories" value="2000" min="800" max="5000">
                     </div>
-                    
-                    <button class="btn" onclick="createMealPlan()">🍽️ Create AI Meal Plan</button>
-                </div>
-                
-                <div id="mealPlanResponse" class="response"></div>
-            </div>
 
-            <!-- Calorie Calculation Section -->
-            <div class="section">
-                <h2>⚖️ Calorie & Nutrition Calculator</h2>
-                <p>Calculate detailed nutrition information for specific foods and meals using GPT-4o AI analysis.</p>
-                
-                <div class="nutrition-form">
-                    <h4>Food Information</h4>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label for="calorieUserId">User ID:</label>
-                            <input type="text" id="calorieUserId" value="test-user-123" placeholder="Enter user ID">
-                        </div>
-                        <div class="form-group">
-                            <label for="foodName">Food Name:</label>
-                            <input type="text" id="foodName" value="Grilled chicken breast with quinoa and vegetables" placeholder="Enter food name or description">
-                        </div>
-                    </div>
-                    
-                    <div class="grid-3">
-                        <div class="form-group">
-                            <label for="servingSize">Serving Size:</label>
-                            <input type="text" id="servingSize" value="1 cup" placeholder="e.g., 1 cup, 200g">
-                        </div>
-                        <div class="form-group">
-                            <label for="mealType">Meal Type:</label>
-                            <select id="mealType">
-                                <option value="breakfast">Breakfast</option>
-                                <option value="lunch">Lunch</option>
-                                <option value="dinner">Dinner</option>
-                                <option value="snack">Snack</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="cookingMethod">Cooking Method:</label>
-                            <select id="cookingMethod">
-                                <option value="grilled">Grilled</option>
-                                <option value="baked">Baked</option>
-                                <option value="fried">Fried</option>
-                                <option value="steamed">Steamed</option>
-                                <option value="raw">Raw</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <button class="btn" onclick="calculateCalories()">⚖️ Calculate Nutrition with AI</button>
-                </div>
-                
-                <div id="calorieResponse" class="response"></div>
-            </div>
-
-            <!-- Nutrition Recommendations Section -->
-            <div class="section">
-                <h2>💡 AI Nutrition Recommendations</h2>
-                <p>Get personalized nutrition advice and recommendations based on your health profile and goals.</p>
-                
-                <div class="nutrition-form">
-                    <h4>Health Profile</h4>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label for="recommendationUserId">User ID:</label>
-                            <input type="text" id="recommendationUserId" value="test-user-123" placeholder="Enter user ID">
-                        </div>
-                        <div class="form-group">
-                            <label for="age">Age:</label>
-                            <input type="number" id="age" value="30" placeholder="Enter your age">
-                        </div>
-                    </div>
-                    
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label for="weight">Weight (kg):</label>
-                            <input type="number" id="weight" value="70" placeholder="Enter weight in kg">
-                        </div>
-                        <div class="form-group">
-                            <label for="height">Height (cm):</label>
-                            <input type="number" id="height" value="170" placeholder="Enter height in cm">
-                        </div>
-                    </div>
-                    
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label for="activityLevel">Activity Level:</label>
-                            <select id="activityLevel">
-                                <option value="sedentary">Sedentary (little or no exercise)</option>
-                                <option value="lightly_active">Lightly Active (light exercise 1-3 days/week)</option>
-                                <option value="moderately_active">Moderately Active (moderate exercise 3-5 days/week)</option>
-                                <option value="very_active">Very Active (hard exercise 6-7 days/week)</option>
-                                <option value="extremely_active">Extremely Active (very hard exercise, physical job)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="healthGoals">Primary Health Goal:</label>
-                            <select id="healthGoals">
-                                <option value="weight_loss">Weight Loss</option>
-                                <option value="weight_gain">Weight Gain</option>
-                                <option value="maintenance">Weight Maintenance</option>
-                                <option value="muscle_gain">Muscle Gain</option>
-                                <option value="energy">Energy Improvement</option>
-                                <option value="general_health">General Health</option>
-                            </select>
-                        </div>
-                    </div>
-                    
                     <div class="form-group">
-                        <label for="healthConditions">Health Conditions (optional):</label>
-                        <textarea id="healthConditions" rows="3" placeholder="Describe any health conditions, allergies, or dietary restrictions">No major health conditions, but I'm lactose intolerant</textarea>
+                        <label for="mealCount">Meals per Day:</label>
+                        <select id="mealCount">
+                            <option value="3">3 meals</option>
+                            <option value="4">4 meals</option>
+                            <option value="5">5 meals</option>
+                            <option value="6">6 meals</option>
+                        </select>
                     </div>
-                    
-                    <button class="btn" onclick="getNutritionRecommendations()">💡 Get AI Recommendations</button>
+
+                    <div class="form-group">
+                        <label for="mealGoals">Goals:</label>
+                        <select id="mealGoals">
+                            <option value="weight_loss">Weight Loss</option>
+                            <option value="muscle_gain">Muscle Gain</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="energy">Energy Boost</option>
+                            <option value="general">General Health</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mealRestrictions">Dietary Restrictions:</label>
+                        <input type="text" id="mealRestrictions" placeholder="e.g., vegetarian, gluten-free, dairy-free">
+                    </div>
                 </div>
-                
-                <div id="recommendationResponse" class="response"></div>
+
+                <button class="btn" onclick="createMealPlan()">🍽️ Create Meal Plan</button>
+                <div id="mealResult" class="result" style="display: none;"></div>
             </div>
 
-            <!-- General Nutrition Section -->
             <div class="section">
-                <h2>🧠 General Nutrition AI</h2>
-                <p>Ask general nutrition questions and get intelligent responses powered by GPT-4o.</p>
+                <h2>📝 Log Meal</h2>
+                <p>Log your meals and get AI-powered nutrition insights, calorie tracking, and personalized recommendations using Groq AI.</p>
                 
                 <div class="form-group">
-                    <label for="generalUserId">User ID:</label>
-                    <input type="text" id="generalUserId" value="test-user-123" placeholder="Enter user ID">
+                    <label for="logUser">User ID:</label>
+                    <input type="text" id="logUser" value="test_user_123" placeholder="Enter user ID">
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="nutritionQuestion">Nutrition Question:</label>
-                    <textarea id="nutritionQuestion" rows="4" placeholder="Ask any nutrition-related question (e.g., What are the best pre-workout foods? How can I improve my protein intake? What should I eat for better recovery?)">What are the best foods to eat before and after a workout for optimal performance and recovery?</textarea>
+                    <label for="logDescription">Description (Required):</label>
+                    <textarea id="logDescription" rows="3" placeholder="Describe what you ate (e.g., 'I had a grilled chicken salad with mixed greens, cherry tomatoes, cucumber, and olive oil dressing')"></textarea>
                 </div>
-                
-                <button class="btn btn-secondary" onclick="askGeneralNutrition()">🧠 Ask GPT-4o</button>
-                <div id="generalNutritionResponse" class="response"></div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="logMealType">Meal Type:</label>
+                        <select id="logMealType">
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner">Dinner</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="logCalories">Estimated Calories:</label>
+                        <input type="number" id="logCalories" value="500" min="50" max="2000">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="logNotes">Additional Notes:</label>
+                    <textarea id="logNotes" rows="2" placeholder="Any additional notes about your meal"></textarea>
+                </div>
+
+                <button class="btn" onclick="logMeal()">📝 Log Meal</button>
+                <div id="logResult" class="result" style="display: none;"></div>
             </div>
 
-            <!-- Health Check Section -->
             <div class="section">
-                <h2>🏥 System Health & Status</h2>
-                <p>Check the health of the Nutrition Agent and verify OpenAI GPT-4o integration.</p>
-                
-                <div class="grid-2">
-                    <button class="btn" onclick="checkHealth()">📊 Check Health</button>
-                    <button class="btn" onclick="checkDatabase()">🗄️ Test Database</button>
-                </div>
-                
-                <div id="healthResponse" class="response"></div>
-            </div>
-
-            <!-- API Testing Section -->
-            <div class="section">
-                <h2>🔧 API Testing</h2>
-                <p>Test the execute-tool endpoint with different nutrition tools to verify GPT-4o integration.</p>
+                <h2>📊 Get Nutrition Summary</h2>
+                <p>Get intelligent summaries of your nutrition patterns, progress analysis, and personalized recommendations using Groq AI.</p>
                 
                 <div class="form-group">
-                    <label for="toolName">Tool Name:</label>
-                    <select id="toolName">
-                        <option value="general_nutrition">General Nutrition</option>
+                    <label for="summaryUser">User ID:</label>
+                    <input type="text" id="summaryUser" value="test_user_123" placeholder="Enter user ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="summaryDescription">Description (Required):</label>
+                    <textarea id="summaryDescription" rows="3" placeholder="Describe what kind of nutrition summary you need (e.g., 'I want to see how my protein intake has been over the last week')"></textarea>
+                </div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="summaryDays">Period (days):</label>
+                        <input type="number" id="summaryDays" value="7" min="1" max="365">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="summaryFocus">Focus Area:</label>
+                        <select id="summaryFocus">
+                            <option value="calories">Calories</option>
+                            <option value="protein">Protein</option>
+                            <option value="carbs">Carbohydrates</option>
+                            <option value="fat">Fat</option>
+                            <option value="general">General</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="getNutritionSummary()">📊 Get Summary</button>
+                <div id="summaryResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Set Nutrition Goal</h2>
+                <p>Set intelligent, personalized nutrition goals with AI-powered planning and progression strategies using Groq AI.</p>
+                
+                <div class="form-group">
+                    <label for="goalUser">User ID:</label>
+                    <input type="text" id="goalUser" value="test_user_123" placeholder="Enter user ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="goalDescription">Description (Required):</label>
+                    <textarea id="goalDescription" rows="3" placeholder="Describe your nutrition goal (e.g., 'I want to increase my protein intake to 150g per day for muscle building')"></textarea>
+                </div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="goalType">Goal Type:</label>
+                        <select id="goalType">
+                            <option value="calories">Daily Calories</option>
+                            <option value="protein">Protein Intake</option>
+                            <option value="carbs">Carbohydrate Intake</option>
+                            <option value="fat">Fat Intake</option>
+                            <option value="meals">Meal Frequency</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="goalTarget">Target Value:</label>
+                        <input type="text" id="goalTarget" placeholder="e.g., 2000 calories, 150g protein">
+                    </div>
+                </div>
+
+                <button class="btn" onclick="setNutritionGoal()">🎯 Set Goal</button>
+                <div id="goalResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>🧠 General Nutrition Questions</h2>
+                <p>Ask general nutrition questions and get intelligent responses powered by Groq AI.</p>
+                
+                <div class="form-group">
+                    <label for="generalUser">User ID:</label>
+                    <input type="text" id="generalUser" value="test_user_123" placeholder="Enter user ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="generalQuestion">Question/Description (Required):</label>
+                    <textarea id="generalQuestion" rows="3" placeholder="Ask any nutrition question (e.g., 'What should I eat before a workout?')"></textarea>
+                </div>
+
+                <button class="btn btn-secondary" onclick="askGeneralNutrition()">🧠 Ask Groq AI</button>
+                <div id="generalResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>🏥 Health Check</h2>
+                <p>Check the health of the Nutrition Agent and verify Groq AI integration.</p>
+                
+                <button class="btn" onclick="checkHealth()">🔍 Check Health</button>
+                <div id="healthResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>🧪 Test Execute Tool</h2>
+                <p>Test the execute-tool endpoint with different nutrition tools to verify Groq AI integration.</p>
+                
+                <div class="form-group">
+                    <label for="testTool">Tool Name:</label>
+                    <select id="testTool">
                         <option value="create_meal_plan">Create Meal Plan</option>
-                        <option value="calculate_calories">Calculate Calories</option>
-                        <option value="get_nutrition_recommendations">Get Recommendations</option>
+                        <option value="log_meal">Log Meal</option>
+                        <option value="get_nutrition_summary">Get Nutrition Summary</option>
+                        <option value="set_nutrition_goal">Set Nutrition Goal</option>
+                        <option value="general_nutrition">General Nutrition</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="toolUserId">User ID:</label>
-                    <input type="text" id="toolUserId" value="test-user-123" placeholder="Enter user ID">
+                    <label for="testUser">User ID:</label>
+                    <input type="text" id="testUser" value="test_user_123" placeholder="Enter user ID">
                 </div>
-                
-                <button class="btn btn-secondary" onclick="testExecuteTool()">⚡ Test Execute Tool</button>
-                <div id="executeToolResponse" class="response"></div>
+
+                <div class="form-group">
+                    <label for="testDescription">Description (Required):</label>
+                    <textarea id="testDescription" rows="3" placeholder="Provide a description for the selected tool"></textarea>
+                </div>
+
+                <button class="btn" onclick="testExecuteTool()">🧪 Test Tool</button>
+                <div id="testResult" class="result" style="display: none;"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkHealth();
-        });
+        const API_BASE = 'http://localhost:8001';
 
-        function displayResponse(elementId, response, type = 'info') {
+        async function makeRequest(endpoint, data) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                return await response.json();
+            } catch (error) {
+                return { error: error.message };
+            }
+        }
+
+        function showResult(elementId, data) {
             const element = document.getElementById(elementId);
-            element.className = `response ${type}`;
-            element.textContent = JSON.stringify(response, null, 2);
+            element.style.display = 'block';
+            element.innerHTML = `
+                <h3>Result:</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
         }
 
-        // Meal Planning Function
         async function createMealPlan() {
-            const userId = document.getElementById('mealPlanUserId').value;
-            const mealPlanType = document.getElementById('mealPlanType').value;
-            const dietaryRestrictions = document.getElementById('dietaryRestrictions').value;
-            const calorieGoal = document.getElementById('calorieGoal').value;
-            const fitnessGoals = document.getElementById('fitnessGoals').value;
-            
-            try {
-                const response = await fetch('/execute-tool', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tool_name: 'create_meal_plan',
-                        parameters: {
-                            user_id: userId,
-                            meal_plan_type: mealPlanType,
-                            dietary_restrictions: dietaryRestrictions,
-                            calorie_goal: parseInt(calorieGoal),
-                            fitness_goals: fitnessGoals
-                        }
-                    })
-                });
-                
-                const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('mealPlanResponse', responseObj, responseObj.success ? 'success' : 'error');
-            } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('mealPlanResponse', responseObj, 'error');
+            const description = document.getElementById('mealDescription').value.trim();
+            if (!description) {
+                alert('Description is required!');
+                return;
             }
+
+            const data = {
+                tool_name: 'create_meal_plan',
+                parameters: {
+                    user_id: document.getElementById('mealUser').value,
+                    description: description,
+                    calories: parseInt(document.getElementById('mealCalories').value),
+                    meals_per_day: parseInt(document.getElementById('mealCount').value),
+                    goals: document.getElementById('mealGoals').value,
+                    dietary_restrictions: document.getElementById('mealRestrictions').value.split(',').map(s => s.trim()).filter(s => s)
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('mealResult', result);
         }
 
-        // Calorie Calculation Function
-        async function calculateCalories() {
-            const userId = document.getElementById('calorieUserId').value;
-            const foodName = document.getElementById('foodName').value;
-            const servingSize = document.getElementById('servingSize').value;
-            const mealType = document.getElementById('mealType').value;
-            const cookingMethod = document.getElementById('cookingMethod').value;
-            
-            try {
-                const response = await fetch('/execute-tool', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tool_name: 'calculate_calories',
-                        parameters: {
-                            user_id: userId,
-                            food_name: foodName,
-                            serving_size: servingSize,
-                            meal_type: mealType,
-                            cooking_method: cookingMethod
-                        }
-                    })
-                });
-                
-                const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('calorieResponse', responseObj, responseObj.success ? 'success' : 'error');
-            } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('calorieResponse', responseObj, 'error');
+        async function logMeal() {
+            const description = document.getElementById('logDescription').value.trim();
+            if (!description) {
+                alert('Description is required!');
+                return;
             }
+
+            const data = {
+                tool_name: 'log_meal',
+                parameters: {
+                    user_id: document.getElementById('logUser').value,
+                    description: description,
+                    meal_type: document.getElementById('logMealType').value,
+                    estimated_calories: parseInt(document.getElementById('logCalories').value),
+                    notes: document.getElementById('logNotes').value
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('logResult', result);
         }
 
-        // Nutrition Recommendations Function
-        async function getNutritionRecommendations() {
-            const userId = document.getElementById('recommendationUserId').value;
-            const age = document.getElementById('age').value;
-            const weight = document.getElementById('weight').value;
-            const height = document.getElementById('height').value;
-            const activityLevel = document.getElementById('activityLevel').value;
-            const healthGoals = document.getElementById('healthGoals').value;
-            const healthConditions = document.getElementById('healthConditions').value;
-            
-            try {
-                const response = await fetch('/execute-tool', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tool_name: 'get_nutrition_recommendations',
-                        parameters: {
-                            user_id: userId,
-                            age: parseInt(age),
-                            weight: parseFloat(weight),
-                            height: parseFloat(height),
-                            activity_level: activityLevel,
-                            health_goals: healthGoals,
-                            health_conditions: healthConditions
-                        }
-                    })
-                });
-                
-                const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('recommendationResponse', responseObj, responseObj.success ? 'success' : 'error');
-            } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('recommendationResponse', responseObj, 'error');
+        async function getNutritionSummary() {
+            const description = document.getElementById('summaryDescription').value.trim();
+            if (!description) {
+                alert('Description is required!');
+                return;
             }
+
+            const data = {
+                tool_name: 'get_nutrition_summary',
+                parameters: {
+                    user_id: document.getElementById('summaryUser').value,
+                    description: description,
+                    days: parseInt(document.getElementById('summaryDays').value),
+                    focus_area: document.getElementById('summaryFocus').value
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('summaryResult', result);
         }
 
-        // General Nutrition Function
+        async function setNutritionGoal() {
+            const description = document.getElementById('goalDescription').value.trim();
+            if (!description) {
+                alert('Description is required!');
+                return;
+            }
+
+            const data = {
+                tool_name: 'set_nutrition_goal',
+                parameters: {
+                    user_id: document.getElementById('goalUser').value,
+                    description: description,
+                    goal_type: document.getElementById('goalType').value,
+                    target_value: document.getElementById('goalTarget').value
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('goalResult', result);
+        }
+
         async function askGeneralNutrition() {
-            const userId = document.getElementById('generalUserId').value;
-            const question = document.getElementById('nutritionQuestion').value;
-            
-            try {
-                const response = await fetch('/execute-tool', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tool_name: 'general_nutrition',
-                        parameters: {
-                            user_id: userId,
-                            message: question
-                        }
-                    })
-                });
-                
-                const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('generalNutritionResponse', responseObj, responseObj.success ? 'success' : 'error');
-            } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('generalNutritionResponse', responseObj, 'error');
+            const question = document.getElementById('generalQuestion').value.trim();
+            if (!question) {
+                alert('Question/Description is required!');
+                return;
             }
+
+            const data = {
+                tool_name: 'general_nutrition',
+                parameters: {
+                    user_id: document.getElementById('generalUser').value,
+                    description: question,
+                    message: question
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('generalResult', result);
         }
 
-        // Health Check Functions
         async function checkHealth() {
             try {
-                const response = await fetch('/health');
+                const response = await fetch(`${API_BASE}/health`);
                 const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('healthResponse', responseObj, responseObj.success ? 'success' : 'error');
+                showResult('healthResult', result);
             } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('healthResponse', responseObj, 'error');
+                showResult('healthResult', { error: error.message });
             }
         }
 
-        async function checkDatabase() {
-            try {
-                const response = await fetch('/test-db');
-                const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('healthResponse', responseObj, responseObj.success ? 'success' : 'error');
-            } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('healthResponse', responseObj, 'error');
-            }
-        }
-
-        // Execute Tool Test Function
         async function testExecuteTool() {
-            const toolName = document.getElementById('toolName').value;
-            const userId = document.getElementById('toolUserId').value;
-            
-            try {
-                const response = await fetch('/execute-tool', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tool_name: toolName,
-                        parameters: {
-                            user_id: userId
-                        }
-                    })
-                });
-                
-                const result = await response.json();
-                const responseObj = {
-                    success: response.ok,
-                    data: result,
-                    status: response.status,
-                    timestamp: new Date().toISOString()
-                };
-                
-                displayResponse('executeToolResponse', responseObj, responseObj.success ? 'success' : 'error');
-            } catch (error) {
-                const responseObj = {
-                    success: false,
-                    error: error.message,
-                    status: 0,
-                    timestamp: new Date().toISOString()
-                };
-                displayResponse('executeToolResponse', responseObj, 'error');
+            const description = document.getElementById('testDescription').value.trim();
+            if (!description) {
+                alert('Description is required!');
+                return;
             }
+
+            const data = {
+                tool_name: document.getElementById('testTool').value,
+                parameters: {
+                    user_id: document.getElementById('testUser').value,
+                    description: description
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('testResult', result);
         }
     </script>
 </body>
