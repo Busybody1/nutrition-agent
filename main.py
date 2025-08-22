@@ -33,6 +33,9 @@ nutrition_data = {}
 # Initialize Groq client
 groq_client = None
 
+# Database connection status
+database_status = {"main": False, "user": False, "nutrition": False, "workout": False}
+
 # =============================================================================
 # PYDANTIC MODELS
 # =============================================================================
@@ -50,8 +53,70 @@ class NutritionResponse(BaseModel):
     timestamp: str
 
 # =============================================================================
-# SIMPLE DATABASE CONNECTION
+# DATABASE INITIALIZATION AND CONNECTION
 # =============================================================================
+
+async def initialize_databases():
+    """Initialize all database connections on startup."""
+    global database_status
+    
+    try:
+        # Test main database
+        try:
+            from shared.database import get_main_db
+            db = get_main_db()
+            db.execute(text("SELECT 1"))
+            db.close()
+            database_status["main"] = True
+            logger.info("✅ Main database connected successfully")
+        except Exception as e:
+            logger.error(f"❌ Main database connection failed: {e}")
+            database_status["main"] = False
+
+        # Test user database
+        try:
+            from shared.database import get_user_db
+            db = get_user_db()
+            db.execute(text("SELECT 1"))
+            db.close()
+            database_status["user"] = True
+            logger.info("✅ User database connected successfully")
+        except Exception as e:
+            logger.error(f"❌ User database connection failed: {e}")
+            database_status["user"] = False
+
+        # Test nutrition database
+        try:
+            from shared.database import get_nutrition_db
+            db = get_nutrition_db()
+            if db:
+                db.execute(text("SELECT 1"))
+                db.close()
+                database_status["nutrition"] = True
+                logger.info("✅ Nutrition database connected successfully")
+            else:
+                logger.warning("⚠️ Nutrition database not configured")
+        except Exception as e:
+            logger.error(f"❌ Nutrition database connection failed: {e}")
+            database_status["nutrition"] = False
+
+        # Test workout database
+        try:
+            from shared.database import get_workout_db
+            db = get_workout_db()
+            if db:
+                db.execute(text("SELECT 1"))
+                db.close()
+                database_status["workout"] = True
+                logger.info("✅ Workout database connected successfully")
+            else:
+                logger.warning("⚠️ Workout database not configured")
+        except Exception as e:
+            logger.error(f"❌ Workout database connection failed: {e}")
+            database_status["workout"] = False
+
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
 
 @asynccontextmanager
 async def get_db():
@@ -66,6 +131,39 @@ async def get_db():
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         raise HTTPException(status_code=503, detail="Database service unavailable")
+
+# =============================================================================
+# AI INITIALIZATION
+# =============================================================================
+
+async def initialize_ai():
+    """Initialize AI clients on startup."""
+    global groq_client
+    
+    try:
+        # Initialize Groq AI
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key:
+            try:
+                groq_client = Groq(api_key=groq_api_key)
+                # Test connection with a simple request
+                test_response = groq_client.chat.completions.create(
+                    model="llama3-70b-8192",
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=10,
+                    temperature=0.1
+                )
+                logger.info("✅ Groq AI client initialized and tested successfully")
+            except Exception as e:
+                logger.error(f"❌ Groq AI initialization failed: {e}")
+                groq_client = None
+        else:
+            logger.warning("⚠️ GROQ_API_KEY not set, AI nutrition features will not work")
+            groq_client = None
+            
+    except Exception as e:
+        logger.error(f"AI initialization error: {e}")
+        groq_client = None
 
 # =============================================================================
 # USER VALIDATION FUNCTIONS
@@ -122,83 +220,8 @@ async def require_valid_user(user_id: str):
 # NUTRITION FUNCTIONS WITH GROQ AI
 # =============================================================================
 
-async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Create an intelligent meal plan using Groq AI."""
-    try:
-        # Validate user exists first
-        await require_valid_user(user_id)
-        
-        if not groq_client:
-            raise HTTPException(status_code=503, detail="Groq AI client not initialized")
-        
-        # Get description (required) and other parameters (optional)
-        description = parameters.get("description", "")
-        if not description:
-            raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what kind of meal plan you need.")
-        
-        # Optional parameters with defaults
-        calories = parameters.get("calories", 2000)
-        meals_per_day = parameters.get("meals_per_day", 3)
-        dietary_restrictions = parameters.get("dietary_restrictions", [])
-        goals = parameters.get("goals", "balanced")
-        
-        prompt = f"""Based on this user request, create a detailed meal plan:
-
-USER REQUEST: {description}
-
-Additional context:
-- Daily calorie target: {calories} calories
-- Meals per day: {meals_per_day}
-- Dietary restrictions: {', '.join(dietary_restrictions) if dietary_restrictions else 'None'}
-- Goals: {goals}
-
-Provide:
-1. A structured meal plan with specific foods and portions that matches their description
-2. Calorie breakdown per meal
-3. Nutrition highlights (protein, carbs, fat)
-4. Shopping list based on their preferences
-5. Preparation tips
-6. Health benefits
-7. Any specific recommendations based on their description
-
-Format as a clear, actionable meal plan that directly addresses what they asked for."""
-
-        response = groq_client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=900,
-            temperature=0.6
-        )
-        
-        meal_plan_text = response.choices[0].message.content
-        
-        meal_plan = {
-            "user_id": user_id,
-            "user_request": description,
-            "calories": calories,
-            "meals_per_day": meals_per_day,
-            "dietary_restrictions": dietary_restrictions,
-            "goals": goals,
-            "meal_plan": meal_plan_text,
-            "ai_model": "llama3-70b-8192",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "status": "active"
-        }
-        
-        return {
-            "status": "success",
-            "meal_plan": meal_plan,
-            "message": "Intelligent meal plan created successfully using AI based on your description"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating meal plan: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create meal plan: {str(e)}")
-
 async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Log a meal with AI nutrition insights."""
+    """Log a meal with AI nutrition analysis."""
     try:
         # Validate user exists first
         await require_valid_user(user_id)
@@ -206,20 +229,20 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         # Get description (required) and other parameters (optional)
         description = parameters.get("description", "")
         if not description:
-            raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what you ate for this meal.")
+            raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what you ate.")
         
         # Optional parameters with defaults
-        meal_type = parameters.get("meal_type", "general")
-        foods = parameters.get("foods", [])
-        estimated_calories = parameters.get("estimated_calories", 500)
+        meal_type = parameters.get("meal_type", "snack")
+        estimated_calories = parameters.get("estimated_calories", 0)
+        mood = parameters.get("mood", "good")
         notes = parameters.get("notes", "")
         
         meal_log = {
             "user_id": user_id,
             "description": description,
             "meal_type": meal_type,
-            "foods": foods,
             "estimated_calories": estimated_calories,
+            "mood": mood,
             "notes": notes,
             "logged_at": datetime.now(timezone.utc).isoformat()
         }
@@ -227,30 +250,27 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         # Add AI nutrition insights if Groq is available
         if groq_client:
             try:
-                insight_prompt = f"""Analyze this meal and provide nutrition insights:
-
-USER DESCRIPTION: {description}
-
-Additional context:
+                insight_prompt = f"""Analyze this meal description and provide nutrition insights:
+- User description: {description}
 - Meal type: {meal_type}
-- Foods consumed: {', '.join(foods) if foods else 'Based on description'}
 - Estimated calories: {estimated_calories}
+- Mood: {mood}
 - Additional notes: {notes}
 
 Provide:
-1. Nutrition highlights (protein, carbs, fat, vitamins, minerals) based on their description
-2. Health benefits of the foods mentioned
-3. Suggestions for balance if needed
-4. Tips for future meals
-5. Any concerns or recommendations
-6. Specific insights based on their detailed description
+1. Nutritional analysis of the meal
+2. Health benefits and considerations
+3. Suggestions for balance and variety
+4. Portion control recommendations
+5. Timing and meal planning tips
+6. Any specific insights based on their description
 
-Keep it brief but informative and personalized to what they described."""
+Keep it helpful and educational."""
 
                 insight_response = groq_client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": insight_prompt}],
-                    max_tokens=500,
+                    max_tokens=400,
                     temperature=0.7
                 )
                 
@@ -263,7 +283,7 @@ Keep it brief but informative and personalized to what they described."""
         return {
             "status": "success",
             "meal_log": meal_log,
-            "message": "Meal logged successfully with AI insights"
+            "message": "Meal logged successfully with AI nutrition insights"
         }
         
     except HTTPException:
@@ -273,198 +293,187 @@ Keep it brief but informative and personalized to what they described."""
         raise HTTPException(status_code=500, detail=f"Failed to log meal: {str(e)}")
 
 async def get_nutrition_summary(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Get intelligent nutrition summary using Groq AI."""
+    """Get nutrition summary with AI analysis."""
     try:
         # Validate user exists first
         await require_valid_user(user_id)
         
-        if not groq_client:
-            raise HTTPException(status_code=503, detail="Groq AI client not initialized")
-        
-        # Get description (required) and other parameters (optional)
+        # Get description (required)
         description = parameters.get("description", "")
         if not description:
             raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what kind of nutrition summary you need.")
         
-        # Optional parameters with defaults
+        # Optional parameters
         days = parameters.get("days", 7)
-        nutrition_data = parameters.get("nutrition_data", [])
-        goals = parameters.get("goals", "balanced nutrition")
+        goals = parameters.get("goals", "general health")
         
-        prompt = f"""Based on this user request, provide a comprehensive nutrition summary and analysis:
-
-USER REQUEST: {description}
-
-Additional context:
-- Period: {days} days
-- Nutrition data available: {nutrition_data}
+        # Generate AI-powered summary if Groq is available
+        if groq_client:
+            try:
+                summary_prompt = f"""Based on this user request, provide a comprehensive nutrition summary:
+- User request: {description}
+- Time period: {days} days
 - User goals: {goals}
 
 Provide:
-1. Summary of nutrition patterns based on their description
-2. Progress toward goals mentioned in their request
-3. Areas for improvement specific to what they asked for
-4. Recommendations for next period
-5. Health benefits achieved
-6. Tips for maintaining good nutrition
-7. Any specific advice based on their description
+1. Summary of typical nutrition patterns
+2. Nutrient balance analysis
+3. Goal achievement assessment
+4. Personalized recommendations
+5. Meal planning suggestions
+6. Next steps for improvement
 
-Format as a clear, actionable summary that directly addresses what they asked for."""
+Make it personalized and actionable based on their description."""
 
-        response = groq_client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=700,
-            temperature=0.6
-        )
-        
-        summary_text = response.choices[0].message.content
-        
-        # Mock nutrition summary (in real app, this would come from database)
-        summary = {
-            "user_id": user_id,
-            "user_request": description,
-            "period_days": days,
-            "total_meals": 21,
-            "total_calories": 14000,
-            "average_daily_calories": 2000,
-            "ai_analysis": summary_text,
-            "ai_model": "llama3-70b-8192",
-            "generated_at": datetime.now(timezone.utc).isoformat()
-        }
+                summary_response = groq_client.chat.completions.create(
+                    model="llama3-70b-8192",
+                    messages=[{"role": "user", "content": summary_prompt}],
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                
+                ai_summary = summary_response.choices[0].message.content
+                
+            except Exception as e:
+                logger.warning(f"Failed to generate AI summary: {e}")
+                ai_summary = "AI summary generation failed, but here's your basic summary."
+        else:
+            ai_summary = "AI features are currently unavailable."
         
         return {
             "status": "success",
-            "summary": summary
+            "user_id": user_id,
+            "summary": {
+                "period_days": days,
+                "goals": goals,
+                "ai_analysis": ai_summary,
+                "generated_at": datetime.now(timezone.utc).isoformat()
+            },
+            "message": "Nutrition summary generated successfully"
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting nutrition summary: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get nutrition summary: {str(e)}")
+        logger.error(f"Error generating nutrition summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
-async def set_nutrition_goal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Set an intelligent nutrition goal using Groq AI."""
+async def plan_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    """Plan a meal with AI recommendations."""
     try:
         # Validate user exists first
         await require_valid_user(user_id)
         
-        if not groq_client:
-            raise HTTPException(status_code=503, detail="Groq AI client not initialized")
-        
-        # Get description (required) and other parameters (optional)
+        # Get description (required)
         description = parameters.get("description", "")
         if not description:
-            raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what kind of nutrition goal you want to set.")
+            raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what kind of meal you want to plan.")
         
-        # Optional parameters with defaults
-        goal_type = parameters.get("goal_type", "general")
-        target_value = parameters.get("target_value", "flexible")
-        timeframe = parameters.get("timeframe", "flexible")
-        current_diet = parameters.get("current_diet", "not specified")
-        motivation = parameters.get("motivation", "not specified")
+        # Optional parameters
+        meal_type = parameters.get("meal_type", "dinner")
+        dietary_restrictions = parameters.get("dietary_restrictions", "none")
+        calorie_target = parameters.get("calorie_target", 600)
         
-        prompt = f"""Based on this user request, create a personalized nutrition goal plan:
-
-USER REQUEST: {description}
-
-Additional context:
-- Goal type: {goal_type}
-- Target value: {target_value}
-- Timeframe: {timeframe}
-- Current diet: {current_diet}
-- Motivation: {motivation}
+        # Generate AI-powered meal plan if Groq is available
+        if groq_client:
+            try:
+                meal_prompt = f"""Create a personalized meal plan:
+- User request: {description}
+- Meal type: {meal_type}
+- Dietary restrictions: {dietary_restrictions}
+- Calorie target: {calorie_target}
 
 Provide:
-1. Realistic goal breakdown based on their description
-2. Weekly progression plan
-3. Tips for achieving the goal
-4. Alternative food options if needed
-5. Motivation strategies
-6. Success metrics and milestones
-7. Any specific recommendations based on their description
+1. Complete meal plan with ingredients
+2. Nutritional breakdown
+3. Preparation instructions
+4. Alternative options
+5. Shopping list
+6. Time-saving tips
+7. Health benefits
 
-Format as a clear, actionable goal plan that directly addresses what they asked for."""
+Make it realistic, delicious, and aligned with their preferences."""
 
-        response = groq_client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=700,
-            temperature=0.6
-        )
-        
-        goal_plan = response.choices[0].message.content
-        
-        goal = {
-            "user_id": user_id,
-            "user_request": description,
-            "goal_type": goal_type,
-            "target_value": target_value,
-            "timeframe": timeframe,
-            "current_diet": current_diet,
-            "motivation": motivation,
-            "goal_plan": goal_plan,
-            "ai_model": "llama3-70b-8192",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "status": "active"
-        }
+                meal_response = groq_client.chat.completions.create(
+                    model="llama3-70b-8192",
+                    messages=[{"role": "user", "content": meal_prompt}],
+                    max_tokens=600,
+                    temperature=0.7
+                )
+                
+                ai_meal_plan = meal_response.choices[0].message.content
+                
+            except Exception as e:
+                logger.warning(f"Failed to generate AI meal plan: {e}")
+                ai_meal_plan = "AI meal planning failed, but here are some general suggestions."
+        else:
+            ai_meal_plan = "AI features are currently unavailable."
         
         return {
             "status": "success",
-            "goal": goal,
-            "message": "Intelligent nutrition goal set successfully using AI based on your description"
+            "user_id": user_id,
+            "meal_plan": {
+                "description": description,
+                "meal_type": meal_type,
+                "dietary_restrictions": dietary_restrictions,
+                "calorie_target": calorie_target,
+                "ai_plan": ai_meal_plan,
+                "planned_at": datetime.now(timezone.utc).isoformat()
+            },
+            "message": "Meal plan created successfully with AI recommendations"
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error setting nutrition goal: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to set nutrition goal: {str(e)}")
+        logger.error(f"Error planning meal: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to plan meal: {str(e)}")
 
 async def general_nutrition_response(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Generate intelligent general nutrition response using Groq AI."""
+    """General nutrition response with AI."""
     try:
-        if not groq_client:
-            raise HTTPException(status_code=503, detail="Groq AI client not initialized")
+        # Validate user exists first
+        await require_valid_user(user_id)
         
-        # Get description (required) and other parameters (optional)
-        description = parameters.get("description", "")
-        if not description:
-            raise HTTPException(status_code=400, detail="Description parameter is required. Please describe what you need help with regarding nutrition.")
+        # Get description/message (required)
+        message = parameters.get("description", "") or parameters.get("message", "")
+        if not message:
+            raise HTTPException(status_code=400, detail="Description or message parameter is required.")
         
-        # Optional parameters
-        message = parameters.get("message", description)
-        
-        prompt = f"""You are a knowledgeable nutrition expert. The user asks: "{message}"
+        # Generate AI response if Groq is available
+        if groq_client:
+            try:
+                ai_prompt = f"""You are a nutrition and health expert. The user asks: {message}
 
-User's detailed description: {description}
+Provide a helpful, encouraging response that:
+1. Addresses their specific nutrition question or concern
+2. Offers practical advice and tips
+3. Motivates them to make healthy choices
+4. Suggests next steps or alternatives
+5. Maintains a positive, supportive tone
 
-Provide a helpful, accurate, and encouraging response about nutrition and healthy eating that directly addresses their specific request. Include:
-1. Clear, actionable advice based on their description
-2. Health benefits relevant to their situation
-3. Practical tips they can implement today
-4. Encouragement and motivation
-5. Suggestions for further learning
-6. Any specific recommendations based on their description
+Keep it concise but comprehensive."""
 
-Keep the response conversational, helpful, and directly relevant to what they asked for."""
-
-        response = groq_client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=700,
-            temperature=0.7
-        )
-        
-        ai_response = response.choices[0].message.content
+                ai_response = groq_client.chat.completions.create(
+                    model="llama3-70b-8192",
+                    messages=[{"role": "user", "content": ai_prompt}],
+                    max_tokens=400,
+                    temperature=0.7
+                )
+                
+                response_text = ai_response.choices[0].message.content
+                
+            except Exception as e:
+                logger.warning(f"Failed to generate AI response: {e}")
+                response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
+        else:
+            response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
         
         return {
             "status": "success",
-            "response": ai_response,
+            "response": response_text,
             "user_id": user_id,
             "agent": "nutrition",
-            "ai_model": "llama3-70b-8192",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
@@ -475,7 +484,7 @@ Keep the response conversational, helpful, and directly relevant to what they as
         # Fallback to basic response if AI fails
         return {
             "status": "success",
-            "response": "I'm here to help with nutrition! I can create meal plans, log meals, and provide nutrition advice. Please provide a description of what you need.",
+            "response": "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need.",
             "user_id": user_id,
             "agent": "nutrition",
             "timestamp": datetime.now(timezone.utc).isoformat()
@@ -509,20 +518,16 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize Groq AI client on startup."""
-    global groq_client
+    """Initialize services on startup."""
+    logger.info("🚀 Starting Nutrition Agent...")
     
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if groq_api_key:
-        try:
-            groq_client = Groq(api_key=groq_api_key)
-            logger.info("Groq AI client initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize Groq AI client: {e}")
-            groq_client = None
-    else:
-        logger.warning("GROQ_API_KEY not set, AI nutrition features will not work")
-        groq_client = None
+    # Initialize databases
+    await initialize_databases()
+    
+    # Initialize AI
+    await initialize_ai()
+    
+    logger.info("✅ Nutrition Agent startup complete")
 
 # =============================================================================
 # API ENDPOINTS
@@ -540,12 +545,18 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Simple health check with Groq AI status."""
+    """Comprehensive health check with all service statuses."""
     return {
         "status": "healthy",
         "agent": "nutrition",
-        "groq_ai_status": "connected" if groq_client else "disconnected",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "services": {
+            "groq_ai": "connected" if groq_client else "disconnected",
+            "main_database": "connected" if database_status["main"] else "disconnected",
+            "user_database": "connected" if database_status["user"] else "disconnected",
+            "nutrition_database": "connected" if database_status["nutrition"] else "disconnected",
+            "workout_database": "connected" if database_status["workout"] else "disconnected"
+        },
         "message": "Nutrition agent is running smoothly"
     }
 
@@ -580,14 +591,12 @@ async def execute_tool(
         user_id = parameters.get("user_id", "default_user")
         
         # Execute tool based on name
-        if tool_name == "create_meal_plan":
-            return await create_meal_plan(parameters, user_id)
-        elif tool_name == "log_meal":
+        if tool_name == "log_meal":
             return await log_meal(parameters, user_id)
         elif tool_name == "get_nutrition_summary":
             return await get_nutrition_summary(parameters, user_id)
-        elif tool_name == "set_nutrition_goal":
-            return await set_nutrition_goal(parameters, user_id)
+        elif tool_name == "plan_meal":
+            return await plan_meal(parameters, user_id)
         elif tool_name == "general_nutrition":
             # General nutrition response with AI
             return await general_nutrition_response(parameters, user_id)
