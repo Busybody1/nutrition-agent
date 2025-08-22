@@ -236,39 +236,39 @@
                 </div>
                 <button class="btn" onclick="testConnection()">🔄 Test Connection</button>
             </div>
-            
+
             <!-- Meal Plan Creation Section -->
             <div class="section">
                 <h2>🍽️ Meal Plan Creation</h2>
                 <p>Create personalized meal plans with Groq AI.</p>
                 
-                <div class="form-group">
+                        <div class="form-group">
                     <label for="mealUser">User ID:</label>
                     <input type="text" id="mealUser" value="test_user_123" placeholder="Enter user ID">
-                </div>
+                        </div>
 
-                <div class="form-group">
+                        <div class="form-group">
                     <label for="mealDescription">Description (Required):</label>
                     <textarea id="mealDescription" rows="3" placeholder="Describe your meal plan needs (e.g., 'I need a meal plan for weight loss with Mediterranean flavors, no nuts, targeting 1800 calories per day')"></textarea>
-                </div>
+                        </div>
 
                 <div class="grid">
                     <div class="form-group">
                         <label for="mealCalories">Daily Calories:</label>
                         <input type="number" id="mealCalories" value="2000" min="800" max="5000">
                     </div>
-
-                    <div class="form-group">
+                    
+                        <div class="form-group">
                         <label for="mealCount">Meals per Day:</label>
                         <select id="mealCount">
                             <option value="3">3 meals</option>
                             <option value="4">4 meals</option>
                             <option value="5">5 meals</option>
                             <option value="6">6 meals</option>
-                        </select>
-                    </div>
+                            </select>
+                        </div>
 
-                    <div class="form-group">
+                        <div class="form-group">
                         <label for="mealGoals">Goals:</label>
                         <select id="mealGoals">
                             <option value="weight_loss">Weight Loss</option>
@@ -278,13 +278,13 @@
                             <option value="general">General Health</option>
                         </select>
                     </div>
-
+                    
                     <div class="form-group">
                         <label for="mealRestrictions">Dietary Restrictions:</label>
                         <input type="text" id="mealRestrictions" placeholder="e.g., vegetarian, gluten-free, dairy-free">
                     </div>
                 </div>
-
+                
                 <button class="btn" onclick="createMealPlan()">🍽️ Create Meal Plan</button>
                 <div id="mealResult" class="result" style="display: none;"></div>
             </div>
@@ -293,38 +293,38 @@
                 <h2>📝 Log Meal</h2>
                 <p>Log your meals and get AI-powered nutrition insights, calorie tracking, and personalized recommendations using Groq AI.</p>
                 
-                <div class="form-group">
+                        <div class="form-group">
                     <label for="logUser">User ID:</label>
                     <input type="text" id="logUser" value="test_user_123" placeholder="Enter user ID">
-                </div>
+                        </div>
 
-                <div class="form-group">
+                        <div class="form-group">
                     <label for="logDescription">Description (Required):</label>
                     <textarea id="logDescription" rows="3" placeholder="Describe what you ate (e.g., 'I had a grilled chicken salad with mixed greens, cherry tomatoes, cucumber, and olive oil dressing')"></textarea>
-                </div>
-
+                    </div>
+                    
                 <div class="grid">
-                    <div class="form-group">
+                        <div class="form-group">
                         <label for="logMealType">Meal Type:</label>
                         <select id="logMealType">
-                            <option value="breakfast">Breakfast</option>
-                            <option value="lunch">Lunch</option>
-                            <option value="dinner">Dinner</option>
-                            <option value="snack">Snack</option>
-                        </select>
-                    </div>
+                                <option value="breakfast">Breakfast</option>
+                                <option value="lunch">Lunch</option>
+                                <option value="dinner">Dinner</option>
+                                <option value="snack">Snack</option>
+                            </select>
+                        </div>
 
-                    <div class="form-group">
+                        <div class="form-group">
                         <label for="logCalories">Estimated Calories:</label>
                         <input type="number" id="logCalories" value="500" min="50" max="2000">
                     </div>
-                </div>
-
+                    </div>
+                    
                 <div class="form-group">
                     <label for="logNotes">Additional Notes:</label>
                     <textarea id="logNotes" rows="2" placeholder="Any additional notes about your meal"></textarea>
                 </div>
-
+                
                 <button class="btn" onclick="logMeal()">📝 Log Meal</button>
                 <div id="logResult" class="result" style="display: none;"></div>
             </div>
@@ -333,23 +333,23 @@
                 <h2>📊 Get Nutrition Summary</h2>
                 <p>Get intelligent summaries of your nutrition patterns, progress analysis, and personalized recommendations using Groq AI.</p>
                 
-                <div class="form-group">
+                        <div class="form-group">
                     <label for="summaryUser">User ID:</label>
                     <input type="text" id="summaryUser" value="test_user_123" placeholder="Enter user ID">
-                </div>
+                        </div>
 
-                <div class="form-group">
+                        <div class="form-group">
                     <label for="summaryDescription">Description (Required):</label>
                     <textarea id="summaryDescription" rows="3" placeholder="Describe what kind of nutrition summary you need (e.g., 'I want to see how my protein intake has been over the last week')"></textarea>
-                </div>
+                        </div>
 
                 <div class="grid">
                     <div class="form-group">
                         <label for="summaryDays">Period (days):</label>
                         <input type="number" id="summaryDays" value="7" min="1" max="365">
                     </div>
-
-                    <div class="form-group">
+                    
+                        <div class="form-group">
                         <label for="summaryFocus">Focus Area:</label>
                         <select id="summaryFocus">
                             <option value="calories">Calories</option>
@@ -372,15 +372,15 @@
                 <div class="form-group">
                     <label for="goalUser">User ID:</label>
                     <input type="text" id="goalUser" value="test_user_123" placeholder="Enter user ID">
-                </div>
-
-                <div class="form-group">
+                    </div>
+                    
+                        <div class="form-group">
                     <label for="goalDescription">Description (Required):</label>
                     <textarea id="goalDescription" rows="3" placeholder="Describe your nutrition goal (e.g., 'I want to increase my protein intake to 150g per day for muscle building')"></textarea>
-                </div>
+                        </div>
 
                 <div class="grid">
-                    <div class="form-group">
+                        <div class="form-group">
                         <label for="goalType">Goal Type:</label>
                         <select id="goalType">
                             <option value="calories">Daily Calories</option>
@@ -388,15 +388,15 @@
                             <option value="carbs">Carbohydrate Intake</option>
                             <option value="fat">Fat Intake</option>
                             <option value="meals">Meal Frequency</option>
-                        </select>
+                            </select>
                     </div>
-
+                    
                     <div class="form-group">
                         <label for="goalTarget">Target Value:</label>
                         <input type="text" id="goalTarget" placeholder="e.g., 2000 calories, 150g protein">
                     </div>
                 </div>
-
+                
                 <button class="btn" onclick="setNutritionGoal()">🎯 Set Goal</button>
                 <div id="goalResult" class="result" style="display: none;"></div>
             </div>
@@ -409,12 +409,12 @@
                     <label for="generalUser">User ID:</label>
                     <input type="text" id="generalUser" value="test_user_123" placeholder="Enter user ID">
                 </div>
-
+                
                 <div class="form-group">
                     <label for="generalQuestion">Question/Description (Required):</label>
                     <textarea id="generalQuestion" rows="3" placeholder="Ask any nutrition question (e.g., 'What should I eat before a workout?')"></textarea>
                 </div>
-
+                
                 <button class="btn btn-secondary" onclick="askGeneralNutrition()">🧠 Ask Groq AI</button>
                 <div id="generalResult" class="result" style="display: none;"></div>
             </div>
@@ -441,7 +441,7 @@
                         <option value="general_nutrition">General Nutrition</option>
                     </select>
                 </div>
-
+                
                 <div class="form-group">
                     <label for="testUser">User ID:</label>
                     <input type="text" id="testUser" value="test_user_123" placeholder="Enter user ID">
@@ -451,7 +451,7 @@
                     <label for="testDescription">Description (Required):</label>
                     <textarea id="testDescription" rows="3" placeholder="Provide a description for the selected tool"></textarea>
                 </div>
-
+                
                 <button class="btn" onclick="testExecuteTool()">🧪 Test Tool</button>
                 <div id="testResult" class="result" style="display: none;"></div>
             </div>
@@ -495,7 +495,7 @@
 
             const data = {
                 tool_name: 'create_meal_plan',
-                parameters: {
+                        parameters: {
                     user_id: document.getElementById('mealUser').value,
                     description: description,
                     calories: parseInt(document.getElementById('mealCalories').value),
@@ -540,7 +540,7 @@
 
             const data = {
                 tool_name: 'get_nutrition_summary',
-                parameters: {
+                        parameters: {
                     user_id: document.getElementById('summaryUser').value,
                     description: description,
                     days: parseInt(document.getElementById('summaryDays').value),
@@ -581,12 +581,12 @@
             }
 
             const data = {
-                tool_name: 'general_nutrition',
-                parameters: {
+                        tool_name: 'general_nutrition',
+                        parameters: {
                     user_id: document.getElementById('generalUser').value,
                     description: question,
-                    message: question
-                }
+                            message: question
+                        }
             };
 
             const result = await makeRequest('/execute-tool', data);
