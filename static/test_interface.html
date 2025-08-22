@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nutrition Agent - Comprehensive Test Interface</title>
+    <title>Nutrition Agent - GPT-4o Test Interface</title>
     <style>
         * {
             margin: 0;
@@ -19,160 +19,142 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
             overflow: hidden;
         }
 
         .header {
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
             color: white;
-            padding: 30px;
+            padding: 40px;
             text-align: center;
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 2.8em;
+            margin-bottom: 15px;
+            font-weight: 300;
         }
 
         .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
+            font-size: 1.2em;
+            opacity: 0.95;
+            font-weight: 300;
         }
 
         .content {
-            padding: 30px;
+            padding: 40px;
         }
 
         .section {
             margin-bottom: 40px;
-            padding: 25px;
-            border-radius: 10px;
+            padding: 30px;
+            border-radius: 15px;
             background: #f8f9fa;
-            border-left: 4px solid #ff9a9e;
+            border-left: 5px solid #ff9a9e;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
         }
 
         .section h2 {
             color: #333;
-            margin-bottom: 20px;
-            font-size: 1.5em;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+
+        .section p {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 1.1em;
+            line-height: 1.6;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             font-weight: 600;
-            color: #555;
+            color: #444;
+            font-size: 1.1em;
         }
 
         input, select, textarea {
             width: 100%;
-            padding: 12px;
+            padding: 15px;
             border: 2px solid #e1e5e9;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 16px;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
+            background: white;
         }
 
         input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #ff9a9e;
+            box-shadow: 0 0 0 3px rgba(255, 154, 158, 0.1);
         }
 
         .btn {
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
             color: white;
-            padding: 12px 25px;
+            padding: 15px 30px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 16px;
             font-weight: 600;
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
+            margin: 5px;
         }
 
         .btn:hover {
             transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 154, 158, 0.3);
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            margin: 5px;
-            font-size: 14px;
-            padding: 8px 15px;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
         }
 
-        .btn-success {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        }
-
-        .btn-warning {
-            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        .btn-secondary:hover {
+            box-shadow: 0 10px 25px rgba(168, 237, 234, 0.3);
         }
 
         .response {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 8px;
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 10px;
             font-family: 'Courier New', monospace;
             white-space: pre-wrap;
-            max-height: 400px;
+            max-height: 500px;
             overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
         .response.success {
             background: #d4edda;
-            border: 1px solid #c3e6cb;
+            border: 2px solid #c3e6cb;
             color: #155724;
         }
 
         .response.error {
             background: #f8d7da;
-            border: 1px solid #f5c6cb;
+            border: 2px solid #f5c6cb;
             color: #721c24;
         }
 
         .response.info {
             background: #d1ecf1;
-            border: 1px solid #bee5eb;
+            border: 2px solid #bee5eb;
             color: #0c5460;
-        }
-
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #e1e5e9;
-            flex-wrap: wrap;
-        }
-
-        .tab {
-            padding: 15px 25px;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
-            white-space: nowrap;
-        }
-
-        .tab.active {
-            border-bottom-color: #ff9a9e;
-            color: #ff9a9e;
-            font-weight: 600;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
         }
 
         .grid-2 {
@@ -187,486 +169,281 @@
             gap: 20px;
         }
 
-        .metric-card {
-            background: white;
-            border-radius: 8px;
+        .feature-highlight {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            color: white;
             padding: 20px;
-            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            margin: 20px 0;
             text-align: center;
         }
 
-        .metric-value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #ff9a9e;
-            margin: 10px 0;
-        }
-
-        .metric-label {
-            color: #666;
-            font-size: 0.9em;
-        }
-
-        .endpoint-group {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 10px 0;
-            border-left: 4px solid #ff9a9e;
-        }
-
-        .endpoint-group h4 {
-            color: #333;
+        .feature-highlight h3 {
             margin-bottom: 10px;
+            font-size: 1.3em;
         }
 
-        .endpoint-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #e1e5e9;
+        .feature-highlight p {
+            opacity: 0.9;
+            margin: 0;
         }
 
-        .endpoint-item:last-child {
-            border-bottom: none;
-        }
-
-        .endpoint-method {
-            background: #ff9a9e;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .endpoint-path {
-            font-family: monospace;
-            color: #555;
-        }
-
-        .endpoint-description {
-            color: #666;
-            font-size: 0.9em;
-            font-style: italic;
-        }
-
-        .meal-plan, .food-search {
-            margin-top: 10px;
-        }
-
-        .meal-item {
+        .nutrition-form {
             background: white;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            border: 1px solid #e1e5e9;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #fecfef;
         }
 
-        .meal-item h4 {
+        .nutrition-form h4 {
             color: #ff9a9e;
-            margin-bottom: 8px;
-            font-size: 1.1em;
-        }
-
-        .food-item, .nutrition-item {
-            padding: 5px 0;
-            color: #555;
-        }
-
-        .food-item {
-            border-bottom: 1px solid #f0f0f0;
-            padding: 8px 0;
-        }
-
-        .nutrition-item {
-            display: inline-block;
-            margin-right: 15px;
-            font-weight: 600;
-            color: #ff9a9e;
-        }
-
-        h3 {
-            color: #333;
-            margin: 20px 0 10px 0;
+            margin-bottom: 15px;
             font-size: 1.2em;
-            border-bottom: 2px solid #e1e5e9;
-            padding-bottom: 5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🍎 Nutrition Agent - Comprehensive Test Interface</h1>
-            <p>Test all nutrition features: Food logging, meal planning, AI analysis, and scalability infrastructure</p>
+            <h1>🍎 Nutrition Agent - GPT-4o</h1>
+            <p>AI-powered nutrition planning and advice using OpenAI GPT-4o for personalized meal recommendations</p>
         </div>
 
         <div class="content">
-            <div class="tabs">
-                <div class="tab active" onclick="showTab('nutrition')">Nutrition Features</div>
-                <div class="tab" onclick="showTab('scalability')">Scalability & Monitoring</div>
-                <div class="tab" onclick="showTab('sessions')">Session Management</div>
-                <div class="tab" onclick="showTab('performance')">Performance & Testing</div>
-                <div class="tab" onclick="showTab('endpoints')">API Endpoints</div>
+            <div class="feature-highlight">
+                <h3>🚀 Powered by GPT-4o</h3>
+                <p>Intelligent nutrition analysis and personalized meal planning</p>
             </div>
 
-            <!-- Nutrition Features Tab -->
-            <div id="nutrition" class="tab-content active">
-                <div class="section">
-                    <h2>🍽️ Food Logging</h2>
-                    <p>Log food items and track nutrition intake.</p>
-                    
-                    <div class="form-group">
-                        <label for="foodName">Food Name:</label>
-                        <input type="text" id="foodName" value="apple" placeholder="Enter food name">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="quantity">Quantity (grams):</label>
-                        <input type="number" id="quantity" value="100" placeholder="Enter quantity in grams">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="mealType">Meal Type:</label>
-                        <select id="mealType">
-                            <option value="breakfast">Breakfast</option>
-                            <option value="lunch">Lunch</option>
-                            <option value="dinner">Dinner</option>
-                            <option value="snack">Snack</option>
-                        </select>
-                    </div>
-                    
-                    <button class="btn" onclick="logFood()">Log Food</button>
-                    <div id="logFoodResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>📋 Meal Planning</h2>
-                    <p>Create personalized meal plans with AI assistance.</p>
-                    
-                    <div class="form-group">
-                        <label for="mealPlanRequest">Meal Plan Request:</label>
-                        <textarea id="mealPlanRequest" rows="3" placeholder="Describe your meal plan needs (e.g., 'I want a vegetarian meal plan for weight loss')">I want a healthy meal plan for weight loss</textarea>
+            <!-- Meal Planning Section -->
+            <div class="section">
+                <h2>🍽️ AI Meal Planning</h2>
+                <p>Get personalized meal plans based on your preferences, dietary restrictions, and fitness goals using GPT-4o AI.</p>
+                
+                <div class="nutrition-form">
+                    <h4>Meal Plan Preferences</h4>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="mealPlanUserId">User ID:</label>
+                            <input type="text" id="mealPlanUserId" value="test-user-123" placeholder="Enter user ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="mealPlanType">Meal Plan Type:</label>
+                            <select id="mealPlanType">
+                                <option value="daily">Daily Plan</option>
+                                <option value="weekly">Weekly Plan</option>
+                                <option value="monthly">Monthly Plan</option>
+                            </select>
+                        </div>
                     </div>
                     
                     <div class="grid-2">
-                        <button class="btn" onclick="createMealPlan()">Create Meal Plan</button>
-                        <button class="btn" onclick="createRuleBasedMealPlan()">Rule-Based Plan</button>
+                        <div class="form-group">
+                            <label for="dietaryRestrictions">Dietary Restrictions:</label>
+                            <select id="dietaryRestrictions">
+                                <option value="none">None</option>
+                                <option value="vegetarian">Vegetarian</option>
+                                <option value="vegan">Vegan</option>
+                                <option value="gluten-free">Gluten-Free</option>
+                                <option value="keto">Keto</option>
+                                <option value="paleo">Paleo</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="calorieGoal">Daily Calorie Goal:</label>
+                            <input type="number" id="calorieGoal" value="2000" placeholder="Enter calorie goal">
+                        </div>
                     </div>
-                    <div id="mealPlanResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>🔍 Food Search & Analysis</h2>
-                    <p>Search for foods and analyze nutrition information.</p>
                     
                     <div class="form-group">
-                        <label for="searchQuery">Search Query:</label>
-                        <input type="text" id="searchQuery" value="chicken" placeholder="Enter food to search">
+                        <label for="fitnessGoals">Fitness Goals:</label>
+                        <textarea id="fitnessGoals" rows="3" placeholder="Describe your fitness goals (e.g., weight loss, muscle gain, maintenance)">I want to maintain my current weight while building muscle through strength training</textarea>
                     </div>
                     
-                    <div class="grid-3">
-                        <button class="btn" onclick="searchFoods()">Search Foods</button>
-                        <button class="btn" onclick="fuzzySearch()">Fuzzy Search</button>
-                        <button class="btn" onclick="getFoodCount()">Get Food Count</button>
-                    </div>
-                    <div id="searchResponse" class="response"></div>
+                    <button class="btn" onclick="createMealPlan()">🍽️ Create AI Meal Plan</button>
                 </div>
-
-                <div class="section">
-                    <h2>🧮 Nutrition Calculations</h2>
-                    <p>Calculate calories and nutrition for meals and recipes.</p>
-                    
-                    <div class="form-group">
-                        <label for="calorieRequest">Calorie Request:</label>
-                        <textarea id="calorieRequest" rows="3" placeholder="Describe what you want to calculate (e.g., 'Calculate calories for 200g chicken breast')">Calculate calories for 200g chicken breast</textarea>
-                    </div>
-                    
-                    <div class="grid-2">
-                        <button class="btn" onclick="calculateCalories()">Calculate Calories</button>
-                        <button class="btn" onclick="getNutritionRecommendations()">Get Recommendations</button>
-                    </div>
-                    <div id="calculationResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>👨‍🍳 Recipe Creation</h2>
-                    <p>Create recipes with AI assistance.</p>
-                    
-                    <div class="form-group">
-                        <label for="recipeRequest">Recipe Request:</label>
-                        <textarea id="recipeRequest" rows="3" placeholder="Describe the recipe you want to create (e.g., 'Create a healthy chicken salad recipe')">Create a healthy chicken salad recipe</textarea>
-                    </div>
-                    
-                    <button class="btn" onclick="createRecipe()">Create Recipe</button>
-                    <div id="recipeResponse" class="response"></div>
-                </div>
+                
+                <div id="mealPlanResponse" class="response"></div>
             </div>
 
-            <!-- Scalability & Monitoring Tab -->
-            <div id="scalability" class="tab-content">
-                <div class="section">
-                    <h2>🔍 Health Check</h2>
-                    <p>Check the status of the Nutrition Agent and connected systems.</p>
-                    <div class="grid-3">
-                        <button class="btn" onclick="checkHealth()">Basic Health</button>
-                        <button class="btn" onclick="checkDetailedHealth()">Detailed Health</button>
-                        <button class="btn" onclick="checkDatabase()">Database Health</button>
-                    </div>
-                    <div id="healthResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>📊 System Status</h2>
-                    <p>Monitor system status and scalability metrics.</p>
+            <!-- Calorie Calculation Section -->
+            <div class="section">
+                <h2>⚖️ Calorie & Nutrition Calculator</h2>
+                <p>Calculate detailed nutrition information for specific foods and meals using GPT-4o AI analysis.</p>
+                
+                <div class="nutrition-form">
+                    <h4>Food Information</h4>
                     <div class="grid-2">
-                        <button class="btn" onclick="checkSystemStatus()">System Status</button>
-                        <button class="btn" onclick="checkScalabilityStatus()">Scalability Status</button>
+                        <div class="form-group">
+                            <label for="calorieUserId">User ID:</label>
+                            <input type="text" id="calorieUserId" value="test-user-123" placeholder="Enter user ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="foodName">Food Name:</label>
+                            <input type="text" id="foodName" value="Grilled chicken breast with quinoa and vegetables" placeholder="Enter food name or description">
+                        </div>
                     </div>
-                    <div id="systemStatusResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>🔧 Database Testing</h2>
-                    <p>Test database connections and configurations.</p>
+                    
                     <div class="grid-3">
-                        <button class="btn" onclick="testNutritionDB()">Test Nutrition DB</button>
-                        <button class="btn" onclick="testSharedDB()">Test Shared DB</button>
-                        <button class="btn" onclick="testDatabaseSchema()">Test Schema</button>
+                        <div class="form-group">
+                            <label for="servingSize">Serving Size:</label>
+                            <input type="text" id="servingSize" value="1 cup" placeholder="e.g., 1 cup, 200g">
+                        </div>
+                        <div class="form-group">
+                            <label for="mealType">Meal Type:</label>
+                            <select id="mealType">
+                                <option value="breakfast">Breakfast</option>
+                                <option value="lunch">Lunch</option>
+                                <option value="dinner">Dinner</option>
+                                <option value="snack">Snack</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cookingMethod">Cooking Method:</label>
+                            <select id="cookingMethod">
+                                <option value="grilled">Grilled</option>
+                                <option value="baked">Baked</option>
+                                <option value="fried">Fried</option>
+                                <option value="steamed">Steamed</option>
+                                <option value="raw">Raw</option>
+                            </select>
+                        </div>
                     </div>
-                    <div id="databaseResponse" class="response"></div>
+                    
+                    <button class="btn" onclick="calculateCalories()">⚖️ Calculate Nutrition with AI</button>
                 </div>
+                
+                <div id="calorieResponse" class="response"></div>
             </div>
 
-            <!-- Session Management Tab -->
-            <div id="sessions" class="tab-content">
-                <div class="section">
-                    <h2>🔐 Session Management</h2>
-                    <p>Create and manage user sessions for the Nutrition Agent.</p>
-                    
-                    <div class="form-group">
-                        <label for="sessionUserId">User ID:</label>
-                        <input type="text" id="sessionUserId" value="test-user-123" placeholder="Enter user ID">
-                    </div>
-                    
-                    <div class="grid-3">
-                        <button class="btn" onclick="createSession()">Create Session</button>
-                        <button class="btn" onclick="getSession()">Get Session</button>
-                        <button class="btn" onclick="validateSession()">Validate Session</button>
-                    </div>
-                    <div id="sessionResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>💬 Conversation Management</h2>
-                    <p>Manage conversation state and history.</p>
-                    
-                    <div class="grid-3">
-                        <button class="btn" onclick="getConversationState()">Get State</button>
-                        <button class="btn" onclick="getConversationHistory()">Get History</button>
-                        <button class="btn" onclick="resetConversation()">Reset Conversation</button>
-                    </div>
-                    <div id="conversationResponse" class="response"></div>
-                </div>
-
-                <div class="section">
-                    <h2>📝 Message Handling</h2>
-                    <p>Send messages and search conversations.</p>
-                    
-                    <div class="form-group">
-                        <label for="messageText">Message:</label>
-                        <textarea id="messageText" rows="3" placeholder="Enter your message">Hello, I need help with meal planning</textarea>
+            <!-- Nutrition Recommendations Section -->
+            <div class="section">
+                <h2>💡 AI Nutrition Recommendations</h2>
+                <p>Get personalized nutrition advice and recommendations based on your health profile and goals.</p>
+                
+                <div class="nutrition-form">
+                    <h4>Health Profile</h4>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="recommendationUserId">User ID:</label>
+                            <input type="text" id="recommendationUserId" value="test-user-123" placeholder="Enter user ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="age">Age:</label>
+                            <input type="number" id="age" value="30" placeholder="Enter your age">
+                        </div>
                     </div>
                     
                     <div class="grid-2">
-                        <button class="btn" onclick="sendMessage()">Send Message</button>
-                        <button class="btn" onclick="searchConversations()">Search Conversations</button>
+                        <div class="form-group">
+                            <label for="weight">Weight (kg):</label>
+                            <input type="number" id="weight" value="70" placeholder="Enter weight in kg">
+                        </div>
+                        <div class="form-group">
+                            <label for="height">Height (cm):</label>
+                            <input type="number" id="height" value="170" placeholder="Enter height in cm">
+                        </div>
                     </div>
-                    <div id="messageResponse" class="response"></div>
+                    
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="activityLevel">Activity Level:</label>
+                            <select id="activityLevel">
+                                <option value="sedentary">Sedentary (little or no exercise)</option>
+                                <option value="lightly_active">Lightly Active (light exercise 1-3 days/week)</option>
+                                <option value="moderately_active">Moderately Active (moderate exercise 3-5 days/week)</option>
+                                <option value="very_active">Very Active (hard exercise 6-7 days/week)</option>
+                                <option value="extremely_active">Extremely Active (very hard exercise, physical job)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="healthGoals">Primary Health Goal:</label>
+                            <select id="healthGoals">
+                                <option value="weight_loss">Weight Loss</option>
+                                <option value="weight_gain">Weight Gain</option>
+                                <option value="maintenance">Weight Maintenance</option>
+                                <option value="muscle_gain">Muscle Gain</option>
+                                <option value="energy">Energy Improvement</option>
+                                <option value="general_health">General Health</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="healthConditions">Health Conditions (optional):</label>
+                        <textarea id="healthConditions" rows="3" placeholder="Describe any health conditions, allergies, or dietary restrictions">No major health conditions, but I'm lactose intolerant</textarea>
+                    </div>
+                    
+                    <button class="btn" onclick="getNutritionRecommendations()">💡 Get AI Recommendations</button>
                 </div>
+                
+                <div id="recommendationResponse" class="response"></div>
             </div>
 
-            <!-- Performance & Testing Tab -->
-            <div id="performance" class="tab-content">
-                <div class="section">
-                    <h2>📈 Performance Metrics</h2>
-                    <p>Monitor performance metrics and system KPIs.</p>
-                    <div class="grid-2">
-                        <button class="btn" onclick="getPerformanceMetrics()">Get Metrics</button>
-                        <button class="btn" onclick="getPerformanceDashboard()">Dashboard</button>
-                    </div>
-                    <div id="performanceResponse" class="response"></div>
+            <!-- General Nutrition Section -->
+            <div class="section">
+                <h2>🧠 General Nutrition AI</h2>
+                <p>Ask general nutrition questions and get intelligent responses powered by GPT-4o.</p>
+                
+                <div class="form-group">
+                    <label for="generalUserId">User ID:</label>
+                    <input type="text" id="generalUserId" value="test-user-123" placeholder="Enter user ID">
                 </div>
-
-                <div class="section">
-                    <h2>🧪 Performance Testing</h2>
-                    <p>Run performance tests and benchmarks.</p>
-                    <div class="grid-3">
-                        <button class="btn" onclick="testFoodLogging()">Test Food Logging</button>
-                        <button class="btn" onclick="testMealPlanning()">Test Meal Planning</button>
-                        <button class="btn" onclick="testAIAnalysis()">Test AI Analysis</button>
-                    </div>
-                    <div id="testingResponse" class="response"></div>
+                
+                <div class="form-group">
+                    <label for="nutritionQuestion">Nutrition Question:</label>
+                    <textarea id="nutritionQuestion" rows="4" placeholder="Ask any nutrition-related question (e.g., What are the best pre-workout foods? How can I improve my protein intake? What should I eat for better recovery?)">What are the best foods to eat before and after a workout for optimal performance and recovery?</textarea>
                 </div>
-
-                <div class="section">
-                    <h2>🔧 Task Management</h2>
-                    <p>Submit and monitor background tasks.</p>
-                    
-                    <div class="form-group">
-                        <label for="taskDescription">Task Description:</label>
-                        <textarea id="taskDescription" rows="3" placeholder="Describe the task to submit">Process nutrition analysis for user meals</textarea>
-                    </div>
-                    
-                    <div class="grid-2">
-                        <button class="btn" onclick="submitTask()">Submit Task</button>
-                        <button class="btn" onclick="getTaskStatus()">Get Task Status</button>
-                    </div>
-                    <div id="taskResponse" class="response"></div>
-                </div>
+                
+                <button class="btn btn-secondary" onclick="askGeneralNutrition()">🧠 Ask GPT-4o</button>
+                <div id="generalNutritionResponse" class="response"></div>
             </div>
 
-            <!-- API Endpoints Tab -->
-            <div id="endpoints" class="tab-content">
-                <div class="section">
-                    <h2>🔗 Available API Endpoints</h2>
-                    <p>Complete list of all available endpoints in the Nutrition Agent.</p>
-                    
-                    <div class="endpoint-group">
-                        <h4>Core Nutrition Features</h4>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">POST</span>
-                            <span class="endpoint-path">/log-food</span>
-                            <span class="endpoint-description">Log food intake</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">POST</span>
-                            <span class="endpoint-path">/meal-plan</span>
-                            <span class="endpoint-description">Create meal plan</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">POST</span>
-                            <span class="endpoint-path">/search-foods-comprehensive</span>
-                            <span class="endpoint-description">Search foods</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">POST</span>
-                            <span class="endpoint-path">/calculate-calories</span>
-                            <span class="endpoint-description">Calculate nutrition</span>
-                        </div>
-                    </div>
-
-                    <div class="endpoint-group">
-                        <h4>Session & Conversation Management</h4>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">POST</span>
-                            <span class="endpoint-path">/api/sessions/create</span>
-                            <span class="endpoint-description">Create user session</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/api/sessions/{session_token}</span>
-                            <span class="endpoint-description">Get session info</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">POST</span>
-                            <span class="endpoint-path">/api/conversations/message</span>
-                            <span class="endpoint-description">Send message</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/api/conversations/history</span>
-                            <span class="endpoint-description">Get conversation history</span>
-                        </div>
-                    </div>
-
-                    <div class="endpoint-group">
-                        <h4>Performance & Monitoring</h4>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/api/performance/metrics</span>
-                            <span class="endpoint-description">Get performance metrics</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/api/performance/dashboard</span>
-                            <span class="endpoint-description">Performance dashboard</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/api/scalability/status</span>
-                            <span class="endpoint-description">Scalability status</span>
-                        </div>
-                    </div>
-
-                    <div class="endpoint-group">
-                        <h4>Health & Testing</h4>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/health</span>
-                            <span class="endpoint-description">Basic health check</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/health/detailed</span>
-                            <span class="endpoint-description">Detailed health info</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-method">GET</span>
-                            <span class="endpoint-path">/test/database</span>
-                            <span class="endpoint-description">Test database connection</span>
-                        </div>
-                    </div>
+            <!-- Health Check Section -->
+            <div class="section">
+                <h2>🏥 System Health & Status</h2>
+                <p>Check the health of the Nutrition Agent and verify OpenAI GPT-4o integration.</p>
+                
+                <div class="grid-2">
+                    <button class="btn" onclick="checkHealth()">📊 Check Health</button>
+                    <button class="btn" onclick="checkDatabase()">🗄️ Test Database</button>
                 </div>
+                
+                <div id="healthResponse" class="response"></div>
+            </div>
+
+            <!-- API Testing Section -->
+            <div class="section">
+                <h2>🔧 API Testing</h2>
+                <p>Test the execute-tool endpoint with different nutrition tools to verify GPT-4o integration.</p>
+                
+                <div class="form-group">
+                    <label for="toolName">Tool Name:</label>
+                    <select id="toolName">
+                        <option value="general_nutrition">General Nutrition</option>
+                        <option value="create_meal_plan">Create Meal Plan</option>
+                        <option value="calculate_calories">Calculate Calories</option>
+                        <option value="get_nutrition_recommendations">Get Recommendations</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="toolUserId">User ID:</label>
+                    <input type="text" id="toolUserId" value="test-user-123" placeholder="Enter user ID">
+                </div>
+                
+                <button class="btn btn-secondary" onclick="testExecuteTool()">⚡ Test Execute Tool</button>
+                <div id="executeToolResponse" class="response"></div>
             </div>
         </div>
     </div>
 
     <script>
-        function showTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        async function makeRequest(endpoint, method = 'GET', data = null) {
-            try {
-                const options = {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                };
-
-                if (data) {
-                    options.body = JSON.stringify(data);
-                }
-
-                const response = await fetch(endpoint, options);
-                const result = await response.json();
-                
-                return {
-                    success: response.ok,
-                    data: result,
-                    status: response.status
-                };
-            } catch (error) {
-                return {
-                    success: false,
-                    error: error.message,
-                    status: 0
-                };
-            }
-        }
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkHealth();
+        });
 
         function displayResponse(elementId, response, type = 'info') {
             const element = document.getElementById(elementId);
@@ -674,254 +451,273 @@
             element.textContent = JSON.stringify(response, null, 2);
         }
 
-        // Nutrition Functions
-        async function logFood() {
-            const foodName = document.getElementById('foodName').value;
-            const quantity = document.getElementById('quantity').value;
-            const mealType = document.getElementById('mealType').value;
-            
-            const response = await makeRequest('/log-food', 'POST', {
-                food_name: foodName,
-                quantity_g: parseInt(quantity),
-                meal_type: mealType,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('logFoodResponse', response, response.success ? 'success' : 'error');
-        }
-
+        // Meal Planning Function
         async function createMealPlan() {
-            const request = document.getElementById('mealPlanRequest').value;
+            const userId = document.getElementById('mealPlanUserId').value;
+            const mealPlanType = document.getElementById('mealPlanType').value;
+            const dietaryRestrictions = document.getElementById('dietaryRestrictions').value;
+            const calorieGoal = document.getElementById('calorieGoal').value;
+            const fitnessGoals = document.getElementById('fitnessGoals').value;
             
-            const response = await makeRequest('/meal-plan', 'POST', {
-                request: request,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('mealPlanResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/execute-tool', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tool_name: 'create_meal_plan',
+                        parameters: {
+                            user_id: userId,
+                            meal_plan_type: mealPlanType,
+                            dietary_restrictions: dietaryRestrictions,
+                            calorie_goal: parseInt(calorieGoal),
+                            fitness_goals: fitnessGoals
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('mealPlanResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('mealPlanResponse', responseObj, 'error');
+            }
         }
 
-        async function createRuleBasedMealPlan() {
-            const request = document.getElementById('mealPlanRequest').value;
-            
-            const response = await makeRequest('/meal-plan-rule-based', 'POST', {
-                request: request,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('mealPlanResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function searchFoods() {
-            const query = document.getElementById('searchQuery').value;
-            
-            const response = await makeRequest('/search-foods-comprehensive', 'POST', {
-                query: query,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('searchResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function fuzzySearch() {
-            const query = document.getElementById('searchQuery').value;
-            
-            const response = await makeRequest('/fuzzy-search', 'POST', {
-                query: query,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('searchResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function getFoodCount() {
-            const response = await makeRequest('/foods/count');
-            displayResponse('searchResponse', response, response.success ? 'success' : 'error');
-        }
-
+        // Calorie Calculation Function
         async function calculateCalories() {
-            const request = document.getElementById('calorieRequest').value;
+            const userId = document.getElementById('calorieUserId').value;
+            const foodName = document.getElementById('foodName').value;
+            const servingSize = document.getElementById('servingSize').value;
+            const mealType = document.getElementById('mealType').value;
+            const cookingMethod = document.getElementById('cookingMethod').value;
             
-            const response = await makeRequest('/calculate-calories', 'POST', {
-                request: request,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('calculationResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/execute-tool', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tool_name: 'calculate_calories',
+                        parameters: {
+                            user_id: userId,
+                            food_name: foodName,
+                            serving_size: servingSize,
+                            meal_type: mealType,
+                            cooking_method: cookingMethod
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('calorieResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('calorieResponse', responseObj, 'error');
+            }
         }
 
+        // Nutrition Recommendations Function
         async function getNutritionRecommendations() {
-            const request = document.getElementById('calorieRequest').value;
+            const userId = document.getElementById('recommendationUserId').value;
+            const age = document.getElementById('age').value;
+            const weight = document.getElementById('weight').value;
+            const height = document.getElementById('height').value;
+            const activityLevel = document.getElementById('activityLevel').value;
+            const healthGoals = document.getElementById('healthGoals').value;
+            const healthConditions = document.getElementById('healthConditions').value;
             
-            const response = await makeRequest('/nutrition-recommendations', 'POST', {
-                request: request,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('calculationResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/execute-tool', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tool_name: 'get_nutrition_recommendations',
+                        parameters: {
+                            user_id: userId,
+                            age: parseInt(age),
+                            weight: parseFloat(weight),
+                            height: parseFloat(height),
+                            activity_level: activityLevel,
+                            health_goals: healthGoals,
+                            health_conditions: healthConditions
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('recommendationResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('recommendationResponse', responseObj, 'error');
+            }
         }
 
-        async function createRecipe() {
-            const request = document.getElementById('recipeRequest').value;
+        // General Nutrition Function
+        async function askGeneralNutrition() {
+            const userId = document.getElementById('generalUserId').value;
+            const question = document.getElementById('nutritionQuestion').value;
             
-            const response = await makeRequest('/create-recipe', 'POST', {
-                request: request,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('recipeResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/execute-tool', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tool_name: 'general_nutrition',
+                        parameters: {
+                            user_id: userId,
+                            message: question
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('generalNutritionResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('generalNutritionResponse', responseObj, 'error');
+            }
         }
 
-        // Health & Status Functions
+        // Health Check Functions
         async function checkHealth() {
-            const response = await makeRequest('/health');
-            displayResponse('healthResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function checkDetailedHealth() {
-            const response = await makeRequest('/health/detailed');
-            displayResponse('healthResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/health');
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('healthResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('healthResponse', responseObj, 'error');
+            }
         }
 
         async function checkDatabase() {
-            const response = await makeRequest('/test/database');
-            displayResponse('healthResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/test-db');
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('healthResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('healthResponse', responseObj, 'error');
+            }
         }
 
-        async function checkSystemStatus() {
-            const response = await makeRequest('/api/scalability/status');
-            displayResponse('systemStatusResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function checkScalabilityStatus() {
-            const response = await makeRequest('/api/scalability/status');
-            displayResponse('systemStatusResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function testNutritionDB() {
-            const response = await makeRequest('/test-nutrition-db');
-            displayResponse('databaseResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function testSharedDB() {
-            const response = await makeRequest('/test-shared-db');
-            displayResponse('databaseResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function testDatabaseSchema() {
-            const response = await makeRequest('/debug/schema');
-            displayResponse('databaseResponse', response, response.success ? 'success' : 'error');
-        }
-
-        // Session Management Functions
-        async function createSession() {
-            const userId = document.getElementById('sessionUserId').value;
+        // Execute Tool Test Function
+        async function testExecuteTool() {
+            const toolName = document.getElementById('toolName').value;
+            const userId = document.getElementById('toolUserId').value;
             
-            const response = await makeRequest('/api/sessions/create', 'POST', {
-                user_id: userId
-            });
-            
-            displayResponse('sessionResponse', response, response.success ? 'success' : 'error');
+            try {
+                const response = await fetch('/execute-tool', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tool_name: toolName,
+                        parameters: {
+                            user_id: userId
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                const responseObj = {
+                    success: response.ok,
+                    data: result,
+                    status: response.status,
+                    timestamp: new Date().toISOString()
+                };
+                
+                displayResponse('executeToolResponse', responseObj, responseObj.success ? 'success' : 'error');
+            } catch (error) {
+                const responseObj = {
+                    success: false,
+                    error: error.message,
+                    status: 0,
+                    timestamp: new Date().toISOString()
+                };
+                displayResponse('executeToolResponse', responseObj, 'error');
+            }
         }
-
-        async function getSession() {
-            const response = await makeRequest('/api/sessions/test-session-token');
-            displayResponse('sessionResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function validateSession() {
-            const response = await makeRequest('/api/sessions/test-session-token/validate', 'POST');
-            displayResponse('sessionResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function getConversationState() {
-            const response = await makeRequest('/api/conversations/state');
-            displayResponse('conversationResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function getConversationHistory() {
-            const response = await makeRequest('/api/conversations/history');
-            displayResponse('conversationResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function resetConversation() {
-            const response = await makeRequest('/api/conversations/reset', 'POST');
-            displayResponse('conversationResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function sendMessage() {
-            const message = document.getElementById('messageText').value;
-            
-            const response = await makeRequest('/api/conversations/message', 'POST', {
-                message: message,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('messageResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function searchConversations() {
-            const response = await makeRequest('/api/conversations/search', 'POST', {
-                query: 'meal planning',
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('messageResponse', response, response.success ? 'success' : 'error');
-        }
-
-        // Performance Functions
-        async function getPerformanceMetrics() {
-            const response = await makeRequest('/api/performance/metrics');
-            displayResponse('performanceResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function getPerformanceDashboard() {
-            const response = await makeRequest('/api/performance/dashboard');
-            displayResponse('performanceResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function testFoodLogging() {
-            const response = await makeRequest('/test-food-logging', 'POST', {
-                user_id: 'test-user-123'
-            });
-            displayResponse('testingResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function testMealPlanning() {
-            const response = await makeRequest('/test-ai-meal-plan', 'POST', {
-                user_id: 'test-user-123'
-            });
-            displayResponse('testingResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function testAIAnalysis() {
-            const response = await makeRequest('/execute-tool', 'POST', {
-                tool_name: 'nutrition_analysis',
-                parameters: { user_id: 'test-user-123' }
-            });
-            displayResponse('testingResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function submitTask() {
-            const description = document.getElementById('taskDescription').value;
-            
-            const response = await makeRequest('/api/tasks/submit', 'POST', {
-                description: description,
-                user_id: 'test-user-123'
-            });
-            
-            displayResponse('taskResponse', response, response.success ? 'success' : 'error');
-        }
-
-        async function getTaskStatus() {
-            const response = await makeRequest('/api/tasks/test-task-id');
-            displayResponse('taskResponse', response, response.success ? 'success' : 'error');
-        }
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            checkHealth();
-        });
     </script>
 </body>
 </html> 

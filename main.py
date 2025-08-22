@@ -11,8 +11,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
 from openai import OpenAI
@@ -307,6 +309,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # =============================================================================
 # LIFESPAN EVENTS
 # =============================================================================
@@ -334,18 +339,13 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    """Simple root endpoint."""
-    return {
-        "message": "Nutrition Agent - OpenAI GPT Integration",
-        "status": "healthy",
-        "version": "2.0.0",
-        "openai_status": "connected" if openai_client else "disconnected",
-        "endpoints": [
-            "/health",
-            "/test-db",
-            "/execute-tool"
-        ]
-    }
+    """Serve the test interface HTML file."""
+    try:
+        with open("static/test_interface.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Test interface not found</h1>", status_code=404)
 
 @app.get("/health")
 async def health_check():
