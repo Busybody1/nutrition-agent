@@ -144,6 +144,14 @@
             border-left: 4px solid #ff9a9e;
         }
 
+        .help-text {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+        }
+
         .result h3 {
             color: #333;
             margin-bottom: 15px;
@@ -320,8 +328,8 @@
             </div>
 
             <div class="description-note">
-                <strong>⚠️ Important:</strong> All AI functions now require a <strong>description</strong> parameter. 
-                Provide natural language descriptions of what you want (e.g., "I had a grilled chicken salad with mixed greens for lunch").
+                <strong>ℹ️ Note:</strong> All AI functions now accept an optional <strong>description</strong> parameter. 
+                Provide natural language descriptions for better AI responses (e.g., "I had a grilled chicken salad with mixed greens for lunch").
             </div>
 
             <!-- Connection Status Section -->
@@ -346,11 +354,12 @@
                 
                 <div class="form-group">
                     <label for="logUser">User ID:</label>
-                    <input type="text" id="logUser" value="test_user_123" placeholder="Enter user ID">
+                    <input type="text" id="logUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
                 </div>
 
                 <div class="form-group">
-                    <label for="logDescription">Description (Required):</label>
+                    <label for="logDescription">Description (Optional):</label>
                     <textarea id="logDescription" rows="3" placeholder="Describe your meal in detail (e.g., 'I had a grilled chicken salad with mixed greens, cherry tomatoes, and olive oil dressing for lunch')"></textarea>
                 </div>
 
@@ -397,11 +406,12 @@
                 
                 <div class="form-group">
                     <label for="summaryUser">User ID:</label>
-                    <input type="text" id="summaryUser" value="test_user_123" placeholder="Enter user ID">
+                    <input type="text" id="summaryUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
                 </div>
                     
                 <div class="form-group">
-                    <label for="summaryDescription">Description (Required):</label>
+                    <label for="summaryDescription">Description (Optional):</label>
                     <textarea id="summaryDescription" rows="3" placeholder="Describe what kind of nutrition summary you need (e.g., 'I want to see how my protein intake has been over the last week')"></textarea>
                 </div>
 
@@ -427,11 +437,12 @@
                 
                 <div class="form-group">
                     <label for="mealUser">User ID:</label>
-                    <input type="text" id="mealUser" value="test_user_123" placeholder="Enter user ID">
+                    <input type="text" id="mealUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
                 </div>
 
                 <div class="form-group">
-                    <label for="mealDescription">Description (Required):</label>
+                    <label for="mealDescription">Description (Optional):</label>
                     <textarea id="mealDescription" rows="3" placeholder="Describe what kind of meal you want to plan (e.g., 'I need a high-protein dinner that takes less than 30 minutes to prepare')"></textarea>
                 </div>
 
@@ -462,16 +473,87 @@
             </div>
 
             <div class="section">
+                <h2>👨‍🍳 Create Recipe</h2>
+                <p>Create detailed, personalized recipes with AI-powered suggestions using Groq AI.</p>
+                
+                <div class="form-group">
+                    <label for="recipeUser">User ID:</label>
+                    <input type="text" id="recipeUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="recipeDescription">Description (Optional):</label>
+                    <textarea id="recipeDescription" rows="3" placeholder="Describe what kind of recipe you want to create (e.g., 'I want a healthy breakfast smoothie bowl')"></textarea>
+                </div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="recipeName">Recipe Name:</label>
+                        <input type="text" id="recipeName" placeholder="Enter recipe name or leave blank for AI to suggest">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="cuisineType">Cuisine Type:</label>
+                        <select id="cuisineType">
+                            <option value="general" selected>General</option>
+                            <option value="italian">Italian</option>
+                            <option value="asian">Asian</option>
+                            <option value="mediterranean">Mediterranean</option>
+                            <option value="mexican">Mexican</option>
+                            <option value="indian">Indian</option>
+                            <option value="american">American</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cookingTime">Cooking Time:</label>
+                        <select id="cookingTime">
+                            <option value="15 minutes">Quick (15 min)</option>
+                            <option value="30 minutes" selected>Medium (30 min)</option>
+                            <option value="45 minutes">Long (45 min)</option>
+                            <option value="60 minutes">Extended (60+ min)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="skillLevel">Skill Level:</label>
+                        <select id="skillLevel">
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate" selected>Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="servings">Servings:</label>
+                        <input type="number" id="servings" value="4" min="1" max="12" placeholder="Number of servings">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dietaryRestrictionsRecipe">Dietary Restrictions:</label>
+                        <input type="text" id="dietaryRestrictionsRecipe" value="none" placeholder="e.g., vegetarian, gluten-free, none">
+                    </div>
+                </div>
+                    
+                <button class="btn" onclick="createRecipe()">👨‍🍳 Create Recipe</button>
+                <div id="recipeResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
                 <h2>🧠 General Nutrition Questions</h2>
                 <p>Ask general nutrition and health questions and get intelligent responses powered by Groq AI.</p>
                 
                 <div class="form-group">
                     <label for="generalUser">User ID:</label>
-                    <input type="text" id="generalUser" value="test_user_123" placeholder="Enter user ID">
+                    <input type="text" id="generalUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
                 </div>
                 
                 <div class="form-group">
-                    <label for="generalQuestion">Question/Description (Required):</label>
+                    <label for="generalQuestion">Question/Description (Optional):</label>
                     <textarea id="generalQuestion" rows="3" placeholder="Ask any nutrition or health question (e.g., 'What are good sources of protein for vegetarians?')"></textarea>
                 </div>
                 
@@ -496,23 +578,72 @@
                     <select id="testTool">
                         <option value="log_meal">Log Meal</option>
                         <option value="get_nutrition_summary">Get Nutrition Summary</option>
-                        <option value="plan_meal">Plan Meal</option>
+                        <option value="create_meal_plan">Create Meal Plan</option>
+                        <option value="create_recipe">Create Recipe</option>
                         <option value="general_nutrition">General Nutrition</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
                     <label for="testUser">User ID:</label>
-                    <input type="text" id="testUser" value="test_user_123" placeholder="Enter user ID">
+                    <input type="text" id="testUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
                 </div>
 
                 <div class="form-group">
-                    <label for="testDescription">Description (Required):</label>
+                    <label for="testDescription">Description (Optional):</label>
                     <textarea id="testDescription" rows="3" placeholder="Provide a description for the selected tool"></textarea>
                 </div>
                 
                 <button class="btn" onclick="testExecuteTool()">🧪 Test Tool</button>
                 <div id="testResult" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- Database Operations Section -->
+            <div class="section">
+                <h2>🗄️ Database Operations</h2>
+                <p>Test CRUD operations for nutrition data management.</p>
+                
+                <div class="form-group">
+                    <label for="dbUser">User ID:</label>
+                    <input type="text" id="dbUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
+                </div>
+                
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="mealPlanName">Meal Plan Name:</label>
+                        <input type="text" id="mealPlanName" value="Weekly Healthy Plan" placeholder="Enter meal plan name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="startDate">Start Date:</label>
+                        <input type="date" id="startDate" value="">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="endDate">End Date:</label>
+                        <input type="date" id="endDate" value="">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="mealPlanDescription">Description:</label>
+                    <textarea id="mealPlanDescription" rows="2" placeholder="Enter meal plan description"></textarea>
+                </div>
+                
+                <div class="grid">
+                    <button class="btn" onclick="createMealPlan()">📝 Create Meal Plan</button>
+                    <button class="btn" onclick="getMealPlans()">📋 Get Meal Plans</button>
+                    <button class="btn" onclick="createFoodLog()">🍽️ Create Food Log</button>
+                    <button class="btn" onclick="getFoodLogs()">📊 Get Food Logs</button>
+                    <button class="btn" onclick="createNutritionTarget()">🎯 Create Nutrition Target</button>
+                    <button class="btn" onclick="getNutritionTargets()">📈 Get Nutrition Targets</button>
+                    <button class="btn" onclick="getNutritionSummary()">📊 Get Nutrition Summary</button>
+                    <button class="btn" onclick="getWeeklyStats()">📅 Get Weekly Stats</button>
+                </div>
+                
+                <div id="dbResult" class="result" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -547,10 +678,6 @@
 
         async function logMeal() {
             const description = document.getElementById('logDescription').value.trim();
-            if (!description) {
-                alert('Description is required!');
-                return;
-            }
 
             const data = {
                 tool_name: 'log_meal',
@@ -570,10 +697,6 @@
 
         async function getNutritionSummary() {
             const description = document.getElementById('summaryDescription').value.trim();
-            if (!description) {
-                alert('Description is required!');
-                return;
-            }
 
             const data = {
                 tool_name: 'get_nutrition_summary',
@@ -591,13 +714,9 @@
 
         async function planMeal() {
             const description = document.getElementById('mealDescription').value.trim();
-            if (!description) {
-                alert('Description is required!');
-                return;
-            }
 
             const data = {
-                tool_name: 'plan_meal',
+                tool_name: 'create_meal_plan',
                 parameters: {
                     user_id: document.getElementById('mealUser').value,
                     description: description,
@@ -611,12 +730,29 @@
             showResult('mealResult', result);
         }
 
+        async function createRecipe() {
+            const description = document.getElementById('recipeDescription').value.trim();
+
+            const data = {
+                tool_name: 'create_recipe',
+                parameters: {
+                    user_id: document.getElementById('recipeUser').value,
+                    description: description,
+                    recipe_name: document.getElementById('recipeName').value,
+                    cuisine_type: document.getElementById('cuisineType').value,
+                    dietary_restrictions: document.getElementById('dietaryRestrictionsRecipe').value,
+                    cooking_time: document.getElementById('cookingTime').value,
+                    skill_level: document.getElementById('skillLevel').value,
+                    servings: parseInt(document.getElementById('servings').value)
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('recipeResult', result);
+        }
+
         async function askGeneralNutrition() {
             const question = document.getElementById('generalQuestion').value.trim();
-            if (!question) {
-                alert('Question/Description is required!');
-                return;
-            }
 
             const data = {
                 tool_name: 'general_nutrition',
@@ -668,10 +804,6 @@
 
         async function testExecuteTool() {
             const description = document.getElementById('testDescription').value.trim();
-            if (!description) {
-                alert('Description is required!');
-                return;
-            }
 
             const data = {
                 tool_name: document.getElementById('testTool').value,
@@ -720,6 +852,164 @@
                 connectionStatus.style.borderColor = '#ef9a9a';
             }
         }
+
+        // Database Operations Functions
+        async function createMealPlan() {
+            const userId = document.getElementById('dbUser').value;
+            const name = document.getElementById('mealPlanName').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const description = document.getElementById('mealPlanDescription').value;
+
+            if (!name || !startDate || !endDate) {
+                alert('Name, start date, and end date are required!');
+                return;
+            }
+
+            const data = {
+                name: name,
+                description: description,
+                start_date: startDate,
+                end_date: endDate,
+                is_active: true,
+                is_template: false
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/meal-plans?user_id=${userId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function getMealPlans() {
+            const userId = document.getElementById('dbUser').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/meal-plans/${userId}`);
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function createFoodLog() {
+            const userId = document.getElementById('dbUser').value;
+            const today = new Date().toISOString().split('T')[0];
+            
+            const data = {
+                date: today,
+                meal_type_id: "550e8400-e29b-41d4-a716-446655440000", // Default meal type ID
+                time_of_day: "12:00:00",
+                items: [{
+                    food_id: "sample_food_123",
+                    quantity: 1.0,
+                    serving: 1,
+                    calories: 250,
+                    protein_g: 20.0,
+                    carbs_g: 30.0,
+                    fat_g: 10.0,
+                    notes: "Sample food item"
+                }]
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/food-logs?user_id=${userId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function getFoodLogs() {
+            const userId = document.getElementById('dbUser').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/food-logs/${userId}`);
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function createNutritionTarget() {
+            const userId = document.getElementById('dbUser').value;
+            const today = new Date().toISOString().split('T')[0];
+            
+            const data = {
+                date: today,
+                calories: 2000,
+                protein_g: 150.0,
+                carbs_g: 200.0,
+                fat_g: 65.0,
+                fiber_g: 25.0,
+                sugar_g: 50.0,
+                sodium_mg: 2300,
+                water_ml: 2000
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/nutrition-targets?user_id=${userId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function getNutritionTargets() {
+            const userId = document.getElementById('dbUser').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/nutrition-targets/${userId}`);
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function getNutritionSummary() {
+            const userId = document.getElementById('dbUser').value;
+            const today = new Date().toISOString().split('T')[0];
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/nutrition-summary/${userId}?date=${today}`);
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
+
+        async function getWeeklyStats() {
+            const userId = document.getElementById('dbUser').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/nutrition-stats/${userId}/weekly`);
+                const result = await response.json();
+                showResult('dbResult', result);
+            } catch (error) {
+                showResult('dbResult', { error: error.message });
+            }
+        }
         
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
@@ -728,6 +1018,13 @@
             
             // Test connection on page load
             testConnection();
+            
+            // Set default dates for meal plan
+            const today = new Date();
+            const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+            
+            document.getElementById('startDate').value = today.toISOString().split('T')[0];
+            document.getElementById('endDate').value = nextWeek.toISOString().split('T')[0];
         });
     </script>
 </body>

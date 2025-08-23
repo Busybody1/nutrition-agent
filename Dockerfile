@@ -15,9 +15,8 @@ ENV PIP_DEFAULT_TIMEOUT=100
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --timeout=100 -r requirements.txt
 
-# Copy shared modules and agent code
-COPY shared /app/shared
-COPY main.py /app/main.py
+# Copy agent code and utils
+COPY . /app/
 
 EXPOSE $PORT
 

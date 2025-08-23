@@ -59,6 +59,6 @@
     }
   ],
   "scripts": {
-    "postdeploy": "python -m shared.database init_database"
+    "postdeploy": "echo 'Database initialization handled by main.py startup'"
   }
 } 

@@ -15,6 +15,5 @@ psycopg2-binary==2.9.9
 asyncpg==0.29.0
 redis==5.0.1
 
-# Shared module dependency (local copy)
--e ./shared
+# No shared module dependency - using internal utils structure
 email-validator 
