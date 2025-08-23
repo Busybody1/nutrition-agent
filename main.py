@@ -1000,18 +1000,23 @@ async def health_check():
         # Check AI status
         ai_status = "connected" if groq_client else "disconnected"
         
+        # Build services status
+        services_status = {
+            "groq_ai": ai_status,
+            "main_database": "connected" if db_status.get("main", {}).get("connected", False) else "disconnected",
+            "user_database": "connected" if db_status.get("user", {}).get("connected", False) else "disconnected",
+            "nutrition_database": "connected" if db_status.get("nutrition", {}).get("connected", False) else "disconnected",
+            "workout_database": "connected" if db_status.get("workout", {}).get("connected", False) else "disconnected"
+        }
+        
+        logger.info(f"Health check services status: {services_status}")
+        
         return {
             "status": "healthy",
             "agent": "nutrition",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "environment": get_environment(),
-            "services": {
-                "groq_ai": ai_status,
-                "main_database": db_status.get("main", {}).get("connected", False),
-                "user_database": db_status.get("user", {}).get("connected", False),
-                "nutrition_database": db_status.get("nutrition", {}).get("connected", False),
-                "workout_database": db_status.get("workout", {}).get("connected", False)
-            },
+            "services": services_status,
             "message": "Nutrition agent is running smoothly"
         }
         

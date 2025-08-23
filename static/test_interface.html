@@ -786,8 +786,12 @@
                 serviceStatus.style.display = 'grid';
                 serviceStatus.innerHTML = '';
                 
+                console.log('Service status received:', services); // Debug logging
+                
                 Object.entries(services).forEach(([service, status]) => {
                     const isConnected = status === 'connected';
+                    console.log(`Service: ${service}, Status: ${status}, IsConnected: ${isConnected}`); // Debug logging
+                    
                     const serviceItem = document.createElement('div');
                     serviceItem.className = `service-item ${isConnected ? 'connected' : 'disconnected'}`;
                     
