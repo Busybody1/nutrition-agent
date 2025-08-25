@@ -174,6 +174,33 @@ class UserNutritionTargetBase(BaseModel):
     sugar_g: Optional[float] = Field(None, ge=0)
     sodium_mg: Optional[int] = Field(None, ge=0)
     water_ml: Optional[int] = Field(None, ge=0)
+    # Enhanced micronutrient targets
+    vitamin_a_mcg: Optional[int] = Field(None, ge=0)
+    vitamin_c_mg: Optional[int] = Field(None, ge=0)
+    vitamin_d_mcg: Optional[int] = Field(None, ge=0)
+    vitamin_e_mg: Optional[int] = Field(None, ge=0)
+    vitamin_k_mcg: Optional[int] = Field(None, ge=0)
+    thiamin_mg: Optional[float] = Field(None, ge=0)
+    riboflavin_mg: Optional[float] = Field(None, ge=0)
+    niacin_mg: Optional[float] = Field(None, ge=0)
+    vitamin_b6_mg: Optional[float] = Field(None, ge=0)
+    folate_mcg: Optional[int] = Field(None, ge=0)
+    vitamin_b12_mcg: Optional[float] = Field(None, ge=0)
+    pantothenic_acid_mg: Optional[float] = Field(None, ge=0)
+    biotin_mcg: Optional[float] = Field(None, ge=0)
+    choline_mg: Optional[float] = Field(None, ge=0)
+    calcium_mg: Optional[int] = Field(None, ge=0)
+    iron_mg: Optional[float] = Field(None, ge=0)
+    magnesium_mg: Optional[int] = Field(None, ge=0)
+    phosphorus_mg: Optional[int] = Field(None, ge=0)
+    potassium_mg: Optional[int] = Field(None, ge=0)
+    zinc_mg: Optional[float] = Field(None, ge=0)
+    selenium_mcg: Optional[int] = Field(None, ge=0)
+    copper_mg: Optional[float] = Field(None, ge=0)
+    manganese_mg: Optional[float] = Field(None, ge=0)
+    chromium_mcg: Optional[float] = Field(None, ge=0)
+    molybdenum_mcg: Optional[float] = Field(None, ge=0)
+    iodine_mcg: Optional[int] = Field(None, ge=0)
 
 
 class UserNutritionTargetCreate(UserNutritionTargetBase):
@@ -189,6 +216,33 @@ class UserNutritionTargetUpdate(BaseModel):
     sugar_g: Optional[float] = Field(None, ge=0)
     sodium_mg: Optional[int] = Field(None, ge=0)
     water_ml: Optional[int] = Field(None, ge=0)
+    # Enhanced micronutrient targets
+    vitamin_a_mcg: Optional[int] = Field(None, ge=0)
+    vitamin_c_mg: Optional[int] = Field(None, ge=0)
+    vitamin_d_mcg: Optional[int] = Field(None, ge=0)
+    vitamin_e_mg: Optional[int] = Field(None, ge=0)
+    vitamin_k_mcg: Optional[int] = Field(None, ge=0)
+    thiamin_mg: Optional[float] = Field(None, ge=0)
+    riboflavin_mg: Optional[float] = Field(None, ge=0)
+    niacin_mg: Optional[float] = Field(None, ge=0)
+    vitamin_b6_mg: Optional[float] = Field(None, ge=0)
+    folate_mcg: Optional[int] = Field(None, ge=0)
+    vitamin_b12_mcg: Optional[float] = Field(None, ge=0)
+    pantothenic_acid_mg: Optional[float] = Field(None, ge=0)
+    biotin_mcg: Optional[float] = Field(None, ge=0)
+    choline_mg: Optional[float] = Field(None, ge=0)
+    calcium_mg: Optional[int] = Field(None, ge=0)
+    iron_mg: Optional[float] = Field(None, ge=0)
+    magnesium_mg: Optional[int] = Field(None, ge=0)
+    phosphorus_mg: Optional[int] = Field(None, ge=0)
+    potassium_mg: Optional[int] = Field(None, ge=0)
+    zinc_mg: Optional[float] = Field(None, ge=0)
+    selenium_mcg: Optional[int] = Field(None, ge=0)
+    copper_mg: Optional[float] = Field(None, ge=0)
+    manganese_mg: Optional[float] = Field(None, ge=0)
+    chromium_mcg: Optional[float] = Field(None, ge=0)
+    molybdenum_mcg: Optional[float] = Field(None, ge=0)
+    iodine_mcg: Optional[int] = Field(None, ge=0)
 
 
 class UserNutritionTargetResponse(UserNutritionTargetBase):
@@ -218,6 +272,33 @@ class UserNutritionSummaryResponse(BaseModel):
     target_carbs_g: Optional[float] = None
     target_fat_g: Optional[float] = None
     calories_remaining: int
+    # Enhanced micronutrient totals
+    total_vitamin_a_mcg: int = 0
+    total_vitamin_c_mg: int = 0
+    total_vitamin_d_mcg: int = 0
+    total_vitamin_e_mg: int = 0
+    total_vitamin_k_mcg: int = 0
+    total_thiamin_mg: float = 0
+    total_riboflavin_mg: float = 0
+    total_niacin_mg: float = 0
+    total_vitamin_b6_mg: float = 0
+    total_folate_mcg: int = 0
+    total_vitamin_b12_mcg: float = 0
+    total_pantothenic_acid_mg: float = 0
+    total_biotin_mcg: float = 0
+    total_choline_mg: float = 0
+    total_calcium_mg: int = 0
+    total_iron_mg: float = 0
+    total_magnesium_mg: int = 0
+    total_phosphorus_mg: int = 0
+    total_potassium_mg: int = 0
+    total_zinc_mg: float = 0
+    total_selenium_mcg: int = 0
+    total_copper_mg: float = 0
+    total_manganese_mg: float = 0
+    total_chromium_mcg: float = 0
+    total_molybdenum_mcg: float = 0
+    total_iodine_mcg: int = 0
     created_at: datetime
     updated_at: datetime
     
@@ -259,6 +340,122 @@ class AIAnalysisRequest(BaseModel):
     satisfaction_level: Optional[str] = None
     estimated_calories: Optional[int] = None
     notes: Optional[str] = None
+
+
+# New Enhanced AI Response Schemas
+class ServingInfo(BaseModel):
+    """Serving information for meals and recipes."""
+    serving_size: str
+    quantity: str
+    portion_description: str
+
+
+class NutrientDetail(BaseModel):
+    """Detailed nutrient information with daily value and importance."""
+    nutrient: str
+    amount: Optional[float] = None
+    unit: str
+    daily_value_percent: Optional[str] = None
+    importance: str
+    daily_target: Optional[str] = None
+    food_sources: Optional[str] = None
+    recommendation: Optional[str] = None
+
+
+class MacrosInfo(BaseModel):
+    """Macronutrient information."""
+    protein: float
+    carbs: float
+    fat: float
+
+
+class EnhancedNutritionInfo(BaseModel):
+    """Enhanced nutrition information with expanded nutrients."""
+    calories: int
+    macros: MacrosInfo
+    nutrients_summary: List[NutrientDetail]
+
+
+class MealAnalysis(BaseModel):
+    """AI-generated meal analysis with enhanced nutrition."""
+    meal_name: str
+    serving_info: ServingInfo
+    estimated_nutrition: EnhancedNutritionInfo
+    key_nutrients: List[str]
+    health_assessment: Dict[str, Any]
+    satisfaction_analysis: Dict[str, Any]
+    timing_insights: str
+    mood_connection: str
+    recommendations: List[str]
+    balance_suggestions: str
+
+
+class MealPlanMealEnhanced(BaseModel):
+    """Enhanced meal plan meal with serving info and nutrients."""
+    name: str
+    serving_info: ServingInfo
+    calories: int
+    macros: MacrosInfo
+    nutrients_summary: List[NutrientDetail]
+    ingredients: List[str]
+
+
+class MealPlanDayEnhanced(BaseModel):
+    """Enhanced meal plan day with improved meal structure."""
+    day: int
+    meals: Dict[str, MealPlanMealEnhanced]
+    total_calories: int
+
+
+class EnhancedMealPlan(BaseModel):
+    """Enhanced meal plan with improved structure."""
+    days: List[MealPlanDayEnhanced]
+
+
+class RecipeEnhanced(BaseModel):
+    """Enhanced recipe with serving info and nutrients."""
+    name: str
+    cuisine: str
+    prep_time: str
+    cook_time: str
+    total_time: str
+    servings: int
+    serving_info: ServingInfo
+    difficulty: str
+    nutrition_per_serving: EnhancedNutritionInfo
+    ingredients: List[Dict[str, str]]
+    instructions: List[str]
+    tips: List[str]
+    variations: List[str]
+    storage: str
+    dietary_notes: str
+
+
+class NutritionSummary(BaseModel):
+    """Enhanced nutrition summary with serving guidelines."""
+    period_days: int
+    user_goals: str
+    summary_analysis: str
+    serving_guidelines: Dict[str, str]
+    nutrient_analysis: Dict[str, Any]
+    goal_assessment: str
+    personalized_recommendations: List[str]
+    meal_planning_suggestions: str
+    next_steps: str
+    generated_at: str
+
+
+class NutritionResponse(BaseModel):
+    """Enhanced nutrition response with structured guidance."""
+    user_question: str
+    expert_analysis: str
+    practical_advice: str
+    serving_guidelines: Dict[str, str]
+    nutrient_focus: Dict[str, Any]
+    motivation: str
+    next_steps: List[str]
+    additional_resources: str
+    generated_at: str
 
 
 class MealPlanRequest(BaseModel):

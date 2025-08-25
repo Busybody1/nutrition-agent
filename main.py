@@ -285,6 +285,11 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
 {{
   "meal_analysis": {{
     "meal_name": "Grilled Chicken Salad",
+    "serving_info": {{
+      "serving_size": "1 large bowl",
+      "quantity": "1 serving",
+      "portion_description": "Medium portion appropriate for {meal_type}"
+    }},
     "estimated_nutrition": {{
       "calories": 450,
       "macros": {{
@@ -292,6 +297,57 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
         "carbs_g": 25,
         "fat_g": 20
       }},
+      "nutrients_summary": [
+        {{
+          "nutrient": "Protein",
+          "amount": 35,
+          "unit": "g",
+          "daily_value_percent": 70,
+          "importance": "Essential for muscle building and repair"
+        }},
+        {{
+          "nutrient": "Fiber",
+          "amount": 8,
+          "unit": "g",
+          "daily_value_percent": 32,
+          "importance": "Promotes digestive health and satiety"
+        }},
+        {{
+          "nutrient": "Vitamin A",
+          "amount": 1200,
+          "unit": "mcg",
+          "daily_value_percent": 133,
+          "importance": "Supports vision and immune function"
+        }},
+        {{
+          "nutrient": "Vitamin C",
+          "amount": 45,
+          "unit": "mg",
+          "daily_value_percent": 50,
+          "importance": "Antioxidant and immune support"
+        }},
+        {{
+          "nutrient": "Iron",
+          "amount": 3.5,
+          "unit": "mg",
+          "daily_value_percent": 19,
+          "importance": "Oxygen transport and energy production"
+        }},
+        {{
+          "nutrient": "Calcium",
+          "amount": 120,
+          "unit": "mg",
+          "daily_value_percent": 12,
+          "importance": "Bone health and muscle function"
+        }},
+        {{
+          "nutrient": "Potassium",
+          "amount": 600,
+          "unit": "mg",
+          "daily_value_percent": 13,
+          "importance": "Electrolyte balance and heart health"
+        }}
+      ],
       "key_nutrients": [
         "High in protein",
         "Good source of fiber",
@@ -328,7 +384,10 @@ Rules:
 2. Provide realistic calorie and macro estimates based on the food items
 3. Include specific, actionable recommendations
 4. Make it supportive and educational
-5. Base analysis on the actual meal details provided"""
+5. Base analysis on the actual meal details provided
+6. Always include serving_info with serving_size and quantity
+7. Expand nutrients_summary to include important micronutrients beyond just macros
+8. Include daily value percentages where applicable"""
 
                 insight_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -439,20 +498,92 @@ async def get_nutrition_summary(parameters: Dict[str, Any], user_id: str) -> Dic
 - Time period: {days} days
 - User goals: {goals}
 
-Provide:
+Provide a structured response with:
 1. Summary of typical nutrition patterns
-2. Nutrient balance analysis
+2. Nutrient balance analysis with expanded micronutrients
 3. Goal achievement assessment
 4. Personalized recommendations
 5. Meal planning suggestions
 6. Next steps for improvement
 
-Make it personalized and actionable based on their description."""
+IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
+
+{{
+  "nutrition_summary": {{
+    "period_days": {days},
+    "user_goals": "{goals}",
+    "summary_analysis": "Comprehensive analysis of nutrition patterns and recommendations",
+    "serving_guidelines": {{
+      "general_serving_sizes": "Standard portion recommendations",
+      "meal_frequency": "Optimal meal timing and frequency",
+      "portion_control_tips": "Practical portion management strategies"
+    }},
+    "nutrient_analysis": {{
+      "macros_overview": "Protein, carbs, and fat balance analysis",
+      "micronutrients_focus": "Key vitamins and minerals for {goals}",
+      "nutrients_summary": [
+        {{
+          "nutrient": "Protein",
+          "daily_target": "1.2-1.6g per kg body weight",
+          "importance": "Essential for muscle building and repair",
+          "food_sources": "Lean meats, fish, eggs, legumes"
+        }},
+        {{
+          "nutrient": "Fiber",
+          "daily_target": "25-35g",
+          "importance": "Digestive health and satiety",
+          "food_sources": "Whole grains, fruits, vegetables, legumes"
+        }},
+        {{
+          "nutrient": "Vitamin D",
+          "daily_target": "15-20mcg",
+          "importance": "Bone health and immune function",
+          "food_sources": "Fatty fish, egg yolks, fortified dairy"
+        }},
+        {{
+          "nutrient": "Iron",
+          "daily_target": "8-18mg",
+          "importance": "Oxygen transport and energy production",
+          "food_sources": "Red meat, spinach, legumes, fortified cereals"
+        }},
+        {{
+          "nutrient": "Calcium",
+          "daily_target": "1000-1300mg",
+          "importance": "Bone health and muscle function",
+          "food_sources": "Dairy products, leafy greens, fortified foods"
+        }},
+        {{
+          "nutrient": "Omega-3",
+          "daily_target": "1.1-1.6g",
+          "importance": "Heart health and brain function",
+          "food_sources": "Fatty fish, flaxseeds, walnuts, chia seeds"
+        }},
+        {{
+          "nutrient": "B Vitamins",
+          "daily_target": "Various",
+          "importance": "Energy metabolism and brain function",
+          "food_sources": "Whole grains, meat, eggs, dairy, leafy greens"
+        }}
+      ]
+    }},
+    "goal_assessment": "Current progress and areas for improvement",
+    "personalized_recommendations": [
+      "Specific action items for {goals}",
+      "Meal timing and portion strategies",
+      "Nutrient-dense food suggestions"
+    ],
+    "meal_planning_suggestions": "Practical meal planning approaches",
+    "next_steps": "Immediate actions to take for improvement",
+    "generated_at": "{datetime.now(timezone.utc).isoformat()}"
+  }}
+}}
+
+Make it personalized and actionable based on their description and goals."""
 
                 summary_response = groq_client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=500,
+                    max_tokens=800,
                     temperature=0.7
                 )
                 
@@ -549,12 +680,47 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
         "meals": {{
           "breakfast": {{
             "name": "Meal Name",
+            "serving_info": {{
+              "serving_size": "1 bowl",
+              "quantity": "1 serving",
+              "portion_description": "Standard breakfast portion"
+            }},
             "calories": 350,
             "macros": {{
               "protein": 12,
               "carbs": 45,
               "fat": 14
             }},
+            "nutrients_summary": [
+              {{
+                "nutrient": "Protein",
+                "amount": 12,
+                "unit": "g",
+                "daily_value_percent": 24,
+                "importance": "Essential for muscle building and repair"
+              }},
+              {{
+                "nutrient": "Fiber",
+                "amount": 6,
+                "unit": "g",
+                "daily_value_percent": 24,
+                "importance": "Promotes digestive health and satiety"
+              }},
+              {{
+                "nutrient": "Iron",
+                "amount": 2.5,
+                "unit": "mg",
+                "daily_value_percent": 14,
+                "importance": "Oxygen transport and energy production"
+              }},
+              {{
+                "nutrient": "B Vitamins",
+                "amount": "Various",
+                "unit": "mg",
+                "daily_value_percent": "15-25",
+                "importance": "Energy metabolism and brain function"
+              }}
+            ],
             "ingredients": [
               "1/2 cup rolled oats",
               "1 cup almond milk"
@@ -562,12 +728,47 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
           }},
           "lunch": {{
             "name": "Meal Name",
+            "serving_info": {{
+              "serving_size": "1 plate",
+              "quantity": "1 serving",
+              "portion_description": "Standard lunch portion"
+            }},
             "calories": 500,
             "macros": {{
               "protein": 40,
               "carbs": 20,
               "fat": 25
             }},
+            "nutrients_summary": [
+              {{
+                "nutrient": "Protein",
+                "amount": 40,
+                "unit": "g",
+                "daily_value_percent": 80,
+                "importance": "Essential for muscle building and repair"
+              }},
+              {{
+                "nutrient": "Vitamin C",
+                "amount": 35,
+                "unit": "mg",
+                "daily_value_percent": 39,
+                "importance": "Antioxidant and immune support"
+              }},
+              {{
+                "nutrient": "Folate",
+                "amount": 120,
+                "unit": "mcg",
+                "daily_value_percent": 30,
+                "importance": "Cell division and DNA synthesis"
+              }},
+              {{
+                "nutrient": "Potassium",
+                "amount": 450,
+                "unit": "mg",
+                "daily_value_percent": 10,
+                "importance": "Electrolyte balance and heart health"
+              }}
+            ],
             "ingredients": [
               "150g grilled chicken breast",
               "2 cups mixed greens"
@@ -575,12 +776,47 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
           }},
           "dinner": {{
             "name": "Meal Name",
+            "serving_info": {{
+              "serving_size": "1 plate",
+              "quantity": "1 serving",
+              "portion_description": "Standard dinner portion"
+            }},
             "calories": 600,
             "macros": {{
               "protein": 45,
               "carbs": 50,
               "fat": 22
             }},
+            "nutrients_summary": [
+              {{
+                "nutrient": "Protein",
+                "amount": 45,
+                "unit": "g",
+                "daily_value_percent": 90,
+                "importance": "Essential for muscle building and repair"
+              }},
+              {{
+                "nutrient": "Omega-3",
+                "amount": 1.2,
+                "unit": "g",
+                "daily_value_percent": "N/A",
+                "importance": "Heart health and brain function"
+              }},
+              {{
+                "nutrient": "Vitamin D",
+                "amount": 8,
+                "unit": "mcg",
+                "daily_value_percent": 40,
+                "importance": "Bone health and immune function"
+              }},
+              {{
+                "nutrient": "Selenium",
+                "amount": 45,
+                "unit": "mcg",
+                "daily_value_percent": 82,
+                "importance": "Antioxidant and thyroid function"
+              }}
+            ],
             "ingredients": [
               "150g baked salmon",
               "1/2 cup quinoa (cooked)"
@@ -589,12 +825,33 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
           "snacks": [
             {{
               "name": "Snack Name",
+              "serving_info": {{
+                "serving_size": "1 piece",
+                "quantity": "1 serving",
+                "portion_description": "Light snack portion"
+              }},
               "calories": 150,
               "macros": {{
                 "protein": 10,
                 "carbs": 18,
                 "fat": 3
-              }}
+              }},
+              "nutrients_summary": [
+                {{
+                  "nutrient": "Protein",
+                  "amount": 10,
+                  "unit": "g",
+                  "daily_value_percent": 20,
+                  "importance": "Essential for muscle building and repair"
+                }},
+                {{
+                  "nutrient": "Fiber",
+                  "amount": 4,
+                  "unit": "g",
+                  "daily_value_percent": 16,
+                  "importance": "Promotes digestive health and satiety"
+                }}
+              ]
             }}
           ]
         }},
@@ -608,9 +865,12 @@ Rules:
 1. Return ONLY the JSON object, no other text
 2. Include 1-7 days based on plan_type
 3. Each day must have breakfast, lunch, dinner, and optional snacks
-4. All meals must include name, calories, macros (protein, carbs, fat), and ingredients
+4. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, and ingredients
 5. Calculate total_calories for each day
-6. Make it practical and delicious for the user's requirements"""
+6. Make it practical and delicious for the user's requirements
+7. Always include serving_info with serving_size and quantity
+8. Expand nutrients_summary to include important micronutrients beyond just macros
+9. Include daily value percentages where applicable"""
 
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -748,23 +1008,83 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
     "cook_time": "30 minutes",
     "total_time": "45 minutes",
     "servings": 4,
+    "serving_info": {{
+      "serving_size": "1 plate",
+      "quantity": "1 serving",
+      "portion_description": "Standard dinner portion"
+    }},
     "difficulty": "intermediate",
     "nutrition_per_serving": {{
       "calories": 350,
-      "protein_g": 25,
-      "carbs_g": 30,
-      "fat_g": 15,
-      "fiber_g": 8,
-      "sugar_g": 5
+      "macros": {{
+        "protein_g": 25,
+        "carbs_g": 30,
+        "fat_g": 15
+      }},
+      "nutrients_summary": [
+        {{
+          "nutrient": "Protein",
+          "amount": 25,
+          "unit": "g",
+          "daily_value_percent": 50,
+          "importance": "Essential for muscle building and repair"
+        }},
+        {{
+          "nutrient": "Fiber",
+          "amount": 8,
+          "unit": "g",
+          "daily_value_percent": 32,
+          "importance": "Promotes digestive health and satiety"
+        }},
+        {{
+          "nutrient": "Iron",
+          "amount": 3.2,
+          "unit": "mg",
+          "daily_value_percent": 18,
+          "importance": "Oxygen transport and energy production"
+        }},
+        {{
+          "nutrient": "Vitamin C",
+          "amount": 28,
+          "unit": "mg",
+          "daily_value_percent": 31,
+          "importance": "Antioxidant and immune support"
+        }},
+        {{
+          "nutrient": "Folate",
+          "amount": 85,
+          "unit": "mcg",
+          "daily_value_percent": 21,
+          "importance": "Cell division and DNA synthesis"
+        }},
+        {{
+          "nutrient": "Potassium",
+          "amount": 420,
+          "unit": "mg",
+          "daily_value_percent": 9,
+          "importance": "Electrolyte balance and heart health"
+        }},
+        {{
+          "nutrient": "Calcium",
+          "amount": 95,
+          "unit": "mg",
+          "daily_value_percent": 10,
+          "importance": "Bone health and muscle function"
+        }}
+      ]
     }},
     "ingredients": [
       {{
         "item": "2 cups all-purpose flour",
-        "category": "dry ingredients"
+        "category": "dry ingredients",
+        "quantity": "2 cups",
+        "notes": "Can substitute with whole wheat flour for more fiber"
       }},
       {{
         "item": "1 cup milk",
-        "category": "wet ingredients"
+        "category": "wet ingredients",
+        "quantity": "1 cup",
+        "notes": "Can use almond milk for dairy-free option"
       }}
     ],
     "instructions": [
@@ -791,7 +1111,11 @@ Rules:
 3. Include realistic cooking times and difficulty levels
 4. Provide accurate nutritional estimates
 5. Include helpful tips and variations
-6. Consider the dietary restrictions specified"""
+6. Consider the dietary restrictions specified
+7. Always include serving_info with serving_size, quantity, and portion_description
+8. Expand nutrients_summary to include important micronutrients beyond just macros
+9. Include daily value percentages where applicable
+10. Add quantity and notes to ingredients for better clarity"""
                 
                 recipe_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -894,12 +1218,64 @@ Provide a helpful, encouraging response that:
 4. Suggests next steps or alternatives
 5. Maintains a positive, supportive tone
 
-Keep it concise but comprehensive."""
+IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
+
+{{
+  "nutrition_response": {{
+    "user_question": "{message}",
+    "expert_analysis": "Comprehensive analysis of the user's nutrition question",
+    "practical_advice": "Actionable tips and recommendations",
+    "serving_guidelines": {{
+      "portion_recommendations": "Specific serving size suggestions",
+      "meal_timing": "Optimal timing for meals and snacks",
+      "frequency_guidance": "How often to eat for best results"
+    }},
+    "nutrient_focus": {{
+      "key_nutrients": "Most important nutrients for this concern",
+      "nutrients_summary": [
+        {{
+          "nutrient": "Protein",
+          "recommendation": "Specific protein guidance",
+          "food_sources": "Best food sources for this need",
+          "importance": "Why this nutrient matters for their concern"
+        }},
+        {{
+          "nutrient": "Fiber",
+          "recommendation": "Specific fiber guidance",
+          "food_sources": "Best food sources for this need",
+          "importance": "Why this nutrient matters for their concern"
+        }},
+        {{
+          "nutrient": "Vitamins",
+          "recommendation": "Specific vitamin guidance",
+          "food_sources": "Best food sources for this need",
+          "importance": "Why this nutrient matters for their concern"
+        }},
+        {{
+          "nutrient": "Minerals",
+          "recommendation": "Specific mineral guidance",
+          "food_sources": "Best food sources for this need",
+          "importance": "Why this nutrient matters for their concern"
+        }}
+      ]
+    }},
+    "motivation": "Encouraging words to inspire healthy choices",
+    "next_steps": [
+      "Immediate actions they can take",
+      "Short-term goals to work toward",
+      "Long-term strategies for success"
+    ],
+    "additional_resources": "Suggestions for further learning or support",
+    "generated_at": "{datetime.now(timezone.utc).isoformat()}"
+  }}
+}}
+
+Keep it concise but comprehensive, and always include serving guidelines and expanded nutrient information."""
 
                 ai_response = groq_client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": ai_prompt}],
-                    max_tokens=400,
+                    max_tokens=600,
                     temperature=0.7
                 )
                 
