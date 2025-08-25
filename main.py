@@ -387,9 +387,7 @@ Rules:
 5. Base analysis on the actual meal details provided
 6. Always include serving_info with serving_size and quantity
 7. Expand nutrients_summary to include important micronutrients beyond just macros
-8. Include daily value percentages where applicable
-9. **CRITICAL: Calories MUST be calculated using the scientific formula: (Protein × 4) + (Carbs × 4) + (Fat × 9) + (Alcohol × 7). Never estimate calories.**
-10. Ensure all calorie values are mathematically accurate based on the macro breakdowns"""
+8. Include daily value percentages where applicable"""
 
                 insight_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -891,16 +889,14 @@ Rules:
 2. Include exactly {days_per_week} days based on days_per_week parameter
 3. Each day must have exactly {meals_per_day} meals based on meals_per_day parameter
 4. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, ingredients, prep_time, and cooking_time
-5. **CRITICAL: Calories MUST be calculated using the scientific formula: (Protein × 4) + (Carbs × 4) + (Fat × 9) + (Alcohol × 7). Never estimate calories.**
-6. Calculate total_calories for each day and weekly totals using the calculated values
-7. Make it practical and delicious for the user's requirements
-8. Always include serving_info with serving_size, quantity, and portion_description
-9. Expand nutrients_summary to include important micronutrients beyond just macros
-10. Include daily value percentages where applicable
-11. Add prep_time and cooking_time for each meal
-12. Include daily_nutrition_summary and weekly_summary
-13. Provide a shopping list in the weekly_summary
-14. Ensure all calorie values are mathematically accurate based on the macro breakdowns"""
+5. Calculate total_calories for each day and weekly totals
+6. Make it practical and delicious for the user's requirements
+7. Always include serving_info with serving_size, quantity, and portion_description
+8. Expand nutrients_summary to include important micronutrients beyond just macros
+9. Include daily value percentages where applicable
+10. Add prep_time and cooking_time for each meal
+11. Include daily_nutrition_summary and weekly_summary
+12. Provide a shopping list in the weekly_summary"""
 
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -1127,9 +1123,7 @@ Rules:
 6. Expand nutrients_summary to include important micronutrients beyond just macros
 7. Include daily value percentages where applicable
 8. Add prep_time, cooking_time, and total_time
-9. Provide clear cooking instructions and helpful tips
-10. **CRITICAL: Calories MUST be calculated using the scientific formula: (Protein × 4) + (Carbs × 4) + (Fat × 9) + (Alcohol × 7). Never estimate calories.**
-11. Ensure all calorie values are mathematically accurate based on the macro breakdowns"""
+9. Provide clear cooking instructions and helpful tips"""
                 
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -1372,9 +1366,7 @@ Rules:
 7. Always include serving_info with serving_size, quantity, and portion_description
 8. Expand nutrients_summary to include important micronutrients beyond just macros
 9. Include daily value percentages where applicable
-10. Add quantity and notes to ingredients for better clarity
-11. **CRITICAL: Calories MUST be calculated using the scientific formula: (Protein × 4) + (Carbs × 4) + (Fat × 9) + (Alcohol × 7). Never estimate calories.**
-12. Ensure all calorie values are mathematically accurate based on the macro breakdowns"""
+10. Add quantity and notes to ingredients for better clarity"""
                 
                 recipe_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -1702,8 +1694,6 @@ async def execute_tool(
             return await get_nutrition_summary(parameters, user_id)
         elif tool_name == "create_meal_plan":
             return await create_meal_plan(parameters, user_id)
-        elif tool_name == "create_meal":
-            return await create_meal(parameters, user_id)
         elif tool_name == "create_recipe":
             return await create_recipe(parameters, user_id)
         elif tool_name == "general_nutrition":
