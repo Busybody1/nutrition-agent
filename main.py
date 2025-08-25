@@ -614,7 +614,7 @@ Make it personalized and actionable based on their description and goals."""
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
 async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Create a personalized meal plan with AI recommendations for future meals."""
+    """Create a personalized meal plan with AI recommendations for multiple days and meals."""
     try:
         # Validate user exists first
         await require_valid_user(user_id)
@@ -623,8 +623,9 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
         description = parameters.get("description", "")
         
         # Required and optional parameters for meal planning
-        plan_type = parameters.get("plan_type", "single_meal")  # single_meal, daily, weekly
-        meal_type = parameters.get("meal_type", "dinner")  # breakfast, lunch, dinner, snack
+        plan_type = parameters.get("plan_type", "weekly")  # single_meal, daily, weekly
+        days_per_week = parameters.get("days_per_week", 5)  # 1-7 days, default 5
+        meals_per_day = parameters.get("meals_per_day", 3)  # 1-5 meals, default 3
         dietary_restrictions = parameters.get("dietary_restrictions", [])  # vegetarian, vegan, gluten-free, etc.
         calorie_target = parameters.get("calorie_target", 0)  # 0 means no specific target
         cuisine_preference = parameters.get("cuisine_preference", "any")  # italian, asian, mediterranean, etc.
@@ -632,12 +633,19 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
         skill_level = parameters.get("skill_level", "intermediate")  # beginner, intermediate, advanced
         budget = parameters.get("budget", "medium")  # low, medium, high
         
+        # Validate parameters
+        if days_per_week < 1 or days_per_week > 7:
+            days_per_week = 5  # Default to 5 if invalid
+        if meals_per_day < 1 or meals_per_day > 5:
+            meals_per_day = 3  # Default to 3 if invalid
+        
         # Store meal plan data
         meal_plan_data = {
             "user_id": user_id,
             "description": description,
             "plan_type": plan_type,
-            "meal_type": meal_type,
+            "days_per_week": days_per_week,
+            "meals_per_day": meals_per_day,
             "dietary_restrictions": dietary_restrictions if isinstance(dietary_restrictions, list) else [dietary_restrictions],
             "calorie_target": calorie_target,
             "cuisine_preference": cuisine_preference,
@@ -655,13 +663,29 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
             try:
                 # Build detailed prompt based on parameters
                 restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
-                calorie_text = f"{calorie_target} calories" if calorie_target > 0 else "no specific calorie target"
+                calorie_text = f"{calorie_target} calories per day" if calorie_target > 0 else "no specific calorie target"
+                
+                # Determine meal types based on meals_per_day
+                meal_types = []
+                if meals_per_day >= 1:
+                    meal_types.append("breakfast")
+                if meals_per_day >= 2:
+                    meal_types.append("lunch")
+                if meals_per_day >= 3:
+                    meal_types.append("dinner")
+                if meals_per_day >= 4:
+                    meal_types.append("snack_1")
+                if meals_per_day >= 5:
+                    meal_types.append("snack_2")
+                
+                meal_types_text = ", ".join(meal_types)
                 
                 meal_prompt = f"""Create a detailed {plan_type} meal plan with the following requirements:
 
 REQUIREMENTS:
 - Plan Type: {plan_type}
-- Meal Type: {meal_type}
+- Days Per Week: {days_per_week} days
+- Meals Per Day: {meals_per_day} meals ({meal_types_text})
 - User Request: {description if description else "No specific request"}
 - Dietary Restrictions: {restrictions_text}
 - Calorie Target: {calorie_text}
@@ -674,9 +698,16 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
 
 {{
   "meal_plan": {{
+    "plan_info": {{
+      "plan_type": "{plan_type}",
+      "days_per_week": {days_per_week},
+      "meals_per_day": {meals_per_day},
+      "total_meals": {days_per_week * meals_per_day}
+    }},
     "days": [
       {{
         "day": 1,
+        "day_name": "Monday",
         "meals": {{
           "breakfast": {{
             "name": "Meal Name",
@@ -724,7 +755,9 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
             "ingredients": [
               "1/2 cup rolled oats",
               "1 cup almond milk"
-            ]
+            ],
+            "prep_time": "5 minutes",
+            "cooking_time": "10 minutes"
           }},
           "lunch": {{
             "name": "Meal Name",
@@ -772,7 +805,9 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
             "ingredients": [
               "150g grilled chicken breast",
               "2 cups mixed greens"
-            ]
+            ],
+            "prep_time": "15 minutes",
+            "cooking_time": "20 minutes"
           }},
           "dinner": {{
             "name": "Meal Name",
@@ -820,57 +855,48 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
             "ingredients": [
               "150g baked salmon",
               "1/2 cup quinoa (cooked)"
-            ]
-          }},
-          "snacks": [
-            {{
-              "name": "Snack Name",
-              "serving_info": {{
-                "serving_size": "1 piece",
-                "quantity": "1 serving",
-                "portion_description": "Light snack portion"
-              }},
-              "calories": 150,
-              "macros": {{
-                "protein": 10,
-                "carbs": 18,
-                "fat": 3
-              }},
-              "nutrients_summary": [
-                {{
-                  "nutrient": "Protein",
-                  "amount": 10,
-                  "unit": "g",
-                  "daily_value_percent": 20,
-                  "importance": "Essential for muscle building and repair"
-                }},
-                {{
-                  "nutrient": "Fiber",
-                  "amount": 4,
-                  "unit": "g",
-                  "daily_value_percent": 16,
-                  "importance": "Promotes digestive health and satiety"
-                }}
-              ]
-            }}
-          ]
+            ],
+            "prep_time": "20 minutes",
+            "cooking_time": "25 minutes"
+          }}
         }},
-        "total_calories": 1720
+        "total_calories": 1450,
+        "daily_nutrition_summary": {{
+          "total_protein": 97,
+          "total_carbs": 115,
+          "total_fat": 61,
+          "total_fiber": 25,
+          "key_nutrients": ["High protein", "Good fiber", "Balanced macros"]
+        }}
       }}
-    ]
+    ],
+    "weekly_summary": {{
+      "total_calories": {days_per_week * 1450},
+      "average_daily_calories": 1450,
+      "nutrition_goals": "Balanced macronutrients with focus on protein",
+      "shopping_list": [
+        "Proteins: chicken breast, salmon, eggs, tuna",
+        "Vegetables: spinach, mixed greens, bell peppers",
+        "Grains: quinoa, oats, whole grain bread",
+        "Dairy: almond milk, Greek yogurt"
+      ]
+    }}
   }}
 }}
 
 Rules:
 1. Return ONLY the JSON object, no other text
-2. Include 1-7 days based on plan_type
-3. Each day must have breakfast, lunch, dinner, and optional snacks
-4. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, and ingredients
-5. Calculate total_calories for each day
+2. Include exactly {days_per_week} days based on days_per_week parameter
+3. Each day must have exactly {meals_per_day} meals based on meals_per_day parameter
+4. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, ingredients, prep_time, and cooking_time
+5. Calculate total_calories for each day and weekly totals
 6. Make it practical and delicious for the user's requirements
-7. Always include serving_info with serving_size and quantity
+7. Always include serving_info with serving_size, quantity, and portion_description
 8. Expand nutrients_summary to include important micronutrients beyond just macros
-9. Include daily value percentages where applicable"""
+9. Include daily value percentages where applicable
+10. Add prep_time and cooking_time for each meal
+11. Include daily_nutrition_summary and weekly_summary
+12. Provide a shopping list in the weekly_summary"""
 
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -907,7 +933,8 @@ Rules:
                     "id": f"plan_{user_id}_{int(datetime.now().timestamp())}",
                     "description": description,
                     "plan_type": plan_type,
-                    "meal_type": meal_type,
+                    "days_per_week": days_per_week,
+                    "meals_per_day": meals_per_day,
                     "dietary_restrictions": dietary_restrictions,
                     "calorie_target": calorie_target,
                     "cuisine_preference": cuisine_preference,
@@ -931,7 +958,8 @@ Rules:
                     "id": f"plan_{user_id}_{int(datetime.now().timestamp())}",
                     "description": description,
                     "plan_type": plan_type,
-                    "meal_type": meal_type,
+                    "days_per_week": days_per_week,
+                    "meals_per_day": meals_per_day,
                     "dietary_restrictions": dietary_restrictions,
                     "calorie_target": calorie_target,
                     "cuisine_preference": cuisine_preference,
@@ -951,6 +979,229 @@ Rules:
     except Exception as e:
         logger.error(f"Error creating meal plan: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create meal plan: {str(e)}")
+
+async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    """Create a single meal with AI recommendations."""
+    try:
+        # Validate user exists first
+        await require_valid_user(user_id)
+        
+        # Get description (optional) and other parameters
+        description = parameters.get("description", "")
+        
+        # Required and optional parameters for single meal
+        meal_type = parameters.get("meal_type", "dinner")  # breakfast, lunch, dinner, snack
+        dietary_restrictions = parameters.get("dietary_restrictions", [])  # vegetarian, vegan, gluten-free, etc.
+        calorie_target = parameters.get("calorie_target", 0)  # 0 means no specific target
+        cuisine_preference = parameters.get("cuisine_preference", "any")  # italian, asian, mediterranean, etc.
+        cooking_time = parameters.get("cooking_time", "medium")  # quick (<30min), medium (30-60min), long (>60min)
+        skill_level = parameters.get("skill_level", "intermediate")  # beginner, intermediate, advanced
+        budget = parameters.get("budget", "medium")  # low, medium, high
+        
+        # Store meal data
+        meal_data = {
+            "user_id": user_id,
+            "description": description,
+            "meal_type": meal_type,
+            "dietary_restrictions": dietary_restrictions if isinstance(dietary_restrictions, list) else [dietary_restrictions],
+            "calorie_target": calorie_target,
+            "cuisine_preference": cuisine_preference,
+            "cooking_time": cooking_time,
+            "skill_level": skill_level,
+            "budget": budget,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Store in memory (in future, this would go to database)
+        nutrition_data[f"meal_{user_id}_{datetime.now().timestamp()}"] = meal_data
+        
+        # Generate AI-powered meal if Groq is available
+        if groq_client:
+            try:
+                # Build detailed prompt based on parameters
+                restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                calorie_text = f"{calorie_target} calories" if calorie_target > 0 else "no specific calorie target"
+                
+                meal_prompt = f"""Create a detailed single {meal_type} meal with the following requirements:
+
+REQUIREMENTS:
+- Meal Type: {meal_type}
+- User Request: {description if description else "No specific request"}
+- Dietary Restrictions: {restrictions_text}
+- Calorie Target: {calorie_text}
+- Cuisine Preference: {cuisine_preference}
+- Cooking Time: {cooking_time}
+- Skill Level: {skill_level}
+- Budget: {budget}
+
+IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
+
+{{
+  "meal": {{
+    "meal_info": {{
+      "meal_type": "{meal_type}",
+      "cuisine": "{cuisine_preference}",
+      "difficulty": "{skill_level}",
+      "budget": "{budget}"
+    }},
+    "meal_details": {{
+      "name": "Meal Name",
+      "serving_info": {{
+        "serving_size": "1 plate",
+        "quantity": "1 serving",
+        "portion_description": "Standard {meal_type} portion"
+      }},
+      "calories": 450,
+      "macros": {{
+        "protein": 35,
+        "carbs": 25,
+        "fat": 20
+      }},
+      "nutrients_summary": [
+        {{
+          "nutrient": "Protein",
+          "amount": 35,
+          "unit": "g",
+          "daily_value_percent": 70,
+          "importance": "Essential for muscle building and repair"
+        }},
+        {{
+          "nutrient": "Fiber",
+          "amount": 8,
+          "unit": "g",
+          "daily_value_percent": 32,
+          "importance": "Promotes digestive health and satiety"
+        }},
+        {{
+          "nutrient": "Vitamin C",
+          "amount": 45,
+          "unit": "mg",
+          "daily_value_percent": 50,
+          "importance": "Antioxidant and immune support"
+        }},
+        {{
+          "nutrient": "Iron",
+          "amount": 3.5,
+          "unit": "mg",
+          "daily_value_percent": 19,
+          "importance": "Oxygen transport and energy production"
+        }}
+      ],
+      "ingredients": [
+        "150g protein source",
+        "2 cups vegetables",
+        "1/2 cup grains"
+      ],
+      "prep_time": "15 minutes",
+      "cooking_time": "20 minutes",
+      "total_time": "35 minutes"
+    }},
+    "cooking_instructions": [
+      "Step 1: Prepare ingredients",
+      "Step 2: Cook protein",
+      "Step 3: Add vegetables",
+      "Step 4: Season and serve"
+    ],
+    "tips": [
+      "Use fresh ingredients for best flavor",
+      "Don't overcook the protein"
+    ],
+    "variations": [
+      "Substitute with different protein",
+      "Add more vegetables for fiber"
+    ],
+    "nutrition_notes": "This meal provides a good balance of protein, carbs, and healthy fats"
+  }}
+}}
+
+Rules:
+1. Return ONLY the JSON object, no other text
+2. Create a single, complete meal suitable for {meal_type}
+3. Include comprehensive serving_info, nutrition details, and cooking instructions
+4. Make it practical and delicious for the user's requirements
+5. Always include serving_info with serving_size, quantity, and portion_description
+6. Expand nutrients_summary to include important micronutrients beyond just macros
+7. Include daily value percentages where applicable
+8. Add prep_time, cooking_time, and total_time
+9. Provide clear cooking instructions and helpful tips"""
+                
+                meal_response = groq_client.chat.completions.create(
+                    model=get_groq_model(),
+                    messages=[{"role": "user", "content": meal_prompt}],
+                    max_tokens=800,
+                    temperature=0.7,
+                    timeout=get_groq_timeout()
+                )
+                
+                ai_meal = meal_response.choices[0].message.content
+                
+            except Exception as e:
+                logger.warning(f"Failed to generate AI meal: {e}")
+                ai_meal = "AI meal creation temporarily unavailable. Please try again later."
+        else:
+            ai_meal = "AI meal creation features are currently unavailable."
+        
+        # Parse AI response to extract structured meal
+        try:
+            # Remove markdown code blocks if present
+            ai_response_clean = ai_meal
+            if "```json" in ai_meal:
+                ai_response_clean = ai_meal.split("```json")[1].split("```")[0].strip()
+            elif "```" in ai_meal:
+                ai_response_clean = ai_meal.split("```")[1].split("```")[0].strip()
+            
+            import json
+            structured_meal = json.loads(ai_response_clean)
+            
+            return {
+                "status": "success",
+                "user_id": user_id,
+                "meal": {
+                    "id": f"meal_{user_id}_{int(datetime.now().timestamp())}",
+                    "description": description,
+                    "meal_type": meal_type,
+                    "dietary_restrictions": dietary_restrictions,
+                    "calorie_target": calorie_target,
+                    "cuisine_preference": cuisine_preference,
+                    "cooking_time": cooking_time,
+                    "skill_level": skill_level,
+                    "budget": budget,
+                    "structured_meal": structured_meal,
+                    "created_at": meal_data["created_at"]
+                },
+                "agent": "nutrition",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": f"Personalized {meal_type} meal created successfully"
+            }
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse AI meal as JSON: {e}")
+            # Fallback to original response
+            return {
+                "status": "success",
+                "user_id": user_id,
+                "meal": {
+                    "id": f"meal_{user_id}_{int(datetime.now().timestamp())}",
+                    "description": description,
+                    "meal_type": meal_type,
+                    "dietary_restrictions": dietary_restrictions,
+                    "calorie_target": calorie_target,
+                    "cuisine_preference": cuisine_preference,
+                    "cooking_time": cooking_time,
+                    "skill_level": skill_level,
+                    "budget": budget,
+                    "ai_generated_meal": ai_meal,
+                    "created_at": meal_data["created_at"]
+                },
+                "agent": "nutrition",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": f"Personalized {meal_type} meal created successfully (AI response format issue)"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating meal: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create meal: {str(e)}")
 
 async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
     """Create a detailed recipe with AI-powered suggestions."""

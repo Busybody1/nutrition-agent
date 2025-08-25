@@ -460,7 +460,20 @@ class NutritionResponse(BaseModel):
 
 class MealPlanRequest(BaseModel):
     description: Optional[str] = None
-    plan_type: Optional[str] = "single_meal"
+    plan_type: Optional[str] = "weekly"
+    days_per_week: Optional[int] = Field(5, ge=1, le=7)
+    meals_per_day: Optional[int] = Field(3, ge=1, le=5)
+    dietary_restrictions: Optional[List[str]] = []
+    calorie_target: Optional[int] = 0
+    cuisine_preference: Optional[str] = "any"
+    cooking_time: Optional[str] = "medium"
+    skill_level: Optional[str] = "intermediate"
+    budget: Optional[str] = "medium"
+
+
+class CreateMealRequest(BaseModel):
+    """Request model for creating a single meal."""
+    description: Optional[str] = None
     meal_type: Optional[str] = "dinner"
     dietary_restrictions: Optional[List[str]] = []
     calorie_target: Optional[int] = 0
