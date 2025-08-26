@@ -50,6 +50,82 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+# JSON VALIDATION AND FIXING UTILITIES
+# =============================================================================
+
+def validate_and_fix_json(json_string: str) -> str:
+    """
+    Best practice JSON validation and fixing function.
+    Handles common JSON issues like incomplete responses, missing quotes, etc.
+    """
+    import json
+    import re
+    
+    try:
+        # First, try to parse as-is
+        json.loads(json_string)
+        return json_string
+    except json.JSONDecodeError as e:
+        logger.info(f"JSON validation failed, attempting to fix: {e}")
+        
+        # Fix common issues
+        fixed_json = json_string
+        
+        # 1. Fix incomplete JSON by finding the last complete object
+        if not fixed_json.strip().endswith('}'):
+            # Find the last complete object by counting braces
+            brace_count = 0
+            last_complete_pos = -1
+            
+            for i, char in enumerate(fixed_json):
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        last_complete_pos = i
+            
+            if last_complete_pos > 0:
+                fixed_json = fixed_json[:last_complete_pos + 1]
+                logger.info("Fixed incomplete JSON by truncating to last complete object")
+        
+        # 2. Fix common quote issues
+        # Fix unescaped quotes in string values
+        fixed_json = re.sub(r'([^\\])"([^"]*?)([^\\])"', r'\1"\2\3"', fixed_json)
+        
+        # 3. Fix trailing commas
+        fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
+        
+        # 4. Fix missing quotes around property names
+        fixed_json = re.sub(r'(\s*)(\w+)(\s*:)', r'\1"\2"\3', fixed_json)
+        
+        # 5. Try to parse the fixed JSON
+        try:
+            json.loads(fixed_json)
+            logger.info("Successfully fixed JSON parsing issues")
+            return fixed_json
+        except json.JSONDecodeError as e2:
+            logger.warning(f"JSON fixing failed: {e2}")
+            
+            # 6. Last resort: try to extract the largest valid JSON object
+            try:
+                # Find the largest valid JSON object
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, fixed_json, re.DOTALL)
+                if matches:
+                    largest_match = max(matches, key=len)
+                    # Validate this match
+                    json.loads(largest_match)
+                    logger.info("Extracted largest valid JSON object as fallback")
+                    return largest_match
+            except:
+                pass
+            
+            # If all else fails, return the original string
+            logger.error("All JSON fixing attempts failed")
+            return json_string
+
+# =============================================================================
 # SIMPLE NUTRITION AGENT
 # =============================================================================
 
@@ -393,7 +469,7 @@ Rules:
                 insight_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": insight_prompt}],
-                    max_tokens=600,
+                    max_tokens=1200,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -603,7 +679,7 @@ Make it personalized and actionable based on their description and goals."""
                 summary_response = groq_client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=800,
+                    max_tokens=1500,
                     temperature=0.7
                 )
                 
@@ -678,6 +754,9 @@ Make it personalized and actionable based on their description and goals."""
                     ai_response_clean = '{' + ai_response_clean
                 if not ai_response_clean.endswith('}'):
                     ai_response_clean = ai_response_clean + '}'
+                
+                # Best Practice: Validate JSON structure before parsing
+                ai_response_clean = validate_and_fix_json(ai_response_clean)
                 
                 logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
                 structured_summary = json.loads(ai_response_clean)
@@ -990,7 +1069,7 @@ Rules:
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=800,
+                    max_tokens=3000,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -1238,7 +1317,7 @@ Rules:
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=800,
+                    max_tokens=1500,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -1507,7 +1586,7 @@ Rules:
                 recipe_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": recipe_prompt}],
-                    max_tokens=800,
+                    max_tokens=1500,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -1583,6 +1662,9 @@ Rules:
                     ai_response_clean = '{' + ai_response_clean
                 if not ai_response_clean.endswith('}'):
                     ai_response_clean = ai_response_clean + '}'
+                
+                # Best Practice: Validate JSON structure before parsing
+                ai_response_clean = validate_and_fix_json(ai_response_clean)
                 
                 logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
                 structured_recipe = json.loads(ai_response_clean)
@@ -1764,6 +1846,9 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
                     ai_response_clean = '{' + ai_response_clean
                 if not ai_response_clean.endswith('}'):
                     ai_response_clean = ai_response_clean + '}'
+                
+                # Best Practice: Validate JSON structure before parsing
+                ai_response_clean = validate_and_fix_json(ai_response_clean)
                 
                 logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
                 structured_response = json.loads(ai_response_clean)
