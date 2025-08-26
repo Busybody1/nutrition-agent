@@ -417,56 +417,14 @@ Rules:
             import json
             structured_analysis = json.loads(ai_response_clean)
             
-            return {
-                "status": "success",
-                "user_id": user_id,
-                "meal_log": {
-                    "id": f"log_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "food_items": food_items,
-                    "meal_type": meal_type,
-                    "portion_size": portion_size,
-                    "eating_time": eating_time,
-                    "location": location,
-                    "mood_before": mood_before,
-                    "mood_after": mood_after,
-                    "hunger_level": hunger_level,
-                    "satisfaction_level": satisfaction_level,
-                    "estimated_calories": estimated_calories,
-                    "notes": notes,
-                    "structured_analysis": structured_analysis,
-                    "logged_at": meal_log["logged_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": "Meal logged successfully with AI nutrition analysis"
-            }
+            # Return the exact AI-generated format
+            return structured_analysis
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse AI meal analysis as JSON: {e}")
             # Fallback to original response
             return {
-                "status": "success",
-                "user_id": user_id,
-                "meal_log": {
-                    "id": f"log_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "food_items": food_items,
-                    "meal_type": meal_type,
-                    "portion_size": portion_size,
-                    "eating_time": eating_time,
-                    "location": location,
-                    "mood_before": mood_before,
-                    "mood_after": mood_after,
-                    "hunger_level": hunger_level,
-                    "satisfaction_level": satisfaction_level,
-                    "estimated_calories": estimated_calories,
-                    "notes": notes,
-                    "ai_nutrition_analysis": ai_insights,
-                    "logged_at": meal_log["logged_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": "Meal logged successfully with AI nutrition analysis (AI response format issue)"
+                "error": "AI response format issue",
+                "ai_response": ai_insights
             }
         
     except HTTPException:
@@ -595,17 +553,27 @@ Make it personalized and actionable based on their description and goals."""
         else:
             ai_summary = "AI features are currently unavailable."
         
-        return {
-            "status": "success",
-            "user_id": user_id,
-            "summary": {
-                "period_days": days,
-                "goals": goals,
-                "ai_analysis": ai_summary,
-                "generated_at": datetime.now(timezone.utc).isoformat()
-            },
-            "message": "Nutrition summary generated successfully"
-        }
+        # Parse AI response to extract structured nutrition summary
+        try:
+            # Remove markdown code blocks if present
+            ai_response_clean = ai_summary
+            if "```json" in ai_summary:
+                ai_response_clean = ai_summary.split("```json")[1].split("```")[0].strip()
+            elif "```" in ai_summary:
+                ai_response_clean = ai_summary.split("```")[1].split("```")[0].strip()
+            
+            import json
+            structured_summary = json.loads(ai_response_clean)
+            
+            # Return the exact AI-generated format
+            return structured_summary
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse AI nutrition summary as JSON: {e}")
+            # Fallback to original response
+            return {
+                "error": "AI response format issue",
+                "ai_response": ai_summary
+            }
         
     except HTTPException:
         raise
@@ -926,52 +894,14 @@ Rules:
             import json
             structured_plan = json.loads(ai_response_clean)
             
-            return {
-                "status": "success",
-                "user_id": user_id,
-                "meal_plan": {
-                    "id": f"plan_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "plan_type": plan_type,
-                    "days_per_week": days_per_week,
-                    "meals_per_day": meals_per_day,
-                    "dietary_restrictions": dietary_restrictions,
-                    "calorie_target": calorie_target,
-                    "cuisine_preference": cuisine_preference,
-                    "cooking_time": cooking_time,
-                    "skill_level": skill_level,
-                    "budget": budget,
-                    "structured_plan": structured_plan,
-                    "created_at": meal_plan_data["created_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": f"Personalized {plan_type} meal plan created successfully"
-            }
+            # Return the exact AI-generated format
+            return structured_plan
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse AI meal plan as JSON: {e}")
             # Fallback to original response
             return {
-                "status": "success",
-                "user_id": user_id,
-                "meal_plan": {
-                    "id": f"plan_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "plan_type": plan_type,
-                    "days_per_week": days_per_week,
-                    "meals_per_day": meals_per_day,
-                    "dietary_restrictions": dietary_restrictions,
-                    "calorie_target": calorie_target,
-                    "cuisine_preference": cuisine_preference,
-                    "cooking_time": cooking_time,
-                    "skill_level": skill_level,
-                    "budget": budget,
-                    "ai_generated_plan": ai_meal_plan,
-                    "created_at": meal_plan_data["created_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": f"Personalized {plan_type} meal plan created successfully (AI response format issue)"
+                "error": "AI response format issue",
+                "ai_response": ai_meal_plan
             }
         
     except HTTPException:
@@ -1153,48 +1083,14 @@ Rules:
             import json
             structured_meal = json.loads(ai_response_clean)
             
-            return {
-                "status": "success",
-                "user_id": user_id,
-                "meal": {
-                    "id": f"meal_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "meal_type": meal_type,
-                    "dietary_restrictions": dietary_restrictions,
-                    "calorie_target": calorie_target,
-                    "cuisine_preference": cuisine_preference,
-                    "cooking_time": cooking_time,
-                    "skill_level": skill_level,
-                    "budget": budget,
-                    "structured_meal": structured_meal,
-                    "created_at": meal_data["created_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": f"Personalized {meal_type} meal created successfully"
-            }
+            # Return the exact AI-generated format
+            return structured_meal
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse AI meal as JSON: {e}")
             # Fallback to original response
             return {
-                "status": "success",
-                "user_id": user_id,
-                "meal": {
-                    "id": f"meal_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "meal_type": meal_type,
-                    "dietary_restrictions": dietary_restrictions,
-                    "calorie_target": calorie_target,
-                    "cuisine_preference": cuisine_preference,
-                    "cooking_time": cooking_time,
-                    "skill_level": skill_level,
-                    "budget": budget,
-                    "ai_generated_meal": ai_meal,
-                    "created_at": meal_data["created_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": f"Personalized {meal_type} meal created successfully (AI response format issue)"
+                "error": "AI response format issue",
+                "ai_response": ai_meal
             }
         
     except HTTPException:
@@ -1396,48 +1292,14 @@ Rules:
             import json
             structured_recipe = json.loads(ai_response_clean)
             
-            return {
-                "status": "success",
-                "user_id": user_id,
-                "recipe": {
-                    "id": f"recipe_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "recipe_name": recipe_name,
-                    "cuisine_type": cuisine_type,
-                    "dietary_restrictions": dietary_restrictions,
-                    "cooking_time": cooking_time,
-                    "skill_level": skill_level,
-                    "servings": servings,
-                    "calorie_target": calorie_target,
-                    "structured_recipe": structured_recipe,
-                    "created_at": recipe_data["created_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": "Recipe created successfully with AI-powered suggestions"
-            }
+            # Return the exact AI-generated format
+            return structured_recipe
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse AI recipe as JSON: {e}")
             # Fallback to original response
             return {
-                "status": "success",
-                "user_id": user_id,
-                "recipe": {
-                    "id": f"recipe_{user_id}_{int(datetime.now().timestamp())}",
-                    "description": description,
-                    "recipe_name": recipe_name,
-                    "cuisine_type": cuisine_type,
-                    "dietary_restrictions": dietary_restrictions,
-                    "cooking_time": cooking_time,
-                    "skill_level": skill_level,
-                    "servings": servings,
-                    "calorie_target": calorie_target,
-                    "ai_generated_recipe": ai_recipe,
-                    "created_at": recipe_data["created_at"]
-                },
-                "agent": "nutrition",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": "Recipe created successfully with AI-powered suggestions (AI response format issue)"
+                "error": "AI response format issue",
+                "ai_response": ai_recipe
             }
         
     except HTTPException:
@@ -1538,13 +1400,27 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
         else:
             response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
         
-        return {
-            "status": "success",
-            "response": response_text,
-            "user_id": user_id,
-            "agent": "nutrition",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+        # Parse AI response to extract structured nutrition response
+        try:
+            # Remove markdown code blocks if present
+            ai_response_clean = response_text
+            if "```json" in response_text:
+                ai_response_clean = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                ai_response_clean = response_text.split("```")[1].split("```")[0].strip()
+            
+            import json
+            structured_response = json.loads(ai_response_clean)
+            
+            # Return the exact AI-generated format
+            return structured_response
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse AI nutrition response as JSON: {e}")
+            # Fallback to original response
+            return {
+                "error": "AI response format issue",
+                "ai_response": response_text
+            }
         
     except HTTPException:
         raise
@@ -1552,11 +1428,8 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
         logger.error(f"Error generating nutrition response: {e}")
         # Fallback to basic response if AI fails
         return {
-            "status": "success",
-            "response": "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need.",
-            "user_id": user_id,
-            "agent": "nutrition",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "error": "AI service unavailable",
+            "message": "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
         }
 
 # =============================================================================
