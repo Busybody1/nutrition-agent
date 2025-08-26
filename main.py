@@ -50,80 +50,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# JSON VALIDATION AND FIXING UTILITIES
+# JSON PARSING UTILITIES
 # =============================================================================
 
-def validate_and_fix_json(json_string: str) -> str:
+def simple_json_parse(ai_response: str) -> Dict[str, Any]:
     """
-    Best practice JSON validation and fixing function.
-    Handles common JSON issues like incomplete responses, missing quotes, etc.
+    Simple and reliable JSON parsing function.
+    Tries to parse the AI response directly, falls back to error response.
     """
-    import json
-    import re
-    
     try:
-        # First, try to parse as-is
-        json.loads(json_string)
-        return json_string
-    except json.JSONDecodeError as e:
-        logger.info(f"JSON validation failed, attempting to fix: {e}")
-        
-        # Fix common issues
-        fixed_json = json_string
-        
-        # 1. Fix incomplete JSON by finding the last complete object
-        if not fixed_json.strip().endswith('}'):
-            # Find the last complete object by counting braces
-            brace_count = 0
-            last_complete_pos = -1
-            
-            for i, char in enumerate(fixed_json):
-                if char == '{':
-                    brace_count += 1
-                elif char == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        last_complete_pos = i
-            
-            if last_complete_pos > 0:
-                fixed_json = fixed_json[:last_complete_pos + 1]
-                logger.info("Fixed incomplete JSON by truncating to last complete object")
-        
-        # 2. Fix common quote issues
-        # Fix unescaped quotes in string values
-        fixed_json = re.sub(r'([^\\])"([^"]*?)([^\\])"', r'\1"\2\3"', fixed_json)
-        
-        # 3. Fix trailing commas
-        fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
-        
-        # 4. Fix missing quotes around property names
-        fixed_json = re.sub(r'(\s*)(\w+)(\s*:)', r'\1"\2"\3', fixed_json)
-        
-        # 5. Try to parse the fixed JSON
-        try:
-            json.loads(fixed_json)
-            logger.info("Successfully fixed JSON parsing issues")
-            return fixed_json
-        except json.JSONDecodeError as e2:
-            logger.warning(f"JSON fixing failed: {e2}")
-            
-            # 6. Last resort: try to extract the largest valid JSON object
-            try:
-                # Find the largest valid JSON object
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, fixed_json, re.DOTALL)
-                if matches:
-                    largest_match = max(matches, key=len)
-                    # Validate this match
-                    json.loads(largest_match)
-                    logger.info("Extracted largest valid JSON object as fallback")
-                    return largest_match
-            except:
-                pass
-            
-            # If all else fails, return the original string
-            logger.error("All JSON fixing attempts failed")
-            return json_string
+        import json
+        parsed = json.loads(ai_response)
+        return parsed
+    except Exception as e:
+        logger.warning(f"Failed to parse AI response as JSON: {e}")
+        return {
+            "error": "AI response format issue",
+            "ai_response": {"raw_text": ai_response}
+        }
 
 # =============================================================================
 # SIMPLE NUTRITION AGENT
@@ -179,7 +123,7 @@ def initialize_databases():
                 database_status[db_type] = False
         
         logger.info("✅ Database initialization complete")
-        
+
     except Exception as e:
         logger.error(f"❌ Database initialization error: {e}")
         database_status = {"main": False, "user": False, "nutrition": False, "workout": False}
@@ -455,7 +399,7 @@ Rules:
                 insight_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": insight_prompt}],
-                    max_tokens=1200,
+                    max_tokens=3000,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -480,10 +424,10 @@ Rules:
             logger.warning(f"Failed to parse AI meal analysis as JSON: {e}")
             logger.warning(f"AI response content: {ai_insights[:500]}...")
             # Fallback to original response
-            return {
+        return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_insights}
-            }
+        }
         
     except HTTPException:
         raise
@@ -594,7 +538,7 @@ Make it personalized and actionable based on their description and goals."""
                 summary_response = groq_client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=1500,
+                    max_tokens=3000,
                     temperature=0.7
                 )
                 
@@ -618,10 +562,10 @@ Make it personalized and actionable based on their description and goals."""
             logger.warning(f"Failed to parse AI nutrition summary as JSON: {e}")
             logger.warning(f"AI response content: {ai_summary[:500]}...")
             # Fallback to original response
-            return {
+        return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_summary}
-            }
+        }
         
     except HTTPException:
         raise
@@ -920,7 +864,7 @@ Rules:
             logger.warning(f"Failed to parse AI meal plan as JSON: {e}")
             logger.warning(f"AI response content: {ai_meal_plan[:500]}...")
             # Fallback to original response
-            return {
+        return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_meal_plan}
             }
@@ -951,11 +895,11 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
         
         # Store meal data
         meal_data = {
-                "user_id": user_id,
-                    "description": description,
-                    "meal_type": meal_type,
+            "user_id": user_id,
+                "description": description,
+                "meal_type": meal_type,
             "dietary_restrictions": dietary_restrictions if isinstance(dietary_restrictions, list) else [dietary_restrictions],
-                    "calorie_target": calorie_target,
+                "calorie_target": calorie_target,
                     "cuisine_preference": cuisine_preference,
                     "cooking_time": cooking_time,
                     "skill_level": skill_level,
@@ -1071,7 +1015,7 @@ Rules:
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=1500,
+                    max_tokens=3000,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -1099,7 +1043,7 @@ Rules:
             return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_meal}
-            }
+        }
         
     except HTTPException:
         raise
@@ -1262,7 +1206,7 @@ Rules:
                 recipe_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": recipe_prompt}],
-                    max_tokens=1500,
+                    max_tokens=3000,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
@@ -1376,7 +1320,7 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
                 ai_response = groq_client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": ai_prompt}],
-                    max_tokens=600,
+                    max_tokens=3000,
                     temperature=0.7
                 )
                 
@@ -1400,10 +1344,10 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
             logger.warning(f"Failed to parse AI nutrition response as JSON: {e}")
             logger.warning(f"AI response content: {response_text[:500]}...")
             # Fallback to original response
-            return {
+        return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": response_text}
-            }
+        }
         
     except HTTPException:
         raise
@@ -1550,6 +1494,8 @@ async def execute_tool(
             return await get_nutrition_summary(parameters, user_id)
         elif tool_name == "create_meal_plan":
             return await create_meal_plan(parameters, user_id)
+        elif tool_name == "create_meal":
+            return await create_meal(parameters, user_id)
         elif tool_name == "create_recipe":
             return await create_recipe(parameters, user_id)
         elif tool_name == "general_nutrition":
