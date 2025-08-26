@@ -405,22 +405,81 @@ Rules:
         else:
             ai_insights = "AI nutrition insights are currently unavailable."
         
-        # Parse AI response to extract structured meal analysis
+        # Enhanced JSON response extraction
         try:
-            # Remove markdown code blocks if present
-            ai_response_clean = ai_insights
+            import json
+            import re
+            
+            # Try multiple extraction strategies
+            ai_response_clean = None
+            
+            # Strategy 1: Look for ```json blocks
             if "```json" in ai_insights:
                 ai_response_clean = ai_insights.split("```json")[1].split("```")[0].strip()
+            
+            # Strategy 2: Look for ``` blocks (without json specifier)
             elif "```" in ai_insights:
                 ai_response_clean = ai_insights.split("```")[1].split("```")[0].strip()
             
-            import json
-            structured_analysis = json.loads(ai_response_clean)
+            # Strategy 3: Look for JSON object patterns in the text
+            else:
+                # Find the first { and last } to extract JSON
+                start_idx = ai_insights.find('{')
+                end_idx = ai_insights.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    ai_response_clean = ai_insights[start_idx:end_idx + 1]
             
-            # Return the exact AI-generated format
-            return structured_analysis
-        except json.JSONDecodeError as e:
+            # Strategy 4: Use regex to find JSON-like content
+            if not ai_response_clean:
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, ai_insights, re.DOTALL)
+                if matches:
+                    # Use the longest match as it's likely the complete JSON
+                    ai_response_clean = max(matches, key=len)
+            
+            # Strategy 5: Look for specific response patterns
+            if not ai_response_clean:
+                # Common AI response patterns
+                patterns = [
+                    r'Here is the JSON.*?(\{.*\})',
+                    r'Here\'s the.*?(\{.*\})',
+                    r'JSON.*?(\{.*\})',
+                    r'Response.*?(\{.*\})',
+                    r'(\{.*\})',  # Fallback: any JSON object
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, ai_insights, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        ai_response_clean = match.group(1)
+                        break
+            
+            if ai_response_clean:
+                # Clean up the extracted content
+                ai_response_clean = ai_response_clean.strip()
+                
+                # Remove any remaining markdown or explanatory text
+                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
+                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
+                
+                # Ensure it starts and ends with braces
+                if not ai_response_clean.startswith('{'):
+                    ai_response_clean = '{' + ai_response_clean
+                if not ai_response_clean.endswith('}'):
+                    ai_response_clean = ai_response_clean + '}'
+                
+                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
+                structured_analysis = json.loads(ai_response_clean)
+                
+                # Return the exact AI-generated format
+                return structured_analysis
+            else:
+                raise ValueError("No JSON content found in AI response")
+                
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI meal analysis as JSON: {e}")
+            logger.warning(f"AI response content: {ai_insights[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
@@ -553,22 +612,81 @@ Make it personalized and actionable based on their description and goals."""
         else:
             ai_summary = "AI features are currently unavailable."
         
-        # Parse AI response to extract structured nutrition summary
+        # Enhanced JSON response extraction
         try:
-            # Remove markdown code blocks if present
-            ai_response_clean = ai_summary
+            import json
+            import re
+            
+            # Try multiple extraction strategies
+            ai_response_clean = None
+            
+            # Strategy 1: Look for ```json blocks
             if "```json" in ai_summary:
                 ai_response_clean = ai_summary.split("```json")[1].split("```")[0].strip()
+            
+            # Strategy 2: Look for ``` blocks (without json specifier)
             elif "```" in ai_summary:
                 ai_response_clean = ai_summary.split("```")[1].split("```")[0].strip()
             
-            import json
-            structured_summary = json.loads(ai_response_clean)
+            # Strategy 3: Look for JSON object patterns in the text
+            else:
+                # Find the first { and last } to extract JSON
+                start_idx = ai_summary.find('{')
+                end_idx = ai_summary.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    ai_response_clean = ai_summary[start_idx:end_idx + 1]
             
-            # Return the exact AI-generated format
-            return structured_summary
-        except json.JSONDecodeError as e:
+            # Strategy 4: Use regex to find JSON-like content
+            if not ai_response_clean:
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, ai_summary, re.DOTALL)
+                if matches:
+                    # Use the longest match as it's likely the complete JSON
+                    ai_response_clean = max(matches, key=len)
+            
+            # Strategy 5: Look for specific response patterns
+            if not ai_response_clean:
+                # Common AI response patterns
+                patterns = [
+                    r'Here is the JSON.*?(\{.*\})',
+                    r'Here\'s the.*?(\{.*\})',
+                    r'JSON.*?(\{.*\})',
+                    r'Response.*?(\{.*\})',
+                    r'(\{.*\})',  # Fallback: any JSON object
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, ai_summary, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        ai_response_clean = match.group(1)
+                        break
+            
+            if ai_response_clean:
+                # Clean up the extracted content
+                ai_response_clean = ai_response_clean.strip()
+                
+                # Remove any remaining markdown or explanatory text
+                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
+                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
+                
+                # Ensure it starts and ends with braces
+                if not ai_response_clean.startswith('{'):
+                    ai_response_clean = '{' + ai_response_clean
+                if not ai_response_clean.endswith('}'):
+                    ai_response_clean = ai_response_clean + '}'
+                
+                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
+                structured_summary = json.loads(ai_response_clean)
+                
+                # Return the exact AI-generated format
+                return structured_summary
+            else:
+                raise ValueError("No JSON content found in AI response")
+                
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI nutrition summary as JSON: {e}")
+            logger.warning(f"AI response content: {ai_summary[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
@@ -882,22 +1000,81 @@ Rules:
         else:
             ai_meal_plan = "AI meal planning features are currently unavailable."
         
-        # Parse AI response to extract structured meal plan
+        # Enhanced JSON response extraction
         try:
-            # Remove markdown code blocks if present
-            ai_response_clean = ai_meal_plan
+            import json
+            import re
+            
+            # Try multiple extraction strategies
+            ai_response_clean = None
+            
+            # Strategy 1: Look for ```json blocks
             if "```json" in ai_meal_plan:
                 ai_response_clean = ai_meal_plan.split("```json")[1].split("```")[0].strip()
+            
+            # Strategy 2: Look for ``` blocks (without json specifier)
             elif "```" in ai_meal_plan:
                 ai_response_clean = ai_meal_plan.split("```")[1].split("```")[0].strip()
             
-            import json
-            structured_plan = json.loads(ai_response_clean)
+            # Strategy 3: Look for JSON object patterns in the text
+            else:
+                # Find the first { and last } to extract JSON
+                start_idx = ai_meal_plan.find('{')
+                end_idx = ai_meal_plan.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    ai_response_clean = ai_meal_plan[start_idx:end_idx + 1]
             
-            # Return the exact AI-generated format
-            return structured_plan
-        except json.JSONDecodeError as e:
+            # Strategy 4: Use regex to find JSON-like content
+            if not ai_response_clean:
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, ai_meal_plan, re.DOTALL)
+                if matches:
+                    # Use the longest match as it's likely the complete JSON
+                    ai_response_clean = max(matches, key=len)
+            
+            # Strategy 5: Look for specific response patterns
+            if not ai_response_clean:
+                # Common AI response patterns
+                patterns = [
+                    r'Here is the JSON.*?(\{.*\})',
+                    r'Here\'s the.*?(\{.*\})',
+                    r'JSON.*?(\{.*\})',
+                    r'Response.*?(\{.*\})',
+                    r'(\{.*\})',  # Fallback: any JSON object
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, ai_meal_plan, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        ai_response_clean = match.group(1)
+                        break
+            
+            if ai_response_clean:
+                # Clean up the extracted content
+                ai_response_clean = ai_response_clean.strip()
+                
+                # Remove any remaining markdown or explanatory text
+                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
+                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
+                
+                # Ensure it starts and ends with braces
+                if not ai_response_clean.startswith('{'):
+                    ai_response_clean = '{' + ai_response_clean
+                if not ai_response_clean.endswith('}'):
+                    ai_response_clean = ai_response_clean + '}'
+                
+                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
+                structured_plan = json.loads(ai_response_clean)
+                
+                # Return the exact AI-generated format
+                return structured_plan
+            else:
+                raise ValueError("No JSON content found in AI response")
+                
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI meal plan as JSON: {e}")
+            logger.warning(f"AI response content: {ai_meal_plan[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
@@ -1071,22 +1248,81 @@ Rules:
         else:
             ai_meal = "AI meal creation features are currently unavailable."
         
-        # Parse AI response to extract structured meal
+        # Enhanced JSON response extraction
         try:
-            # Remove markdown code blocks if present
-            ai_response_clean = ai_meal
+            import json
+            import re
+            
+            # Try multiple extraction strategies
+            ai_response_clean = None
+            
+            # Strategy 1: Look for ```json blocks
             if "```json" in ai_meal:
                 ai_response_clean = ai_meal.split("```json")[1].split("```")[0].strip()
+            
+            # Strategy 2: Look for ``` blocks (without json specifier)
             elif "```" in ai_meal:
                 ai_response_clean = ai_meal.split("```")[1].split("```")[0].strip()
             
-            import json
-            structured_meal = json.loads(ai_response_clean)
+            # Strategy 3: Look for JSON object patterns in the text
+            else:
+                # Find the first { and last } to extract JSON
+                start_idx = ai_meal.find('{')
+                end_idx = ai_meal.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    ai_response_clean = ai_meal[start_idx:end_idx + 1]
             
-            # Return the exact AI-generated format
-            return structured_meal
-        except json.JSONDecodeError as e:
+            # Strategy 4: Use regex to find JSON-like content
+            if not ai_response_clean:
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, ai_meal, re.DOTALL)
+                if matches:
+                    # Use the longest match as it's likely the complete JSON
+                    ai_response_clean = max(matches, key=len)
+            
+            # Strategy 5: Look for specific response patterns
+            if not ai_response_clean:
+                # Common AI response patterns
+                patterns = [
+                    r'Here is the JSON.*?(\{.*\})',
+                    r'Here\'s the.*?(\{.*\})',
+                    r'JSON.*?(\{.*\})',
+                    r'Response.*?(\{.*\})',
+                    r'(\{.*\})',  # Fallback: any JSON object
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, ai_meal, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        ai_response_clean = match.group(1)
+                        break
+            
+            if ai_response_clean:
+                # Clean up the extracted content
+                ai_response_clean = ai_response_clean.strip()
+                
+                # Remove any remaining markdown or explanatory text
+                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
+                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
+                
+                # Ensure it starts and ends with braces
+                if not ai_response_clean.startswith('{'):
+                    ai_response_clean = '{' + ai_response_clean
+                if not ai_response_clean.endswith('}'):
+                    ai_response_clean = ai_response_clean + '}'
+                
+                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
+                structured_meal = json.loads(ai_response_clean)
+                
+                # Return the exact AI-generated format
+                return structured_meal
+            else:
+                raise ValueError("No JSON content found in AI response")
+                
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI meal as JSON: {e}")
+            logger.warning(f"AI response content: {ai_meal[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
@@ -1280,22 +1516,81 @@ Rules:
         else:
             ai_recipe = "AI recipe creation features are currently unavailable."
         
-        # Parse AI response to extract structured recipe
+        # Enhanced JSON response extraction
         try:
-            # Remove markdown code blocks if present
-            ai_response_clean = ai_recipe
+            import json
+            import re
+            
+            # Try multiple extraction strategies
+            ai_response_clean = None
+            
+            # Strategy 1: Look for ```json blocks
             if "```json" in ai_recipe:
                 ai_response_clean = ai_recipe.split("```json")[1].split("```")[0].strip()
+            
+            # Strategy 2: Look for ``` blocks (without json specifier)
             elif "```" in ai_recipe:
                 ai_response_clean = ai_recipe.split("```")[1].split("```")[0].strip()
             
-            import json
-            structured_recipe = json.loads(ai_response_clean)
+            # Strategy 3: Look for JSON object patterns in the text
+            else:
+                # Find the first { and last } to extract JSON
+                start_idx = ai_recipe.find('{')
+                end_idx = ai_recipe.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    ai_response_clean = ai_recipe[start_idx:end_idx + 1]
             
-            # Return the exact AI-generated format
-            return structured_recipe
-        except json.JSONDecodeError as e:
+            # Strategy 4: Use regex to find JSON-like content
+            if not ai_response_clean:
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, ai_recipe, re.DOTALL)
+                if matches:
+                    # Use the longest match as it's likely the complete JSON
+                    ai_response_clean = max(matches, key=len)
+            
+            # Strategy 5: Look for specific response patterns
+            if not ai_response_clean:
+                # Common AI response patterns
+                patterns = [
+                    r'Here is the JSON.*?(\{.*\})',
+                    r'Here\'s the.*?(\{.*\})',
+                    r'JSON.*?(\{.*\})',
+                    r'Response.*?(\{.*\})',
+                    r'(\{.*\})',  # Fallback: any JSON object
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, ai_recipe, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        ai_response_clean = match.group(1)
+                        break
+            
+            if ai_response_clean:
+                # Clean up the extracted content
+                ai_response_clean = ai_response_clean.strip()
+                
+                # Remove any remaining markdown or explanatory text
+                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
+                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
+                
+                # Ensure it starts and ends with braces
+                if not ai_response_clean.startswith('{'):
+                    ai_response_clean = '{' + ai_response_clean
+                if not ai_response_clean.endswith('}'):
+                    ai_response_clean = ai_response_clean + '}'
+                
+                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
+                structured_recipe = json.loads(ai_response_clean)
+                
+                # Return the exact AI-generated format
+                return structured_recipe
+            else:
+                raise ValueError("No JSON content found in AI response")
+                
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI recipe as JSON: {e}")
+            logger.warning(f"AI response content: {ai_recipe[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
@@ -1400,22 +1695,81 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
         else:
             response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
         
-        # Parse AI response to extract structured nutrition response
+        # Enhanced JSON response extraction
         try:
-            # Remove markdown code blocks if present
-            ai_response_clean = response_text
+            import json
+            import re
+            
+            # Try multiple extraction strategies
+            ai_response_clean = None
+            
+            # Strategy 1: Look for ```json blocks
             if "```json" in response_text:
                 ai_response_clean = response_text.split("```json")[1].split("```")[0].strip()
+            
+            # Strategy 2: Look for ``` blocks (without json specifier)
             elif "```" in response_text:
                 ai_response_clean = response_text.split("```")[1].split("```")[0].strip()
             
-            import json
-            structured_response = json.loads(ai_response_clean)
+            # Strategy 3: Look for JSON object patterns in the text
+            else:
+                # Find the first { and last } to extract JSON
+                start_idx = response_text.find('{')
+                end_idx = response_text.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    ai_response_clean = response_text[start_idx:end_idx + 1]
             
-            # Return the exact AI-generated format
-            return structured_response
-        except json.JSONDecodeError as e:
+            # Strategy 4: Use regex to find JSON-like content
+            if not ai_response_clean:
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.findall(json_pattern, response_text, re.DOTALL)
+                if matches:
+                    # Use the longest match as it's likely the complete JSON
+                    ai_response_clean = max(matches, key=len)
+            
+            # Strategy 5: Look for specific response patterns
+            if not ai_response_clean:
+                # Common AI response patterns
+                patterns = [
+                    r'Here is the JSON.*?(\{.*\})',
+                    r'Here\'s the.*?(\{.*\})',
+                    r'JSON.*?(\{.*\})',
+                    r'Response.*?(\{.*\})',
+                    r'(\{.*\})',  # Fallback: any JSON object
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, response_text, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        ai_response_clean = match.group(1)
+                        break
+            
+            if ai_response_clean:
+                # Clean up the extracted content
+                ai_response_clean = ai_response_clean.strip()
+                
+                # Remove any remaining markdown or explanatory text
+                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
+                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
+                
+                # Ensure it starts and ends with braces
+                if not ai_response_clean.startswith('{'):
+                    ai_response_clean = '{' + ai_response_clean
+                if not ai_response_clean.endswith('}'):
+                    ai_response_clean = ai_response_clean + '}'
+                
+                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
+                structured_response = json.loads(ai_response_clean)
+                
+                # Return the exact AI-generated format
+                return structured_response
+            else:
+                raise ValueError("No JSON content found in AI response")
+                
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI nutrition response as JSON: {e}")
+            logger.warning(f"AI response content: {response_text[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
