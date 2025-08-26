@@ -379,15 +379,16 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
   }}
 }}
 
+IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
+
 Rules:
-1. Return ONLY the JSON object, no other text
-2. Provide realistic calorie and macro estimates based on the food items
-3. Include specific, actionable recommendations
-4. Make it supportive and educational
-5. Base analysis on the actual meal details provided
-6. Always include serving_info with serving_size and quantity
-7. Expand nutrients_summary to include important micronutrients beyond just macros
-8. Include daily value percentages where applicable"""
+1. Provide realistic calorie and macro estimates based on the food items
+2. Include specific, actionable recommendations
+3. Make it supportive and educational
+4. Base analysis on the actual meal details provided
+5. Always include serving_info with serving_size and quantity
+6. Expand nutrients_summary to include important micronutrients beyond just macros
+7. Include daily value percentages where applicable"""
 
                 insight_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -594,6 +595,8 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
     "generated_at": "{datetime.now(timezone.utc).isoformat()}"
   }}
 }}
+
+IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
 
 Make it personalized and actionable based on their description and goals."""
 
@@ -970,19 +973,19 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
   }}
 }}
 
+IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
+
 Rules:
-1. Return ONLY the JSON object, no other text
-2. Include exactly {days_per_week} days based on days_per_week parameter
-3. Each day must have exactly {meals_per_day} meals based on meals_per_day parameter
-4. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, ingredients, prep_time, and cooking_time
-5. Calculate total_calories for each day and weekly totals
-6. Make it practical and delicious for the user's requirements
-7. Always include serving_info with serving_size, quantity, and portion_description
-8. Expand nutrients_summary to include important micronutrients beyond just macros
-9. Include daily value percentages where applicable
-10. Add prep_time and cooking_time for each meal
-11. Include daily_nutrition_summary and weekly_summary
-12. Provide a shopping list in the weekly_summary"""
+1. Include exactly {days_per_week} days based on days_per_week parameter
+2. Each day must have exactly {meals_per_day} meals based on meals_per_day parameter
+3. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, ingredients, prep_time, and cooking_time
+4. Calculate total_calories for each day and weekly totals
+5. Always include serving_info with serving_size, quantity, and portion_description
+6. Expand nutrients_summary to include important micronutrients beyond just macros
+7. Include daily value percentages where applicable
+8. Add prep_time and cooking_time for each meal
+9. Include daily_nutrition_summary and weekly_summary
+10. Provide a shopping list in the weekly_summary"""
 
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -1221,16 +1224,16 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
   }}
 }}
 
+IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
+
 Rules:
-1. Return ONLY the JSON object, no other text
-2. Create a single, complete meal suitable for {meal_type}
-3. Include comprehensive serving_info, nutrition details, and cooking instructions
-4. Make it practical and delicious for the user's requirements
-5. Always include serving_info with serving_size, quantity, and portion_description
-6. Expand nutrients_summary to include important micronutrients beyond just macros
-7. Include daily value percentages where applicable
-8. Add prep_time, cooking_time, and total_time
-9. Provide clear cooking instructions and helpful tips"""
+1. Create a single, complete meal suitable for {meal_type}
+2. Include comprehensive serving_info, nutrition details, and cooking instructions
+3. Always include serving_info with serving_size, quantity, and portion_description
+4. Expand nutrients_summary to include important micronutrients beyond just macros
+5. Include daily value percentages where applicable
+6. Add prep_time, cooking_time, and total_time
+7. Provide clear cooking instructions and helpful tips"""
                 
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -1488,17 +1491,18 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
   }}
 }}
 
+IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
+
 Rules:
-1. Return ONLY the JSON object, no other text
-2. Make the recipe practical and delicious
-3. Include realistic cooking times and difficulty levels
-4. Provide accurate nutritional estimates
-5. Include helpful tips and variations
-6. Consider the dietary restrictions specified
-7. Always include serving_info with serving_size, quantity, and portion_description
-8. Expand nutrients_summary to include important micronutrients beyond just macros
-9. Include daily value percentages where applicable
-10. Add quantity and notes to ingredients for better clarity"""
+1. Make the recipe practical and delicious
+2. Include realistic cooking times and difficulty levels
+3. Provide accurate nutritional estimates
+4. Include helpful tips and variations
+5. Consider the dietary restrictions specified
+6. Always include serving_info with serving_size, quantity, and portion_description
+7. Expand nutrients_summary to include important micronutrients beyond just macros
+8. Include daily value percentages where applicable
+9. Add quantity and notes to ingredients for better clarity"""
                 
                 recipe_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -1677,6 +1681,8 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
     "generated_at": "{datetime.now(timezone.utc).isoformat()}"
   }}
 }}
+
+IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
 
 Keep it concise but comprehensive, and always include serving guidelines and expanded nutrient information."""
 
