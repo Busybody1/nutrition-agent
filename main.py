@@ -377,51 +377,37 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
         {{
           "nutrient": "Protein",
           "amount": 35,
-          "unit": "g",
-          "daily_value_percent": 70,
-          "importance": "Essential for muscle building and repair"
+          "unit": "g"
         }},
         {{
           "nutrient": "Fiber",
           "amount": 8,
-          "unit": "g",
-          "daily_value_percent": 32,
-          "importance": "Promotes digestive health and satiety"
+          "unit": "g"
         }},
         {{
           "nutrient": "Vitamin A",
           "amount": 1200,
-          "unit": "mcg",
-          "daily_value_percent": 133,
-          "importance": "Supports vision and immune function"
+          "unit": "mcg"
         }},
         {{
           "nutrient": "Vitamin C",
           "amount": 45,
-          "unit": "mg",
-          "daily_value_percent": 50,
-          "importance": "Antioxidant and immune support"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Iron",
           "amount": 3.5,
-          "unit": "mg",
-          "daily_value_percent": 19,
-          "importance": "Oxygen transport and energy production"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Calcium",
           "amount": 120,
-          "unit": "mg",
-          "daily_value_percent": 12,
-          "importance": "Bone health and muscle function"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Potassium",
           "amount": 600,
-          "unit": "mg",
-          "daily_value_percent": 13,
-          "importance": "Electrolyte balance and heart health"
+          "unit": "mg"
         }}
       ],
       "key_nutrients": [
@@ -464,7 +450,7 @@ Rules:
 4. Base analysis on the actual meal details provided
 5. Always include serving_info with serving_size and quantity
 6. Expand nutrients_summary to include important micronutrients beyond just macros
-7. Include daily value percentages where applicable"""
+7. Focus on essential nutrient information"""
 
                 insight_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
@@ -482,85 +468,21 @@ Rules:
         else:
             ai_insights = "AI nutrition insights are currently unavailable."
         
-        # Enhanced JSON response extraction
+        # Simple and reliable JSON parsing
         try:
             import json
-            import re
             
-            # Try multiple extraction strategies
-            ai_response_clean = None
+            # Try to parse the AI response directly
+            parsed = json.loads(ai_insights)
+            return parsed
             
-            # Strategy 1: Look for ```json blocks
-            if "```json" in ai_insights:
-                ai_response_clean = ai_insights.split("```json")[1].split("```")[0].strip()
-            
-            # Strategy 2: Look for ``` blocks (without json specifier)
-            elif "```" in ai_insights:
-                ai_response_clean = ai_insights.split("```")[1].split("```")[0].strip()
-            
-            # Strategy 3: Look for JSON object patterns in the text
-            else:
-                # Find the first { and last } to extract JSON
-                start_idx = ai_insights.find('{')
-                end_idx = ai_insights.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    ai_response_clean = ai_insights[start_idx:end_idx + 1]
-            
-            # Strategy 4: Use regex to find JSON-like content
-            if not ai_response_clean:
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, ai_insights, re.DOTALL)
-                if matches:
-                    # Use the longest match as it's likely the complete JSON
-                    ai_response_clean = max(matches, key=len)
-            
-            # Strategy 5: Look for specific response patterns
-            if not ai_response_clean:
-                # Common AI response patterns
-                patterns = [
-                    r'Here is the JSON.*?(\{.*\})',
-                    r'Here\'s the.*?(\{.*\})',
-                    r'JSON.*?(\{.*\})',
-                    r'Response.*?(\{.*\})',
-                    r'(\{.*\})',  # Fallback: any JSON object
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, ai_insights, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        ai_response_clean = match.group(1)
-                        break
-            
-            if ai_response_clean:
-                # Clean up the extracted content
-                ai_response_clean = ai_response_clean.strip()
-                
-                # Remove any remaining markdown or explanatory text
-                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
-                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
-                
-                # Ensure it starts and ends with braces
-                if not ai_response_clean.startswith('{'):
-                    ai_response_clean = '{' + ai_response_clean
-                if not ai_response_clean.endswith('}'):
-                    ai_response_clean = ai_response_clean + '}'
-                
-                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
-                structured_analysis = json.loads(ai_response_clean)
-                
-                # Return the exact AI-generated format
-                return structured_analysis
-            else:
-                raise ValueError("No JSON content found in AI response")
-                
-        except (json.JSONDecodeError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse AI meal analysis as JSON: {e}")
             logger.warning(f"AI response content: {ai_insights[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
-                "ai_response": ai_insights
+                "ai_response": {"raw_text": ai_insights}
             }
         
     except HTTPException:
@@ -619,43 +541,36 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
         {{
           "nutrient": "Protein",
           "daily_target": "1.2-1.6g per kg body weight",
-          "importance": "Essential for muscle building and repair",
           "food_sources": "Lean meats, fish, eggs, legumes"
         }},
         {{
           "nutrient": "Fiber",
           "daily_target": "25-35g",
-          "importance": "Digestive health and satiety",
           "food_sources": "Whole grains, fruits, vegetables, legumes"
         }},
         {{
           "nutrient": "Vitamin D",
           "daily_target": "15-20mcg",
-          "importance": "Bone health and immune function",
           "food_sources": "Fatty fish, egg yolks, fortified dairy"
         }},
         {{
           "nutrient": "Iron",
           "daily_target": "8-18mg",
-          "importance": "Oxygen transport and energy production",
           "food_sources": "Red meat, spinach, legumes, fortified cereals"
         }},
         {{
           "nutrient": "Calcium",
           "daily_target": "1000-1300mg",
-          "importance": "Bone health and muscle function",
           "food_sources": "Dairy products, leafy greens, fortified foods"
         }},
         {{
           "nutrient": "Omega-3",
           "daily_target": "1.1-1.6g",
-          "importance": "Heart health and brain function",
           "food_sources": "Fatty fish, flaxseeds, walnuts, chia seeds"
         }},
         {{
           "nutrient": "B Vitamins",
           "daily_target": "Various",
-          "importance": "Energy metabolism and brain function",
           "food_sources": "Whole grains, meat, eggs, dairy, leafy greens"
         }}
       ]
@@ -691,88 +606,21 @@ Make it personalized and actionable based on their description and goals."""
         else:
             ai_summary = "AI features are currently unavailable."
         
-        # Enhanced JSON response extraction
+        # Simple and reliable JSON parsing
         try:
             import json
-            import re
             
-            # Try multiple extraction strategies
-            ai_response_clean = None
+            # Try to parse the AI response directly
+            parsed = json.loads(ai_summary)
+            return parsed
             
-            # Strategy 1: Look for ```json blocks
-            if "```json" in ai_summary:
-                ai_response_clean = ai_summary.split("```json")[1].split("```")[0].strip()
-            
-            # Strategy 2: Look for ``` blocks (without json specifier)
-            elif "```" in ai_summary:
-                ai_response_clean = ai_summary.split("```")[1].split("```")[0].strip()
-            
-            # Strategy 3: Look for JSON object patterns in the text
-            else:
-                # Find the first { and last } to extract JSON
-                start_idx = ai_summary.find('{')
-                end_idx = ai_summary.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    ai_response_clean = ai_summary[start_idx:end_idx + 1]
-            
-            # Strategy 4: Use regex to find JSON-like content
-            if not ai_response_clean:
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, ai_summary, re.DOTALL)
-                if matches:
-                    # Use the longest match as it's likely the complete JSON
-                    ai_response_clean = max(matches, key=len)
-            
-            # Strategy 5: Look for specific response patterns
-            if not ai_response_clean:
-                # Common AI response patterns
-                patterns = [
-                    r'Here is the JSON.*?(\{.*\})',
-                    r'Here\'s the.*?(\{.*\})',
-                    r'JSON.*?(\{.*\})',
-                    r'Response.*?(\{.*\})',
-                    r'(\{.*\})',  # Fallback: any JSON object
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, ai_summary, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        ai_response_clean = match.group(1)
-                        break
-            
-            if ai_response_clean:
-                # Clean up the extracted content
-                ai_response_clean = ai_response_clean.strip()
-                
-                # Remove any remaining markdown or explanatory text
-                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
-                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
-                
-                # Ensure it starts and ends with braces
-                if not ai_response_clean.startswith('{'):
-                    ai_response_clean = '{' + ai_response_clean
-                if not ai_response_clean.endswith('}'):
-                    ai_response_clean = ai_response_clean + '}'
-                
-                # Best Practice: Validate JSON structure before parsing
-                ai_response_clean = validate_and_fix_json(ai_response_clean)
-                
-                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
-                structured_summary = json.loads(ai_response_clean)
-                
-                # Return the exact AI-generated format
-                return structured_summary
-            else:
-                raise ValueError("No JSON content found in AI response")
-                
-        except (json.JSONDecodeError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse AI nutrition summary as JSON: {e}")
             logger.warning(f"AI response content: {ai_summary[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
-                "ai_response": ai_summary
+                "ai_response": {"raw_text": ai_summary}
             }
         
     except HTTPException:
@@ -901,23 +749,17 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
               {{
                 "nutrient": "Fiber",
                 "amount": 6,
-                "unit": "g",
-                "daily_value_percent": 24,
-                "importance": "Promotes digestive health and satiety"
+                "unit": "g"
               }},
               {{
                 "nutrient": "Iron",
                 "amount": 2.5,
-                "unit": "mg",
-                "daily_value_percent": 14,
-                "importance": "Oxygen transport and energy production"
+                "unit": "mg"
               }},
               {{
                 "nutrient": "B Vitamins",
                 "amount": "Various",
-                "unit": "mg",
-                "daily_value_percent": "15-25",
-                "importance": "Energy metabolism and brain function"
+                "unit": "mg"
               }}
             ],
             "ingredients": [
@@ -944,30 +786,22 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
               {{
                 "nutrient": "Protein",
                 "amount": 40,
-                "unit": "g",
-                "daily_value_percent": 80,
-                "importance": "Essential for muscle building and repair"
+                "unit": "g"
               }},
               {{
                 "nutrient": "Vitamin C",
                 "amount": 35,
-                "unit": "mg",
-                "daily_value_percent": 39,
-                "importance": "Antioxidant and immune support"
+                "unit": "mg"
               }},
               {{
                 "nutrient": "Folate",
                 "amount": 120,
-                "unit": "mcg",
-                "daily_value_percent": 30,
-                "importance": "Cell division and DNA synthesis"
+                "unit": "mcg"
               }},
               {{
                 "nutrient": "Potassium",
                 "amount": 450,
-                "unit": "mg",
-                "daily_value_percent": 10,
-                "importance": "Electrolyte balance and heart health"
+                "unit": "mg"
               }}
             ],
             "ingredients": [
@@ -994,30 +828,22 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
               {{
                 "nutrient": "Protein",
                 "amount": 45,
-                "unit": "g",
-                "daily_value_percent": 90,
-                "importance": "Essential for muscle building and repair"
+                "unit": "g"
               }},
               {{
                 "nutrient": "Omega-3",
                 "amount": 1.2,
-                "unit": "g",
-                "daily_value_percent": "N/A",
-                "importance": "Heart health and brain function"
+                "unit": "g"
               }},
               {{
                 "nutrient": "Vitamin D",
                 "amount": 8,
-                "unit": "mcg",
-                "daily_value_percent": 40,
-                "importance": "Bone health and immune function"
+                "unit": "mcg"
               }},
               {{
                 "nutrient": "Selenium",
                 "amount": 45,
-                "unit": "mcg",
-                "daily_value_percent": 82,
-                "importance": "Antioxidant and thyroid function"
+                "unit": "mcg"
               }}
             ],
             "ingredients": [
@@ -1061,7 +887,7 @@ Rules:
 4. Calculate total_calories for each day and weekly totals
 5. Always include serving_info with serving_size, quantity, and portion_description
 6. Expand nutrients_summary to include important micronutrients beyond just macros
-7. Include daily value percentages where applicable
+7. Focus on essential nutrient information
 8. Add prep_time and cooking_time for each meal
 9. Include daily_nutrition_summary and weekly_summary
 10. Provide a shopping list in the weekly_summary"""
@@ -1082,85 +908,21 @@ Rules:
         else:
             ai_meal_plan = "AI meal planning features are currently unavailable."
         
-        # Enhanced JSON response extraction
+        # Simple and reliable JSON parsing
         try:
             import json
-            import re
             
-            # Try multiple extraction strategies
-            ai_response_clean = None
+            # Try to parse the AI response directly
+            parsed = json.loads(ai_meal_plan)
+            return parsed
             
-            # Strategy 1: Look for ```json blocks
-            if "```json" in ai_meal_plan:
-                ai_response_clean = ai_meal_plan.split("```json")[1].split("```")[0].strip()
-            
-            # Strategy 2: Look for ``` blocks (without json specifier)
-            elif "```" in ai_meal_plan:
-                ai_response_clean = ai_meal_plan.split("```")[1].split("```")[0].strip()
-            
-            # Strategy 3: Look for JSON object patterns in the text
-            else:
-                # Find the first { and last } to extract JSON
-                start_idx = ai_meal_plan.find('{')
-                end_idx = ai_meal_plan.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    ai_response_clean = ai_meal_plan[start_idx:end_idx + 1]
-            
-            # Strategy 4: Use regex to find JSON-like content
-            if not ai_response_clean:
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, ai_meal_plan, re.DOTALL)
-                if matches:
-                    # Use the longest match as it's likely the complete JSON
-                    ai_response_clean = max(matches, key=len)
-            
-            # Strategy 5: Look for specific response patterns
-            if not ai_response_clean:
-                # Common AI response patterns
-                patterns = [
-                    r'Here is the JSON.*?(\{.*\})',
-                    r'Here\'s the.*?(\{.*\})',
-                    r'JSON.*?(\{.*\})',
-                    r'Response.*?(\{.*\})',
-                    r'(\{.*\})',  # Fallback: any JSON object
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, ai_meal_plan, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        ai_response_clean = match.group(1)
-                        break
-            
-            if ai_response_clean:
-                # Clean up the extracted content
-                ai_response_clean = ai_response_clean.strip()
-                
-                # Remove any remaining markdown or explanatory text
-                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
-                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
-                
-                # Ensure it starts and ends with braces
-                if not ai_response_clean.startswith('{'):
-                    ai_response_clean = '{' + ai_response_clean
-                if not ai_response_clean.endswith('}'):
-                    ai_response_clean = ai_response_clean + '}'
-                
-                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
-                structured_plan = json.loads(ai_response_clean)
-                
-                # Return the exact AI-generated format
-                return structured_plan
-            else:
-                raise ValueError("No JSON content found in AI response")
-                
-        except (json.JSONDecodeError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse AI meal plan as JSON: {e}")
             logger.warning(f"AI response content: {ai_meal_plan[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
-                "ai_response": ai_meal_plan
+                "ai_response": {"raw_text": ai_meal_plan}
             }
         
     except HTTPException:
@@ -1189,15 +951,15 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
         
         # Store meal data
         meal_data = {
-            "user_id": user_id,
-            "description": description,
-            "meal_type": meal_type,
+                "user_id": user_id,
+                    "description": description,
+                    "meal_type": meal_type,
             "dietary_restrictions": dietary_restrictions if isinstance(dietary_restrictions, list) else [dietary_restrictions],
-            "calorie_target": calorie_target,
-            "cuisine_preference": cuisine_preference,
-            "cooking_time": cooking_time,
-            "skill_level": skill_level,
-            "budget": budget,
+                    "calorie_target": calorie_target,
+                    "cuisine_preference": cuisine_preference,
+                    "cooking_time": cooking_time,
+                    "skill_level": skill_level,
+                    "budget": budget,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         
@@ -1250,30 +1012,22 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
         {{
           "nutrient": "Protein",
           "amount": 35,
-          "unit": "g",
-          "daily_value_percent": 70,
-          "importance": "Essential for muscle building and repair"
+          "unit": "g"
         }},
         {{
           "nutrient": "Fiber",
           "amount": 8,
-          "unit": "g",
-          "daily_value_percent": 32,
-          "importance": "Promotes digestive health and satiety"
+          "unit": "g"
         }},
         {{
           "nutrient": "Vitamin C",
           "amount": 45,
-          "unit": "mg",
-          "daily_value_percent": 50,
-          "importance": "Antioxidant and immune support"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Iron",
           "amount": 3.5,
-          "unit": "mg",
-          "daily_value_percent": 19,
-          "importance": "Oxygen transport and energy production"
+          "unit": "mg"
         }}
       ],
       "ingredients": [
@@ -1310,7 +1064,7 @@ Rules:
 2. Include comprehensive serving_info, nutrition details, and cooking instructions
 3. Always include serving_info with serving_size, quantity, and portion_description
 4. Expand nutrients_summary to include important micronutrients beyond just macros
-5. Include daily value percentages where applicable
+5. Focus on essential nutrient information
 6. Add prep_time, cooking_time, and total_time
 7. Provide clear cooking instructions and helpful tips"""
                 
@@ -1330,85 +1084,21 @@ Rules:
         else:
             ai_meal = "AI meal creation features are currently unavailable."
         
-        # Enhanced JSON response extraction
+        # Simple and reliable JSON parsing
         try:
             import json
-            import re
             
-            # Try multiple extraction strategies
-            ai_response_clean = None
+            # Try to parse the AI response directly
+            parsed = json.loads(ai_meal)
+            return parsed
             
-            # Strategy 1: Look for ```json blocks
-            if "```json" in ai_meal:
-                ai_response_clean = ai_meal.split("```json")[1].split("```")[0].strip()
-            
-            # Strategy 2: Look for ``` blocks (without json specifier)
-            elif "```" in ai_meal:
-                ai_response_clean = ai_meal.split("```")[1].split("```")[0].strip()
-            
-            # Strategy 3: Look for JSON object patterns in the text
-            else:
-                # Find the first { and last } to extract JSON
-                start_idx = ai_meal.find('{')
-                end_idx = ai_meal.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    ai_response_clean = ai_meal[start_idx:end_idx + 1]
-            
-            # Strategy 4: Use regex to find JSON-like content
-            if not ai_response_clean:
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, ai_meal, re.DOTALL)
-                if matches:
-                    # Use the longest match as it's likely the complete JSON
-                    ai_response_clean = max(matches, key=len)
-            
-            # Strategy 5: Look for specific response patterns
-            if not ai_response_clean:
-                # Common AI response patterns
-                patterns = [
-                    r'Here is the JSON.*?(\{.*\})',
-                    r'Here\'s the.*?(\{.*\})',
-                    r'JSON.*?(\{.*\})',
-                    r'Response.*?(\{.*\})',
-                    r'(\{.*\})',  # Fallback: any JSON object
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, ai_meal, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        ai_response_clean = match.group(1)
-                        break
-            
-            if ai_response_clean:
-                # Clean up the extracted content
-                ai_response_clean = ai_response_clean.strip()
-                
-                # Remove any remaining markdown or explanatory text
-                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
-                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
-                
-                # Ensure it starts and ends with braces
-                if not ai_response_clean.startswith('{'):
-                    ai_response_clean = '{' + ai_response_clean
-                if not ai_response_clean.endswith('}'):
-                    ai_response_clean = ai_response_clean + '}'
-                
-                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
-                structured_meal = json.loads(ai_response_clean)
-                
-                # Return the exact AI-generated format
-                return structured_meal
-            else:
-                raise ValueError("No JSON content found in AI response")
-                
-        except (json.JSONDecodeError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse AI meal as JSON: {e}")
             logger.warning(f"AI response content: {ai_meal[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
-                "ai_response": ai_meal
+                "ai_response": {"raw_text": ai_meal}
             }
         
     except HTTPException:
@@ -1482,59 +1172,45 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
     "nutrition_per_serving": {{
       "calories": 350,
       "macros": {{
-        "protein_g": 25,
-        "carbs_g": 30,
+      "protein_g": 25,
+      "carbs_g": 30,
         "fat_g": 15
       }},
       "nutrients_summary": [
         {{
           "nutrient": "Protein",
           "amount": 25,
-          "unit": "g",
-          "daily_value_percent": 50,
-          "importance": "Essential for muscle building and repair"
+          "unit": "g"
         }},
         {{
           "nutrient": "Fiber",
           "amount": 8,
-          "unit": "g",
-          "daily_value_percent": 32,
-          "importance": "Promotes digestive health and satiety"
+          "unit": "g"
         }},
         {{
           "nutrient": "Iron",
           "amount": 3.2,
-          "unit": "mg",
-          "daily_value_percent": 18,
-          "importance": "Oxygen transport and energy production"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Vitamin C",
           "amount": 28,
-          "unit": "mg",
-          "daily_value_percent": 31,
-          "importance": "Antioxidant and immune support"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Folate",
           "amount": 85,
-          "unit": "mcg",
-          "daily_value_percent": 21,
-          "importance": "Cell division and DNA synthesis"
+          "unit": "mcg"
         }},
         {{
           "nutrient": "Potassium",
           "amount": 420,
-          "unit": "mg",
-          "daily_value_percent": 9,
-          "importance": "Electrolyte balance and heart health"
+          "unit": "mg"
         }},
         {{
           "nutrient": "Calcium",
           "amount": 95,
-          "unit": "mg",
-          "daily_value_percent": 10,
-          "importance": "Bone health and muscle function"
+          "unit": "mg"
         }}
       ]
     }},
@@ -1580,7 +1256,7 @@ Rules:
 5. Consider the dietary restrictions specified
 6. Always include serving_info with serving_size, quantity, and portion_description
 7. Expand nutrients_summary to include important micronutrients beyond just macros
-8. Include daily value percentages where applicable
+8. Focus on essential nutrient information
 9. Add quantity and notes to ingredients for better clarity"""
                 
                 recipe_response = groq_client.chat.completions.create(
@@ -1599,88 +1275,21 @@ Rules:
         else:
             ai_recipe = "AI recipe creation features are currently unavailable."
         
-        # Enhanced JSON response extraction
+        # Simple and reliable JSON parsing
         try:
             import json
-            import re
             
-            # Try multiple extraction strategies
-            ai_response_clean = None
+            # Try to parse the AI response directly
+            parsed = json.loads(ai_recipe)
+            return parsed
             
-            # Strategy 1: Look for ```json blocks
-            if "```json" in ai_recipe:
-                ai_response_clean = ai_recipe.split("```json")[1].split("```")[0].strip()
-            
-            # Strategy 2: Look for ``` blocks (without json specifier)
-            elif "```" in ai_recipe:
-                ai_response_clean = ai_recipe.split("```")[1].split("```")[0].strip()
-            
-            # Strategy 3: Look for JSON object patterns in the text
-            else:
-                # Find the first { and last } to extract JSON
-                start_idx = ai_recipe.find('{')
-                end_idx = ai_recipe.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    ai_response_clean = ai_recipe[start_idx:end_idx + 1]
-            
-            # Strategy 4: Use regex to find JSON-like content
-            if not ai_response_clean:
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, ai_recipe, re.DOTALL)
-                if matches:
-                    # Use the longest match as it's likely the complete JSON
-                    ai_response_clean = max(matches, key=len)
-            
-            # Strategy 5: Look for specific response patterns
-            if not ai_response_clean:
-                # Common AI response patterns
-                patterns = [
-                    r'Here is the JSON.*?(\{.*\})',
-                    r'Here\'s the.*?(\{.*\})',
-                    r'JSON.*?(\{.*\})',
-                    r'Response.*?(\{.*\})',
-                    r'(\{.*\})',  # Fallback: any JSON object
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, ai_recipe, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        ai_response_clean = match.group(1)
-                        break
-            
-            if ai_response_clean:
-                # Clean up the extracted content
-                ai_response_clean = ai_response_clean.strip()
-                
-                # Remove any remaining markdown or explanatory text
-                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
-                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
-                
-                # Ensure it starts and ends with braces
-                if not ai_response_clean.startswith('{'):
-                    ai_response_clean = '{' + ai_response_clean
-                if not ai_response_clean.endswith('}'):
-                    ai_response_clean = ai_response_clean + '}'
-                
-                # Best Practice: Validate JSON structure before parsing
-                ai_response_clean = validate_and_fix_json(ai_response_clean)
-                
-                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
-                structured_recipe = json.loads(ai_response_clean)
-                
-                # Return the exact AI-generated format
-                return structured_recipe
-            else:
-                raise ValueError("No JSON content found in AI response")
-                
-        except (json.JSONDecodeError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse AI recipe as JSON: {e}")
             logger.warning(f"AI response content: {ai_recipe[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
-                "ai_response": ai_recipe
+                "ai_response": {"raw_text": ai_recipe}
             }
         
     except HTTPException:
@@ -1730,26 +1339,22 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
         {{
           "nutrient": "Protein",
           "recommendation": "Specific protein guidance",
-          "food_sources": "Best food sources for this need",
-          "importance": "Why this nutrient matters for their concern"
+          "food_sources": "Best food sources for this need"
         }},
         {{
           "nutrient": "Fiber",
           "recommendation": "Specific fiber guidance",
-          "food_sources": "Best food sources for this need",
-          "importance": "Why this nutrient matters for their concern"
+          "food_sources": "Best food sources for this need"
         }},
         {{
           "nutrient": "Vitamins",
           "recommendation": "Specific vitamin guidance",
-          "food_sources": "Best food sources for this need",
-          "importance": "Why this nutrient matters for their concern"
+          "food_sources": "Best food sources for this need"
         }},
         {{
           "nutrient": "Minerals",
           "recommendation": "Specific mineral guidance",
-          "food_sources": "Best food sources for this need",
-          "importance": "Why this nutrient matters for their concern"
+          "food_sources": "Best food sources for this need"
         }}
       ]
     }},
@@ -1783,88 +1388,21 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
         else:
             response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
         
-        # Enhanced JSON response extraction
+        # Simple and reliable JSON parsing
         try:
             import json
-            import re
             
-            # Try multiple extraction strategies
-            ai_response_clean = None
+            # Try to parse the AI response directly
+            parsed = json.loads(response_text)
+            return parsed
             
-            # Strategy 1: Look for ```json blocks
-            if "```json" in response_text:
-                ai_response_clean = response_text.split("```json")[1].split("```")[0].strip()
-            
-            # Strategy 2: Look for ``` blocks (without json specifier)
-            elif "```" in response_text:
-                ai_response_clean = response_text.split("```")[1].split("```")[0].strip()
-            
-            # Strategy 3: Look for JSON object patterns in the text
-            else:
-                # Find the first { and last } to extract JSON
-                start_idx = response_text.find('{')
-                end_idx = response_text.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    ai_response_clean = response_text[start_idx:end_idx + 1]
-            
-            # Strategy 4: Use regex to find JSON-like content
-            if not ai_response_clean:
-                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-                matches = re.findall(json_pattern, response_text, re.DOTALL)
-                if matches:
-                    # Use the longest match as it's likely the complete JSON
-                    ai_response_clean = max(matches, key=len)
-            
-            # Strategy 5: Look for specific response patterns
-            if not ai_response_clean:
-                # Common AI response patterns
-                patterns = [
-                    r'Here is the JSON.*?(\{.*\})',
-                    r'Here\'s the.*?(\{.*\})',
-                    r'JSON.*?(\{.*\})',
-                    r'Response.*?(\{.*\})',
-                    r'(\{.*\})',  # Fallback: any JSON object
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, response_text, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        ai_response_clean = match.group(1)
-                        break
-            
-            if ai_response_clean:
-                # Clean up the extracted content
-                ai_response_clean = ai_response_clean.strip()
-                
-                # Remove any remaining markdown or explanatory text
-                ai_response_clean = re.sub(r'^[^{]*', '', ai_response_clean)
-                ai_response_clean = re.sub(r'[^}]*$', '', ai_response_clean)
-                
-                # Ensure it starts and ends with braces
-                if not ai_response_clean.startswith('{'):
-                    ai_response_clean = '{' + ai_response_clean
-                if not ai_response_clean.endswith('}'):
-                    ai_response_clean = ai_response_clean + '}'
-                
-                # Best Practice: Validate JSON structure before parsing
-                ai_response_clean = validate_and_fix_json(ai_response_clean)
-                
-                logger.info(f"Extracted JSON content: {ai_response_clean[:200]}...")
-                structured_response = json.loads(ai_response_clean)
-                
-                # Return the exact AI-generated format
-                return structured_response
-            else:
-                raise ValueError("No JSON content found in AI response")
-                
-        except (json.JSONDecodeError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse AI nutrition response as JSON: {e}")
             logger.warning(f"AI response content: {response_text[:500]}...")
             # Fallback to original response
             return {
                 "error": "AI response format issue",
-                "ai_response": response_text
+                "ai_response": {"raw_text": response_text}
             }
         
     except HTTPException:
