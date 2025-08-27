@@ -432,8 +432,8 @@
             </div>
                 
             <div class="section">
-                <h2>🍳 Plan Meal</h2>
-                <p>Create intelligent, personalized meal plans with AI-powered recommendations using Groq AI.</p>
+                <h2>🍳 Create Meal Plan</h2>
+                <p>Create intelligent, personalized multi-day meal plans with AI-powered recommendations using Groq AI.</p>
                 
                 <div class="form-group">
                     <label for="mealUser">User ID:</label>
@@ -443,13 +443,65 @@
 
                 <div class="form-group">
                     <label for="mealDescription">Description (Optional):</label>
-                    <textarea id="mealDescription" rows="3" placeholder="Describe what kind of meal you want to plan (e.g., 'I need a high-protein dinner that takes less than 30 minutes to prepare')"></textarea>
+                    <textarea id="mealDescription" rows="3" placeholder="Describe what kind of meal plan you want (e.g., 'I want a high-protein meal plan for 3 days with 2 meals per day, around 1100 calories per meal')"></textarea>
                 </div>
 
                 <div class="grid">
                     <div class="form-group">
-                        <label for="mealType">Meal Type:</label>
-                        <select id="mealType">
+                        <label for="daysPerWeek">Days Per Week:</label>
+                        <input type="number" id="daysPerWeek" value="3" min="1" max="7" placeholder="1-7 days">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="mealsPerDay">Meals Per Day:</label>
+                        <input type="number" id="mealsPerDay" value="2" min="1" max="5" placeholder="1-5 meals">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dietaryRestrictions">Dietary Restrictions:</label>
+                        <input type="text" id="dietaryRestrictions" value="none" placeholder="e.g., vegetarian, gluten-free, none">
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="calorieTarget">Calorie Target (per meal):</label>
+                        <input type="number" id="calorieTarget" value="1100" min="100" max="2000" placeholder="Target calories per meal">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="planType">Plan Type:</label>
+                        <select id="planType">
+                            <option value="weekly" selected>Weekly</option>
+                            <option value="daily">Daily</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                    
+                <button class="btn" onclick="createMealPlan()">🍳 Create Meal Plan</button>
+                <div id="mealPlanResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>🍽️ Create Single Meal</h2>
+                <p>Create a single, detailed meal with AI-powered recommendations using Groq AI.</p>
+                
+                <div class="form-group">
+                    <label for="singleMealUser">User ID:</label>
+                    <input type="text" id="singleMealUser" value="999bf274-5b87-46e5-8087-8fb908f51c03" placeholder="Enter user ID" disabled>
+                    <span class="help-text">Default verified user</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="singleMealDescription">Description (Optional):</label>
+                    <textarea id="singleMealDescription" rows="3" placeholder="Describe what kind of meal you want (e.g., 'I need a high-protein dinner that takes less than 30 minutes to prepare')"></textarea>
+                </div>
+
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="singleMealType">Meal Type:</label>
+                        <select id="singleMealType">
                             <option value="breakfast">Breakfast</option>
                             <option value="lunch">Lunch</option>
                             <option value="dinner" selected>Dinner</option>
@@ -458,18 +510,18 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="dietaryRestrictions">Dietary Restrictions:</label>
-                        <input type="text" id="dietaryRestrictions" value="none" placeholder="e.g., vegetarian, gluten-free, none">
+                        <label for="singleMealDietaryRestrictions">Dietary Restrictions:</label>
+                        <input type="text" id="singleMealDietaryRestrictions" value="none" placeholder="e.g., vegetarian, gluten-free, none">
                     </div>
 
                     <div class="form-group">
-                        <label for="calorieTarget">Calorie Target:</label>
-                        <input type="number" id="calorieTarget" value="600" min="100" max="1500" placeholder="Target calories for this meal">
+                        <label for="singleMealCalorieTarget">Calorie Target:</label>
+                        <input type="number" id="singleMealCalorieTarget" value="600" min="100" max="1500" placeholder="Target calories for this meal">
                     </div>
                 </div>
                     
-                <button class="btn" onclick="planMeal()">🍳 Plan Meal</button>
-                <div id="mealResult" class="result" style="display: none;"></div>
+                <button class="btn" onclick="createSingleMeal()">🍽️ Create Meal</button>
+                <div id="singleMealResult" class="result" style="display: none;"></div>
             </div>
 
             <div class="section">
@@ -713,22 +765,46 @@
             showResult('summaryResult', result);
         }
 
-        async function planMeal() {
+        async function createMealPlan() {
             const description = document.getElementById('mealDescription').value.trim();
+            const daysPerWeek = parseInt(document.getElementById('daysPerWeek').value);
+            const mealsPerDay = parseInt(document.getElementById('mealsPerDay').value);
+            const calorieTarget = parseInt(document.getElementById('calorieTarget').value);
+            const planType = document.getElementById('planType').value;
 
             const data = {
                 tool_name: 'create_meal_plan',
                 parameters: {
                     user_id: document.getElementById('mealUser').value,
                     description: description,
-                    meal_type: document.getElementById('mealType').value,
-                    dietary_restrictions: document.getElementById('dietaryRestrictions').value,
-                    calorie_target: parseInt(document.getElementById('calorieTarget').value)
+                    days_per_week: daysPerWeek,
+                    meals_per_day: mealsPerDay,
+                    calorie_target: calorieTarget,
+                    plan_type: planType,
+                    dietary_restrictions: document.getElementById('dietaryRestrictions').value
                 }
             };
 
             const result = await makeRequest('/execute-tool', data);
-            showResult('mealResult', result);
+            showResult('mealPlanResult', result);
+        }
+
+        async function createSingleMeal() {
+            const description = document.getElementById('singleMealDescription').value.trim();
+
+            const data = {
+                tool_name: 'create_meal',
+                parameters: {
+                    user_id: document.getElementById('singleMealUser').value,
+                    description: description,
+                    meal_type: document.getElementById('singleMealType').value,
+                    dietary_restrictions: document.getElementById('singleMealDietaryRestrictions').value,
+                    calorie_target: parseInt(document.getElementById('singleMealCalorieTarget').value)
+                }
+            };
+
+            const result = await makeRequest('/execute-tool', data);
+            showResult('singleMealResult', result);
         }
 
         async function createRecipe() {

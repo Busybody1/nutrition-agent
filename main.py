@@ -123,7 +123,7 @@ def initialize_databases():
                 database_status[db_type] = False
         
         logger.info("✅ Database initialization complete")
-
+        
     except Exception as e:
         logger.error(f"❌ Database initialization error: {e}")
         database_status = {"main": False, "user": False, "nutrition": False, "workout": False}
@@ -300,6 +300,8 @@ MEAL DETAILS:
 - Additional Notes: {notes if notes else 'none'}
 - User Description: {description if description else 'none'}
 
+IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different details about the meal (e.g., "large portion" or "high protein meal"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
+
 IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
 
 {{
@@ -424,10 +426,10 @@ Rules:
             logger.warning(f"Failed to parse AI meal analysis as JSON: {e}")
             logger.warning(f"AI response content: {ai_insights[:500]}...")
             # Fallback to original response
-        return {
+            return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_insights}
-        }
+            }
         
     except HTTPException:
         raise
@@ -457,6 +459,8 @@ async def get_nutrition_summary(parameters: Dict[str, Any], user_id: str) -> Dic
 - User request: {description}
 - Time period: {days} days
 - User goals: {goals}
+
+IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "focus on protein" or "quick summary"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
 
 Provide a structured response with:
 1. Summary of typical nutrition patterns
@@ -653,6 +657,8 @@ REQUIREMENTS:
 - Cooking Time: {cooking_time}
 - Skill Level: {skill_level}
 - Budget: {budget}
+
+IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "3 days" or "2 meals per day"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
 
 IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
 
@@ -862,7 +868,7 @@ Rules:
             logger.warning(f"Failed to parse AI meal plan as JSON: {e}")
             logger.warning(f"AI response content: {ai_meal_plan[:500]}...")
             # Fallback to original response
-        return {
+            return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_meal_plan}
             }
@@ -893,11 +899,11 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
         
         # Store meal data
         meal_data = {
-            "user_id": user_id,
-                "description": description,
-                "meal_type": meal_type,
+                "user_id": user_id,
+                    "description": description,
+                    "meal_type": meal_type,
             "dietary_restrictions": dietary_restrictions if isinstance(dietary_restrictions, list) else [dietary_restrictions],
-                "calorie_target": calorie_target,
+                    "calorie_target": calorie_target,
                     "cuisine_preference": cuisine_preference,
                     "cooking_time": cooking_time,
                     "skill_level": skill_level,
@@ -926,6 +932,8 @@ REQUIREMENTS:
 - Cooking Time: {cooking_time}
 - Skill Level: {skill_level}
 - Budget: {budget}
+
+IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "high protein" or "quick meal"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
 
 IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
 
@@ -1041,7 +1049,7 @@ Rules:
             return {
                 "error": "AI response format issue",
                 "ai_response": {"raw_text": ai_meal}
-        }
+            }
         
     except HTTPException:
         raise
@@ -1094,6 +1102,8 @@ REQUIREMENTS:
 - Skill Level: {skill_level}
 - Servings: {servings}
 - Calorie Target: {calorie_text}
+
+IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "quick recipe" or "high protein"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
 
 IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
 
@@ -1255,6 +1265,8 @@ async def general_nutrition_response(parameters: Dict[str, Any], user_id: str) -
         if groq_client:
             try:
                 ai_prompt = f"""You are a nutrition and health expert. The user asks: {message}
+
+IMPORTANT: The user's description takes priority over any other considerations. Focus on exactly what they're asking for and provide the most relevant, specific response to their question.
 
 Provide a helpful, encouraging response that:
 1. Addresses their specific nutrition question or concern
