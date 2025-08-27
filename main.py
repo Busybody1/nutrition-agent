@@ -837,7 +837,7 @@ Rules:
                 meal_response = groq_client.chat.completions.create(
                     model=get_groq_model(),
                     messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=20000,
+                    max_tokens=8192,
                     temperature=0.7,
                     timeout=get_groq_timeout()
                 )
