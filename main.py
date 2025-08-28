@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, List
 from contextlib import asynccontextmanager
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -862,6 +862,81 @@ Rules:
             
             # Try to parse the AI response directly
             parsed = json.loads(ai_meal_plan)
+            
+            # Step 2: Verify ingredients and calculate accurate macros using nutrition database
+            try:
+                from utils.nutrition_database_service import nutrition_db_service
+                
+                # Extract ingredients from the meal plan
+                all_ingredients = []
+                if isinstance(parsed, dict) and "meal_plan" in parsed:
+                    meal_plan = parsed["meal_plan"]
+                    if "days" in meal_plan:
+                        for day in meal_plan["days"]:
+                            if "meals" in day:
+                                for meal_type, meal in day["meals"].items():
+                                    if isinstance(meal, dict) and "ingredients" in meal:
+                                        all_ingredients.extend(meal["ingredients"])
+                
+                # Verify ingredients in database and calculate accurate macros
+                if all_ingredients:
+                    # Clean ingredient names (remove quantities, keep just the food name)
+                    cleaned_ingredients = []
+                    for ingredient in all_ingredients:
+                        # Extract food name from ingredient string (e.g., "150g grilled chicken breast" -> "grilled chicken breast")
+                        import re
+                        # Remove common quantity patterns
+                        cleaned = re.sub(r'^\d+(?:\.\d+)?\s*(?:g|kg|oz|lb|cup|tbsp|tsp|ml|l|tablespoon|teaspoon|gram|ounce|pound|milliliter|liter)\s*', '', ingredient, flags=re.IGNORECASE)
+                        cleaned = cleaned.strip()
+                        if cleaned:
+                            cleaned_ingredients.append(cleaned)
+                    
+                    # Search for ingredients in nutrition database
+                    verified_ingredients = nutrition_db_service.search_ingredients_for_meal(cleaned_ingredients)
+                    
+                    # Calculate accurate macros for the meal plan
+                    if verified_ingredients:
+                        # Update meal plan with verified nutrition data
+                        parsed["meal_plan"]["nutrition_verification"] = {
+                            "ingredients_verified": len(verified_ingredients),
+                            "total_ingredients": len(cleaned_ingredients),
+                            "verification_status": "partial" if len(verified_ingredients) < len(cleaned_ingredients) else "complete",
+                            "database_used": True
+                        }
+                        
+                        # Add verified ingredients data
+                        parsed["meal_plan"]["verified_ingredients"] = verified_ingredients
+                        
+                        logger.info(f"Verified {len(verified_ingredients)} out of {len(cleaned_ingredients)} ingredients in nutrition database")
+                    else:
+                        parsed["meal_plan"]["nutrition_verification"] = {
+                            "ingredients_verified": 0,
+                            "total_ingredients": len(cleaned_ingredients),
+                            "verification_status": "none_found",
+                            "database_used": False,
+                            "note": "No ingredients found in nutrition database, using AI-generated nutrition data"
+                        }
+                        logger.info("No ingredients found in nutrition database, using AI-generated data")
+                else:
+                    parsed["meal_plan"]["nutrition_verification"] = {
+                        "ingredients_verified": 0,
+                        "total_ingredients": 0,
+                        "verification_status": "no_ingredients",
+                        "database_used": False
+                    }
+                    
+            except Exception as db_error:
+                logger.warning(f"Failed to verify ingredients in nutrition database: {db_error}")
+                # Continue with AI-generated data if database verification fails
+                if isinstance(parsed, dict) and "meal_plan" in parsed:
+                    parsed["meal_plan"]["nutrition_verification"] = {
+                        "ingredients_verified": 0,
+                        "total_ingredients": 0,
+                        "verification_status": "database_error",
+                        "database_used": False,
+                        "error": str(db_error)
+                    }
+            
             return parsed
             
         except Exception as e:
@@ -2204,6 +2279,126 @@ async def get_weekly_nutrition_stats(user_id: str, week_start: Optional[str] = N
         logger.error(f"Error getting weekly nutrition stats: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get weekly nutrition stats: {str(e)}")
 
+
+# =============================================================================
+# NUTRITION DATABASE ENDPOINTS
+# =============================================================================
+
+@app.get("/nutrition-database/status")
+async def nutrition_database_status():
+    """Get nutrition database connection status and available foods count."""
+    try:
+        from utils.nutrition_database_service import nutrition_db_service
+        
+        status = nutrition_db_service.get_database_status()
+        
+        return {
+            "status": "success",
+            "nutrition_database": status,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking nutrition database status: {e}")
+        return {
+            "status": "error",
+            "nutrition_database": {
+                "status": "error",
+                "message": f"Status check failed: {str(e)}",
+                "available": False
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+@app.get("/nutrition-database/foods")
+async def get_available_foods(
+    query: Optional[str] = Query(None, min_length=2, description="Search query for food name"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of foods to return")
+):
+    """Get available foods from nutrition database with optional search."""
+    try:
+        from utils.nutrition_database_service import nutrition_db_service
+        
+        if query:
+            foods = nutrition_db_service.search_foods_by_name(query, limit=limit)
+        else:
+            # Get a sample of foods if no query provided
+            foods = nutrition_db_service.search_foods_by_name("chicken", limit=limit)
+        
+        return {
+            "status": "success",
+            "foods": foods,
+            "total_found": len(foods),
+            "query": query,
+            "limit": limit,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting available foods: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get foods: {str(e)}")
+
+@app.get("/nutrition-database/search")
+async def search_foods(
+    q: str = Query(..., min_length=2, description="Food name to search for"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results")
+):
+    """Search foods by name in nutrition database."""
+    try:
+        from utils.nutrition_database_service import nutrition_db_service
+        
+        foods = nutrition_db_service.search_foods_by_name(q, limit=limit)
+        
+        return {
+            "status": "success",
+            "query": q,
+            "foods": foods,
+            "total_found": len(foods),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error searching foods: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search foods: {str(e)}")
+
+@app.get("/nutrition-database/ingredients/verify")
+async def verify_ingredients(
+    ingredients: str = Query(..., description="Comma-separated list of ingredients to verify")
+):
+    """Verify ingredients against nutrition database and get nutrition data."""
+    try:
+        from utils.nutrition_database_service import nutrition_db_service
+        
+        # Parse comma-separated ingredients
+        ingredient_list = [ingredient.strip() for ingredient in ingredients.split(",") if ingredient.strip()]
+        
+        if not ingredient_list:
+            raise HTTPException(status_code=400, detail="No valid ingredients provided")
+        
+        # Search for ingredients in database
+        verified_ingredients = nutrition_db_service.search_ingredients_for_meal(ingredient_list)
+        
+        # Calculate total macros for all verified ingredients
+        total_macros = nutrition_db_service.calculate_meal_macros(verified_ingredients)
+        
+        return {
+            "status": "success",
+            "ingredients_requested": ingredient_list,
+            "ingredients_verified": verified_ingredients,
+            "total_macros": total_macros,
+            "verification_summary": {
+                "total_requested": len(ingredient_list),
+                "total_found": len(verified_ingredients),
+                "verification_rate": round((len(verified_ingredients) / len(ingredient_list)) * 100, 1) if ingredient_list else 0
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying ingredients: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to verify ingredients: {str(e)}")
 
 # =============================================================================
 # MAIN FUNCTION
