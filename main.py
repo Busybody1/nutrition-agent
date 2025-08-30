@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
 from groq import Groq
+from openai import OpenAI
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -31,8 +32,9 @@ from utils.database import (
 )
 from utils.config import (
     get_database_url, get_user_database_uri, get_nutrition_db_uri, get_workout_db_uri,
-    get_redis_url, get_groq_api_key, get_environment, get_log_level,
-    get_port, get_host, get_cors_origins, get_groq_model, get_groq_timeout
+    get_redis_url, get_groq_api_key, get_openai_api_key, get_environment, get_log_level,
+    get_port, get_host, get_cors_origins, get_groq_model, get_groq_timeout,
+    get_openai_model, get_openai_timeout, get_openai_max_tokens
 )
 
 # Import models and schemas
@@ -76,8 +78,9 @@ def simple_json_parse(ai_response: str) -> Dict[str, Any]:
 # Simple in-memory storage (for demo purposes)
 nutrition_data = {}
 
-# Initialize Groq client
+# Initialize AI clients
 groq_client = None
+openai_client = None
 
 # Database connection status
 database_status = {"main": False, "user": False, "nutrition": False, "workout": False}
@@ -147,7 +150,7 @@ async def get_db():
 
 async def initialize_ai():
     """Initialize AI clients on startup."""
-    global groq_client
+    global groq_client, openai_client
     
     try:
         # Initialize Groq AI
@@ -167,12 +170,32 @@ async def initialize_ai():
                 logger.error(f"❌ Groq AI initialization failed: {e}")
                 groq_client = None
         else:
-            logger.warning("⚠️ GROQ_API_KEY not set, AI nutrition features will not work")
+            logger.warning("⚠️ GROQ_API_KEY not set, Groq AI features will not work")
             groq_client = None
+        
+        # Initialize OpenAI AI
+        openai_api_key = get_openai_api_key()
+        if openai_api_key:
+            try:
+                openai_client = OpenAI(api_key=openai_api_key)
+                # Test connection with a simple request
+                test_response = openai_client.chat.completions.create(
+                    model=get_openai_model(),
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=10
+                )
+                logger.info("✅ OpenAI AI client initialized and tested successfully")
+            except Exception as e:
+                logger.error(f"❌ OpenAI AI initialization failed: {e}")
+                openai_client = None
+        else:
+            logger.warning("⚠️ OPENAI_API_KEY not set, OpenAI AI features will not work")
+            openai_client = None
             
     except Exception as e:
         logger.error(f"AI initialization error: {e}")
         groq_client = None
+        openai_client = None
 
 # =============================================================================
 # USER VALIDATION FUNCTIONS
@@ -622,8 +645,8 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
         # Store in memory (in future, this would go to database)
         nutrition_data[f"meal_plan_{user_id}_{datetime.now().timestamp()}"] = meal_plan_data
         
-        # Generate AI-powered meal plan if Groq is available
-        if groq_client:
+        # Generate AI-powered meal plan if OpenAI is available
+        if openai_client:
             try:
                 # Build detailed prompt based on parameters
                 restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
@@ -767,7 +790,7 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact structur
               "portion_description": "Standard dinner portion"
             }},
             "calories": 600,
-            "macros": {{
+                "macros": {{
               "protein": 45,
               "carbs": 50,
               "fat": 22
@@ -840,12 +863,11 @@ Rules:
 9. Include daily_nutrition_summary and weekly_summary
 10. Provide a shopping list in the weekly_summary"""
 
-                meal_response = groq_client.chat.completions.create(
-                    model=get_groq_model(),
+                meal_response = openai_client.chat.completions.create(
+                    model=get_openai_model(),
                     messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=8192,
-                    temperature=0.7,
-                    timeout=get_groq_timeout()
+                    max_tokens=get_openai_max_tokens(),
+                    temperature=0.7
                 )
                 
                 ai_meal_plan = meal_response.choices[0].message.content
@@ -989,8 +1011,8 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
         # Store in memory (in future, this would go to database)
         nutrition_data[f"meal_{user_id}_{datetime.now().timestamp()}"] = meal_data
         
-        # Generate AI-powered meal if Groq is available
-        if groq_client:
+        # Generate AI-powered meal if OpenAI is available
+        if openai_client:
             try:
                 # Build detailed prompt based on parameters
                 restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
@@ -1093,12 +1115,11 @@ Rules:
 6. Add prep_time, cooking_time, and total_time
 7. Provide clear cooking instructions and helpful tips"""
                 
-                meal_response = groq_client.chat.completions.create(
-                    model=get_groq_model(),
+                meal_response = openai_client.chat.completions.create(
+                    model=get_openai_model(),
                     messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=3000,
-                    temperature=0.7,
-                    timeout=get_groq_timeout()
+                    max_tokens=get_openai_max_tokens(),
+                    temperature=0.7
                 )
                 
                 ai_meal = meal_response.choices[0].message.content
@@ -1161,7 +1182,7 @@ async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, A
         
         nutrition_data[f"recipe_{user_id}_{datetime.now().timestamp()}"] = recipe_data
         
-        if groq_client:
+        if openai_client:
             try:
                 restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories per serving" if calorie_target > 0 else "no specific calorie target"
@@ -1286,12 +1307,11 @@ Rules:
 8. Focus on essential nutrient information
 9. Add quantity and notes to ingredients for better clarity"""
                 
-                recipe_response = groq_client.chat.completions.create(
-                    model=get_groq_model(),
+                recipe_response = openai_client.chat.completions.create(
+                    model=get_openai_model(),
                     messages=[{"role": "user", "content": recipe_prompt}],
-                    max_tokens=3000,
-                    temperature=0.7,
-                    timeout=get_groq_timeout()
+                    max_tokens=get_openai_max_tokens(),
+                    temperature=0.7
                 )
                 
                 ai_recipe = recipe_response.choices[0].message.content

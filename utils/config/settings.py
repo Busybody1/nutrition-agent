@@ -31,6 +31,10 @@ def get_groq_api_key() -> str:
     """Get Groq API key."""
     return os.getenv("GROQ_API_KEY", "")
 
+def get_openai_api_key() -> str:
+    """Get OpenAI API key."""
+    return os.getenv("OPENAI_API_KEY", "")
+
 def get_environment() -> str:
     """Get environment (development/production)."""
     return os.getenv("ENVIRONMENT", "development")
@@ -62,6 +66,19 @@ def get_groq_model() -> str:
 def get_groq_timeout() -> int:
     """Get Groq API timeout in seconds."""
     return int(os.getenv("GROQ_TIMEOUT", "30"))
+
+# OpenAI AI Configuration
+def get_openai_model() -> str:
+    """Get OpenAI model to use."""
+    return os.getenv("OPENAI_MODEL", "gpt-4o")
+
+def get_openai_timeout() -> int:
+    """Get OpenAI API timeout in seconds."""
+    return int(os.getenv("OPENAI_TIMEOUT", "60"))
+
+def get_openai_max_tokens() -> int:
+    """Get OpenAI max tokens for responses."""
+    return int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
 
 # Database Configuration
 def get_database_pool_size() -> int:
