@@ -61,7 +61,7 @@ def get_cors_origins() -> List[str]:
 # Groq AI Configuration
 def get_groq_model() -> str:
     """Get Groq model to use."""
-    return os.getenv("GROQ_MODEL", "llama3-70b-8192")
+    return os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 def get_groq_timeout() -> int:
     """Get Groq API timeout in seconds."""
