@@ -258,7 +258,59 @@ async def require_valid_user(user_id: str):
         )
 
 # =============================================================================
-# NUTRITION FUNCTIONS WITH GROQ AI
+# AI HELPER FUNCTIONS
+# =============================================================================
+
+async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> tuple[str, str]:
+    """Get AI response using GPT-4o primary, Groq fallback."""
+    # Try OpenAI first (primary)
+    if openai_client:
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return response.choices[0].message.content, "gpt-4o"
+        except Exception as e:
+            logger.warning(f"OpenAI request failed, trying Groq fallback: {e}")
+    
+    # Fallback to Groq
+    if groq_client:
+        try:
+            response = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return response.choices[0].message.content, "llama-3.1-8b-instant"
+        except Exception as e:
+            logger.error(f"Both AI services failed: {e}")
+    
+    # Return fallback response
+    return "AI features are currently unavailable. Please try again later.", "unavailable"
+
+async def get_groq_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> tuple[str, str]:
+    """Get response specifically from Groq (for future use)."""
+    if groq_client:
+        try:
+            response = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return response.choices[0].message.content, "llama-3.1-8b-instant"
+        except Exception as e:
+            logger.error(f"Groq request failed: {e}")
+            return "Groq AI is currently unavailable.", "unavailable"
+    else:
+        return "Groq AI is not configured.", "unavailable"
+
+# =============================================================================
+# NUTRITION FUNCTIONS WITH AI
 # =============================================================================
 
 async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
@@ -421,15 +473,7 @@ Rules:
 6. Expand nutrients_summary to include important micronutrients beyond just macros
 7. Focus on essential nutrient information"""
 
-                insight_response = groq_client.chat.completions.create(
-                    model=get_groq_model(),
-                    messages=[{"role": "user", "content": insight_prompt}],
-                    max_tokens=3000,
-                    temperature=0.7,
-                    timeout=get_groq_timeout()
-                )
-                
-                ai_insights = insight_response.choices[0].message.content
+                ai_insights, _ = await get_ai_response(insight_prompt, max_tokens=3000, temperature=0.7)
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI insights: {e}")
@@ -562,14 +606,7 @@ IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanation
 
 Make it personalized and actionable based on their description and goals."""
 
-                summary_response = groq_client.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=3000,
-                    temperature=0.7
-                )
-                
-                ai_summary = summary_response.choices[0].message.content
+                ai_summary, _ = await get_ai_response(summary_prompt, max_tokens=3000, temperature=0.7)
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI summary: {e}")
@@ -863,14 +900,7 @@ Rules:
 9. Include daily_nutrition_summary and weekly_summary
 10. Provide a shopping list in the weekly_summary"""
 
-                meal_response = openai_client.chat.completions.create(
-                    model=get_openai_model(),
-                    messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=get_openai_max_tokens(),
-                    temperature=0.7
-                )
-                
-                ai_meal_plan = meal_response.choices[0].message.content
+                ai_meal_plan, _ = await get_ai_response(meal_prompt, max_tokens=get_openai_max_tokens(), temperature=0.7)
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI meal plan: {e}")
@@ -1115,14 +1145,7 @@ Rules:
 6. Add prep_time, cooking_time, and total_time
 7. Provide clear cooking instructions and helpful tips"""
                 
-                meal_response = openai_client.chat.completions.create(
-                    model=get_openai_model(),
-                    messages=[{"role": "user", "content": meal_prompt}],
-                    max_tokens=get_openai_max_tokens(),
-                    temperature=0.7
-                )
-                
-                ai_meal = meal_response.choices[0].message.content
+                ai_meal, _ = await get_ai_response(meal_prompt, max_tokens=get_openai_max_tokens(), temperature=0.7)
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI meal: {e}")
@@ -1307,14 +1330,7 @@ Rules:
 8. Focus on essential nutrient information
 9. Add quantity and notes to ingredients for better clarity"""
                 
-                recipe_response = openai_client.chat.completions.create(
-                    model=get_openai_model(),
-                    messages=[{"role": "user", "content": recipe_prompt}],
-                    max_tokens=get_openai_max_tokens(),
-                    temperature=0.7
-                )
-                
-                ai_recipe = recipe_response.choices[0].message.content
+                ai_recipe, _ = await get_ai_response(recipe_prompt, max_tokens=get_openai_max_tokens(), temperature=0.7)
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI recipe: {e}")
@@ -1422,14 +1438,7 @@ IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanation
 
 Keep it concise but comprehensive, and always include serving guidelines and expanded nutrient information."""
 
-                ai_response = groq_client.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[{"role": "user", "content": ai_prompt}],
-                    max_tokens=3000,
-                    temperature=0.7
-                )
-                
-                response_text = ai_response.choices[0].message.content
+                response_text, _ = await get_ai_response(ai_prompt, max_tokens=3000, temperature=0.7)
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI response: {e}")
