@@ -7,6 +7,7 @@ This agent provides intelligent nutrition functionality using Groq AI.
 
 import logging
 import os
+import time
 from datetime import datetime, timezone, timedelta, date, time
 from typing import Any, Dict, Optional, List
 from contextlib import asynccontextmanager
@@ -36,6 +37,17 @@ from utils.config import (
     get_port, get_host, get_cors_origins, get_groq_model, get_groq_timeout,
     get_openai_model, get_openai_timeout, get_openai_max_tokens
 )
+
+# Import nutrition-specific batching utilities
+from utils.batching import NutritionBatchManager, NutritionCache, NutritionOptimizer
+from utils.batching.nutrition_batch_manager import NutritionPriority, NutritionBatchStrategy
+
+# Import legacy batching utilities for backward compatibility
+from utils.ai_batching import AIBatchManager, AICall, AIResponse
+from utils.ai_cache import AIResponseCache
+
+# Note: Advanced utilities removed - using agent-specific batching instead
+# Each agent now has its own optimized batching utilities
 
 # Import models and schemas
 from models import (
@@ -81,6 +93,24 @@ nutrition_data = {}
 # Initialize AI clients
 groq_client = None
 openai_client = None
+
+# Initialize nutrition-specific batching and caching
+nutrition_batch_manager = NutritionBatchManager(
+    max_batch_size=8,  # Optimized for nutrition analysis
+    max_wait_time=0.6,  # Balanced wait time
+    strategy=NutritionBatchStrategy.BALANCED,
+    enable_dietary_priority=True,
+    enable_nutrition_optimization=True
+)
+nutrition_cache = NutritionCache(max_size=800, enable_nutrition_optimization=True)
+nutrition_optimizer = NutritionOptimizer(enable_ml_optimization=True)
+
+# Initialize legacy batching and caching (backward compatibility)
+batch_manager = AIBatchManager(max_batch_size=5, max_wait_time=0.5)
+ai_cache = AIResponseCache()
+
+# Note: Advanced utilities removed - using agent-specific batching instead
+# Each agent now has its own optimized batching utilities
 
 # Database connection status
 database_status = {"main": False, "user": False, "nutrition": False, "workout": False}
@@ -261,36 +291,99 @@ async def require_valid_user(user_id: str):
 # AI HELPER FUNCTIONS
 # =============================================================================
 
-async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> tuple[str, str]:
-    """Get AI response using GPT-4o primary, Groq fallback."""
-    # Try OpenAI first (primary)
-    if openai_client:
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            return response.choices[0].message.content, "gpt-4o"
-        except Exception as e:
-            logger.warning(f"OpenAI request failed, trying Groq fallback: {e}")
+async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7, 
+                         function_name: str = "", user_id: str = "", use_batching: bool = True) -> tuple[str, str]:
+    """Get AI response using GPT-4o primary, Groq fallback, with nutrition-specific batching support."""
     
-    # Fallback to Groq
-    if groq_client:
-        try:
-            response = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            return response.choices[0].message.content, "llama-3.1-8b-instant"
-        except Exception as e:
-            logger.error(f"Both AI services failed: {e}")
+    # Check nutrition-specific cache first
+    if use_batching:
+        cached_response = nutrition_cache.get(prompt, max_tokens, temperature, function_name, "meal_plan")
+        if cached_response:
+            logger.info(f"Nutrition cache hit for {function_name}")
+            return cached_response.get("content", ""), cached_response.get("model", "cached")
     
-    # Return fallback response
-    return "AI features are currently unavailable. Please try again later.", "unavailable"
+    # Define the AI client function for batching
+    async def ai_client_func(prompt: str, max_tokens: int, temperature: float) -> tuple[str, str]:
+        # Try OpenAI first (primary)
+        if openai_client:
+            try:
+                response = openai_client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                return response.choices[0].message.content, "gpt-4o"
+            except Exception as e:
+                logger.warning(f"OpenAI request failed, trying Groq fallback: {e}")
+        
+        # Fallback to Groq
+        if groq_client:
+            try:
+                response = groq_client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                return response.choices[0].message.content, "llama-3.1-8b-instant"
+            except Exception as e:
+                logger.error(f"Both AI services failed: {e}")
+        
+        return "AI features are currently unavailable. Please try again later.", "unavailable"
+    
+    # Use nutrition-specific batching if enabled
+    if use_batching:
+        try:
+            response, model = await nutrition_batch_manager.get_nutrition_response(
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                function_name=function_name,
+                user_id=user_id,
+                priority=NutritionPriority.HIGH,  # High priority for nutrition functions
+                use_cache=True,
+                ai_client_func=ai_client_func,
+                nutrition_type="meal_plan",
+                dietary_restrictions=False
+            )
+            
+            # Cache the response in nutrition-specific cache
+            nutrition_cache.set(prompt, {"content": response, "model": model}, max_tokens, temperature, function_name, "meal_plan")
+            
+            return response, model
+        except Exception as e:
+            logger.error(f"Nutrition batching failed, falling back to legacy batching: {e}")
+            # Fallback to legacy batching
+            try:
+                response, model = await batch_manager.get_ai_response(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    function_name=function_name,
+                    user_id=user_id,
+                    priority=1,
+                    use_cache=True,
+                    ai_client_func=ai_client_func
+                )
+                
+                # Cache the response
+                ai_cache.set(prompt, {"content": response, "model": model}, max_tokens, temperature, function_name)
+                
+                return response, model
+            except Exception as e2:
+                logger.error(f"Legacy batching also failed, falling back to direct call: {e2}")
+    
+    # Fallback to direct call
+    response, model = await ai_client_func(prompt, max_tokens, temperature)
+    
+    # Cache the response
+    if use_batching:
+        nutrition_cache.set(prompt, {"content": response, "model": model}, max_tokens, temperature, function_name, "meal_plan")
+    
+    return response, model
+
+# Note: Advanced AI response functions removed - using agent-specific batching instead
 
 async def get_groq_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> tuple[str, str]:
     """Get response specifically from Groq (for future use)."""
@@ -473,7 +566,13 @@ Rules:
 6. Expand nutrients_summary to include important micronutrients beyond just macros
 7. Focus on essential nutrient information"""
 
-                ai_insights, _ = await get_ai_response(insight_prompt, max_tokens=3000, temperature=0.7)
+                ai_insights, _ = await get_ai_response(
+                    insight_prompt, 
+                    max_tokens=3000, 
+                    temperature=0.7,
+                    function_name="log_meal",
+                    user_id=user_id
+                )
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI insights: {e}")
@@ -606,7 +705,13 @@ IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanation
 
 Make it personalized and actionable based on their description and goals."""
 
-                ai_summary, _ = await get_ai_response(summary_prompt, max_tokens=3000, temperature=0.7)
+                ai_summary, _ = await get_ai_response(
+                    summary_prompt, 
+                    max_tokens=3000, 
+                    temperature=0.7,
+                    function_name="get_nutrition_summary",
+                    user_id=user_id
+                )
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI summary: {e}")
@@ -900,7 +1005,13 @@ Rules:
 9. Include daily_nutrition_summary and weekly_summary
 10. Provide a shopping list in the weekly_summary"""
 
-                ai_meal_plan, _ = await get_ai_response(meal_prompt, max_tokens=get_openai_max_tokens(), temperature=0.7)
+                ai_meal_plan, _ = await get_ai_response(
+                    meal_prompt, 
+                    max_tokens=get_openai_max_tokens(), 
+                    temperature=0.7,
+                    function_name="create_meal_plan",
+                    user_id=user_id
+                )
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI meal plan: {e}")
@@ -1145,7 +1256,13 @@ Rules:
 6. Add prep_time, cooking_time, and total_time
 7. Provide clear cooking instructions and helpful tips"""
                 
-                ai_meal, _ = await get_ai_response(meal_prompt, max_tokens=get_openai_max_tokens(), temperature=0.7)
+                ai_meal, _ = await get_ai_response(
+                    meal_prompt, 
+                    max_tokens=get_openai_max_tokens(), 
+                    temperature=0.7,
+                    function_name="create_meal",
+                    user_id=user_id
+                )
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI meal: {e}")
@@ -1330,7 +1447,13 @@ Rules:
 8. Focus on essential nutrient information
 9. Add quantity and notes to ingredients for better clarity"""
                 
-                ai_recipe, _ = await get_ai_response(recipe_prompt, max_tokens=get_openai_max_tokens(), temperature=0.7)
+                ai_recipe, _ = await get_ai_response(
+                    recipe_prompt, 
+                    max_tokens=get_openai_max_tokens(), 
+                    temperature=0.7,
+                    function_name="create_recipe",
+                    user_id=user_id
+                )
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI recipe: {e}")
@@ -1438,7 +1561,13 @@ IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanation
 
 Keep it concise but comprehensive, and always include serving guidelines and expanded nutrient information."""
 
-                response_text, _ = await get_ai_response(ai_prompt, max_tokens=3000, temperature=0.7)
+                response_text, _ = await get_ai_response(
+                    ai_prompt, 
+                    max_tokens=3000, 
+                    temperature=0.7,
+                    function_name="general_nutrition_response",
+                    user_id=user_id
+                )
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI response: {e}")
@@ -1539,11 +1668,24 @@ async def health_check():
         db_status = get_database_status()
         
         # Check AI status
-        ai_status = "connected" if groq_client else "disconnected"
+        openai_status = "connected" if openai_client else "disconnected"
+        groq_status = "connected" if groq_client else "disconnected"
+        
+        # Get nutrition-specific batching statistics
+        nutrition_batching_stats = nutrition_batch_manager.get_nutrition_stats()
+        nutrition_cache_stats = nutrition_cache.get_stats()
+        nutrition_optimizer_stats = nutrition_optimizer.get_stats()
+        
+        # Get legacy batching statistics (for backward compatibility)
+        batching_stats = batch_manager.get_stats()
+        cache_stats = ai_cache.get_stats()
+        
+        # Note: Advanced statistics removed - using agent-specific batching instead
         
         # Build services status
         services_status = {
-            "groq_ai": ai_status,
+            "openai_ai": openai_status,
+            "groq_ai": groq_status,
             "main_database": "connected" if db_status.get("main", {}).get("connected", False) else "disconnected",
             "user_database": "connected" if db_status.get("user", {}).get("connected", False) else "disconnected",
             "nutrition_database": "connected" if db_status.get("nutrition", {}).get("connected", False) else "disconnected",
@@ -1558,7 +1700,12 @@ async def health_check():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "environment": get_environment(),
             "services": services_status,
-            "message": "Nutrition agent is running smoothly"
+            "nutrition_batching": nutrition_batching_stats,
+            "nutrition_caching": nutrition_cache_stats,
+            "nutrition_optimization": nutrition_optimizer_stats,
+            "legacy_batching": batching_stats,
+            "legacy_caching": cache_stats,
+            "message": "Nutrition agent is running smoothly with nutrition-specific batching enabled"
         }
         
     except Exception as e:
@@ -2428,6 +2575,9 @@ async def verify_ingredients(
     except Exception as e:
         logger.error(f"Error verifying ingredients: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to verify ingredients: {str(e)}")
+
+# Note: Phase 3 endpoints removed - using agent-specific batching instead
+
 
 # =============================================================================
 # MAIN FUNCTION
