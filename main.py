@@ -244,7 +244,7 @@ async def validate_user_exists(user_id: str) -> bool:
                 return True
         
         # Whitelist for specific verified users (both dev and production)
-        verified_users = ["999bf274-5b87-46e5-8087-8fb908f51c03"]
+        verified_users = ["e589fb61-6cd0-4ccd-8a9c-ee8a8dd85e8a"]
         if user_id in verified_users:
             logger.info(f"Allowing verified user: {user_id}")
             return True

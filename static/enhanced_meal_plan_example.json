@@ -1,9 +1,9 @@
 {
   "enhanced_meal_plan_example": {
     "status": "success",
-    "user_id": "999bf274-5b87-46e5-8087-8fb908f51c03",
+    "user_id": "e589fb61-6cd0-4ccd-8a9c-ee8a8dd85e8a",
     "meal_plan": {
-      "id": "plan_999bf274-5b87-46e5-8087-8fb908f51c03_1756152522",
+      "id": "plan_e589fb61-6cd0-4ccd-8a9c-ee8a8dd85e8a_1756152522",
       "description": "Give me a grocery list for a high-protein week of meals under 1,800 calories/day. Main ingredient is Tuna, egg and spinach",
       "plan_type": "weekly",
       "days_per_week": 5,
