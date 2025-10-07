@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Nutrition Agent - Groq AI Integration with Standardized Architecture
+Nutrition Agent - OpenAI AI Integration with Standardized Architecture
 
-This agent provides intelligent nutrition functionality using Groq AI.
+This agent provides intelligent nutrition functionality using OpenAI AI.
 """
 
 import logging
@@ -19,7 +19,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
-from groq import Groq
 from openai import OpenAI
 
 # Load environment variables
@@ -91,7 +90,6 @@ def simple_json_parse(ai_response: str) -> Dict[str, Any]:
 nutrition_data = {}
 
 # Initialize AI clients
-groq_client = None
 openai_client = None
 
 # Initialize nutrition-specific batching and caching
@@ -180,29 +178,9 @@ async def get_db():
 
 async def initialize_ai():
     """Initialize AI clients on startup."""
-    global groq_client, openai_client
+    global openai_client
     
     try:
-        # Initialize Groq AI
-        groq_api_key = get_groq_api_key()
-        if groq_api_key:
-            try:
-                groq_client = Groq(api_key=groq_api_key)
-                # Test connection with a simple request
-                test_response = groq_client.chat.completions.create(
-                    model=get_groq_model(),
-                    messages=[{"role": "user", "content": "Hello"}],
-                    max_tokens=10,
-                    temperature=0.1
-                )
-                logger.info("✅ Groq AI client initialized and tested successfully")
-            except Exception as e:
-                logger.error(f"❌ Groq AI initialization failed: {e}")
-                groq_client = None
-        else:
-            logger.warning("⚠️ GROQ_API_KEY not set, Groq AI features will not work")
-            groq_client = None
-        
         # Initialize OpenAI AI
         openai_api_key = get_openai_api_key()
         if openai_api_key:
@@ -224,7 +202,6 @@ async def initialize_ai():
             
     except Exception as e:
         logger.error(f"AI initialization error: {e}")
-        groq_client = None
         openai_client = None
 
 # =============================================================================
@@ -293,18 +270,18 @@ async def require_valid_user(user_id: str):
 
 async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7, 
                          function_name: str = "", user_id: str = "", use_batching: bool = True) -> tuple[str, str]:
-    """Get AI response using GPT-4o primary, Groq fallback, with nutrition-specific batching support."""
+    """Get AI response using GPT-4o with nutrition-specific batching support."""
     
     # Check nutrition-specific cache first
     if use_batching:
-        cached_response = nutrition_cache.get(prompt, max_tokens, temperature, function_name, "meal_plan")
+        cached_response = nutrition_cache.get(prompt, max_tokens, temperature, function_name, "nutrition_analysis")
         if cached_response:
             logger.info(f"Nutrition cache hit for {function_name}")
             return cached_response.get("content", ""), cached_response.get("model", "cached")
     
     # Define the AI client function for batching
     async def ai_client_func(prompt: str, max_tokens: int, temperature: float) -> tuple[str, str]:
-        # Try OpenAI first (primary)
+        # Use OpenAI only
         if openai_client:
             try:
                 response = openai_client.chat.completions.create(
@@ -315,20 +292,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: floa
                 )
                 return response.choices[0].message.content, "gpt-4o"
             except Exception as e:
-                logger.warning(f"OpenAI request failed, trying Groq fallback: {e}")
-        
-        # Fallback to Groq
-        if groq_client:
-            try:
-                response = groq_client.chat.completions.create(
-                    model="llama-3.1-8b-instant",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=max_tokens,
-                    temperature=temperature
-                )
-                return response.choices[0].message.content, "llama-3.1-8b-instant"
-            except Exception as e:
-                logger.error(f"Both AI services failed: {e}")
+                logger.error(f"OpenAI request failed: {e}")
         
         return "AI features are currently unavailable. Please try again later.", "unavailable"
     
@@ -385,22 +349,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: floa
 
 # Note: Advanced AI response functions removed - using agent-specific batching instead
 
-async def get_groq_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> tuple[str, str]:
-    """Get response specifically from Groq (for future use)."""
-    if groq_client:
-        try:
-            response = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            return response.choices[0].message.content, "llama-3.1-8b-instant"
-        except Exception as e:
-            logger.error(f"Groq request failed: {e}")
-            return "Groq AI is currently unavailable.", "unavailable"
-    else:
-        return "Groq AI is not configured.", "unavailable"
+# Note: Groq response function removed - using OpenAI only
 
 # =============================================================================
 # NUTRITION FUNCTIONS WITH AI
@@ -449,8 +398,8 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         # Store meal log in memory (in future, this would be saved to database)
         nutrition_data[f"meal_log_{user_id}_{datetime.now().timestamp()}"] = meal_log
         
-        # Add AI nutrition insights if Groq is available
-        if groq_client:
+        # Add AI nutrition insights if OpenAI is available
+        if openai_client:
             try:
                 insight_prompt = f"""Analyze this meal that was already eaten and provide nutrition insights:
 
@@ -618,8 +567,8 @@ async def get_nutrition_summary(parameters: Dict[str, Any], user_id: str) -> Dic
         days = parameters.get("days", 7)
         goals = parameters.get("goals", "general health")
         
-        # Generate AI-powered summary if Groq is available
-        if groq_client:
+        # Generate AI-powered summary if OpenAI is available
+        if openai_client:
             try:
                 summary_prompt = f"""Based on this user request, provide a comprehensive nutrition summary:
 - User request: {description}
@@ -1495,8 +1444,8 @@ async def general_nutrition_response(parameters: Dict[str, Any], user_id: str) -
         if not message:
             raise HTTPException(status_code=400, detail="Description or message parameter is required.")
         
-        # Generate AI response if Groq is available
-        if groq_client:
+        # Generate AI response if OpenAI is available
+        if openai_client:
             try:
                 ai_prompt = f"""You are a nutrition and health expert. The user asks: {message}
 
@@ -1607,8 +1556,8 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
 # =============================================================================
 
 app = FastAPI(
-    title="Nutrition Agent - Groq AI Integration",
-    description="Intelligent nutrition agent with Groq AI for personalized meal planning and nutrition advice",
+    title="Nutrition Agent - OpenAI AI Integration",
+    description="Intelligent nutrition agent with OpenAI AI for personalized meal planning and nutrition advice",
     version="2.0.0"
 )
 
@@ -1669,7 +1618,6 @@ async def health_check():
         
         # Check AI status
         openai_status = "connected" if openai_client else "disconnected"
-        groq_status = "connected" if groq_client else "disconnected"
         
         # Get nutrition-specific batching statistics
         nutrition_batching_stats = nutrition_batch_manager.get_nutrition_stats()
