@@ -1060,103 +1060,106 @@ Rules:
                 return parsed
             
             # Step 2: Verify ingredients and calculate accurate macros using nutrition database
-            try:
-                # Import database service with error handling
-                try:
-                    from utils.nutrition_database_service import nutrition_db_service
-                    db_service_available = True
-                except ImportError as import_error:
-                    logger.warning(f"Nutrition database service not available: {import_error}")
-                    db_service_available = False
-                
-                # Extract ingredients from the meal plan
-                all_ingredients = []
-                if isinstance(parsed, dict) and "meal_plan" in parsed:
-                    meal_plan = parsed["meal_plan"]
-                    if "days" in meal_plan:
-                        for day in meal_plan["days"]:
-                            if "meals" in day:
-                                for meal_type, meal in day["meals"].items():
-                                    if isinstance(meal, dict) and "ingredients" in meal:
-                                        all_ingredients.extend(meal["ingredients"])
-                
-                # Verify ingredients in database and calculate accurate macros
-                if all_ingredients and db_service_available:
-                    # Clean ingredient names (remove quantities, keep just the food name)
-                    cleaned_ingredients = []
-                    for ingredient in all_ingredients:
-                        # Extract food name from ingredient string (e.g., "150g grilled chicken breast" -> "grilled chicken breast")
-                        import re
-                        # Remove common quantity patterns
-                        cleaned = re.sub(r'^\d+(?:\.\d+)?\s*(?:g|kg|oz|lb|cup|tbsp|tsp|ml|l|tablespoon|teaspoon|gram|ounce|pound|milliliter|liter)\s*', '', ingredient, flags=re.IGNORECASE)
-                        cleaned = cleaned.strip()
-                        if cleaned:
-                            cleaned_ingredients.append(cleaned)
-                    
-                    # Search for ingredients in nutrition database
-                    try:
-                        verified_ingredients = nutrition_db_service.search_ingredients_for_meal(cleaned_ingredients)
-                        
-                        # Calculate accurate macros for the meal plan
-                        if verified_ingredients:
-                            # Update meal plan with verified nutrition data
-                            parsed["meal_plan"]["nutrition_verification"] = {
-                                "ingredients_verified": len(verified_ingredients),
-                                "total_ingredients": len(cleaned_ingredients),
-                                "verification_status": "partial" if len(verified_ingredients) < len(cleaned_ingredients) else "complete",
-                                "database_used": True
-                            }
-                            
-                            # Add verified ingredients data
-                            parsed["meal_plan"]["verified_ingredients"] = verified_ingredients
-                            
-                            logger.info(f"Verified {len(verified_ingredients)} out of {len(cleaned_ingredients)} ingredients in nutrition database")
-                        else:
-                            parsed["meal_plan"]["nutrition_verification"] = {
-                                "ingredients_verified": 0,
-                                "total_ingredients": len(cleaned_ingredients),
-                                "verification_status": "none_found",
-                                "database_used": True,
-                                "note": "No ingredients found in nutrition database, using AI-generated nutrition data"
-                            }
-                            logger.info("No ingredients found in nutrition database, using AI-generated data")
-                    except Exception as db_call_error:
-                        logger.warning(f"Database service call failed: {db_call_error}")
-                        parsed["meal_plan"]["nutrition_verification"] = {
-                            "ingredients_verified": 0,
-                            "total_ingredients": len(cleaned_ingredients),
-                            "verification_status": "database_error",
-                            "database_used": False,
-                            "error": str(db_call_error)
-                        }
-                elif all_ingredients and not db_service_available:
-                    parsed["meal_plan"]["nutrition_verification"] = {
-                        "ingredients_verified": 0,
-                        "total_ingredients": len(all_ingredients),
-                        "verification_status": "service_unavailable",
-                        "database_used": False,
-                        "note": "Nutrition database service not available, using AI-generated nutrition data"
-                    }
-                else:
-                    parsed["meal_plan"]["nutrition_verification"] = {
-                        "ingredients_verified": 0,
-                        "total_ingredients": 0,
-                        "verification_status": "no_ingredients",
-                        "database_used": False,
-                        "note": "No ingredients found in meal plan"
-                    }
-                    
-            except Exception as db_error:
-                logger.warning(f"Failed to verify ingredients in nutrition database: {db_error}")
-                # Continue with AI-generated data if database verification fails
-                if isinstance(parsed, dict) and "meal_plan" in parsed:
-                    parsed["meal_plan"]["nutrition_verification"] = {
-                        "ingredients_verified": 0,
-                        "total_ingredients": 0,
-                        "verification_status": "database_error",
-                        "database_used": False,
-                        "error": str(db_error)
-                    }
+            # COMMENTED OUT TO PREVENT HEROKU TIMEOUT
+            # try:
+            #     # Import database service with error handling
+            #     try:
+            #         from utils.nutrition_database_service import nutrition_db_service
+            #         db_service_available = True
+            #     except ImportError as import_error:
+            #         logger.warning(f"Nutrition database service not available: {import_error}")
+            #         db_service_available = False
+            #     
+            #     # Extract ingredients from the meal plan
+            #     all_ingredients = []
+            #     if isinstance(parsed, dict) and "meal_plan" in parsed:
+            #         meal_plan = parsed["meal_plan"]
+            #         if "days" in meal_plan:
+            #             for day in meal_plan["days"]:
+            #                 if "meals" in day:
+            #                     for meal_type, meal in day["meals"].items():
+            #                         if isinstance(meal, dict) and "ingredients" in meal:
+            #                             all_ingredients.extend(meal["ingredients"])
+            #     
+            #     # Verify ingredients in database and calculate accurate macros
+            #     if all_ingredients and db_service_available:
+            #         # Clean ingredient names (remove quantities, keep just the food name)
+            #         cleaned_ingredients = []
+            #         for ingredient in all_ingredients:
+            #             # Extract food name from ingredient string (e.g., "150g grilled chicken breast" -> "grilled chicken breast")
+            #             import re
+            #             # Remove common quantity patterns
+            #             cleaned = re.sub(r'^\d+(?:\.\d+)?\s*(?:g|kg|oz|lb|cup|tbsp|tsp|ml|l|tablespoon|teaspoon|gram|ounce|pound|milliliter|liter)\s*', '', ingredient, flags=re.IGNORECASE)
+            #             cleaned = cleaned.strip()
+            #             if cleaned:
+            #                 cleaned_ingredients.append(cleaned)
+            #         
+            #         # Search for ingredients in nutrition database
+            #         try:
+            #             verified_ingredients = nutrition_db_service.search_ingredients_for_meal(cleaned_ingredients)
+            #             
+            #             # Calculate accurate macros for the meal plan
+            #             if verified_ingredients:
+            #                 # Update meal plan with verified nutrition data
+            #                 parsed["meal_plan"]["nutrition_verification"] = {
+            #                     "ingredients_verified": len(verified_ingredients),
+            #                     "total_ingredients": len(cleaned_ingredients),
+            #                     "verification_status": "partial" if len(verified_ingredients) < len(cleaned_ingredients) else "complete",
+            #                     "database_used": True
+            #                 }
+            #                 
+            #                 # Add verified ingredients data
+            #                 parsed["meal_plan"]["verified_ingredients"] = verified_ingredients
+            #                 
+            #                 logger.info(f"Verified {len(verified_ingredients)} out of {len(cleaned_ingredients)} ingredients in nutrition database")
+            #             else:
+            #                 parsed["meal_plan"]["nutrition_verification"] = {
+            #                     "ingredients_verified": 0,
+            #                     "total_ingredients": len(cleaned_ingredients),
+            #                     "verification_status": "none_found",
+            #                     "database_used": True,
+            #                     "note": "No ingredients found in nutrition database, using AI-generated nutrition data"
+            #                 }
+            #                 logger.info("No ingredients found in nutrition database, using AI-generated data")
+            #         except Exception as db_call_error:
+            #             logger.warning(f"Database service call failed: {db_call_error}")
+            #             parsed["meal_plan"]["nutrition_verification"] = {
+            #                 "ingredients_verified": 0,
+            #                 "total_ingredients": len(cleaned_ingredients),
+            #                 "verification_status": "database_error",
+            #                 "database_used": False,
+            #                 "error": str(db_call_error)
+            #             }
+            #     elif all_ingredients and not db_service_available:
+            #         parsed["meal_plan"]["nutrition_verification"] = {
+            #             "ingredients_verified": 0,
+            #             "total_ingredients": len(all_ingredients),
+            #             "verification_status": "service_unavailable",
+            #             "database_used": False,
+            #             "note": "Nutrition database service not available, using AI-generated nutrition data"
+            #         }
+            #     else:
+            #         parsed["meal_plan"]["nutrition_verification"] = {
+            #             "ingredients_verified": 0,
+            #             "total_ingredients": 0,
+            #             "verification_status": "no_ingredients",
+            #             "database_used": False,
+            #             "note": "No ingredients found in meal plan"
+            #         }
+            #         
+            # except Exception as db_error:
+            #     logger.warning(f"Failed to verify ingredients in nutrition database: {db_error}")
+            #     # Continue with AI-generated data if database verification fails
+            #     if isinstance(parsed, dict) and "meal_plan" in parsed:
+            #         parsed["meal_plan"]["nutrition_verification"] = {
+            #             "ingredients_verified": 0,
+            #             "total_ingredients": 0,
+            #             "verification_status": "database_error",
+            #             "database_used": False,
+            #             "error": str(db_error)
+            #         }
+            
+            logger.info("Database verification disabled to prevent timeouts - using AI-generated nutrition data only")
             
             return parsed
             
