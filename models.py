@@ -10,6 +10,46 @@ from utils.database import Base
 import uuid
 
 
+class User(Base):
+    """User model - mirrors user-fitness-app-backend users table."""
+    __tablename__ = "users"
+
+    user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    first_name = Column(String)
+    last_name = Column(String)
+    date_of_birth = Column(Date)
+    gender = Column(String)
+    height_cm = Column(Numeric)
+    profile_picture_url = Column(Text)
+    timezone = Column(String)
+    notification_preferences = Column(JSON)
+    account_status = Column(String, default="active")
+    last_login = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<User(user_id={self.user_id}, email={self.email})>"
+
+    @property
+    def full_name(self) -> str:
+        """Get user's full name"""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        elif self.first_name:
+            return self.first_name
+        elif self.last_name:
+            return self.last_name
+        return "Unknown User"
+
+    @property
+    def is_active(self) -> bool:
+        """Check if user account is active"""
+        return self.account_status == "active"
+
+
 class MealType(Base):
     __tablename__ = "meal_types"
     

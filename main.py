@@ -32,8 +32,8 @@ from utils.database import (
 )
 from utils.config import (
     get_database_url, get_user_database_uri, get_nutrition_db_uri, get_workout_db_uri,
-    get_redis_url, get_groq_api_key, get_openai_api_key, get_environment, get_log_level,
-    get_port, get_host, get_cors_origins, get_groq_model, get_groq_timeout,
+    get_redis_url, get_openai_api_key, get_environment, get_log_level,
+    get_port, get_host, get_cors_origins,
     get_openai_model, get_openai_timeout, get_openai_max_tokens
 )
 
@@ -50,7 +50,7 @@ from utils.ai_cache import AIResponseCache
 
 # Import models and schemas
 from models import (
-    MealPlan, MealPlanDay, MealPlanMeal, MealPlanItem,
+    User, MealPlan, MealPlanDay, MealPlanMeal, MealPlanItem,
     UserFoodLog, UserFoodLogItem, UserNutritionTarget, UserNutritionSummary
 )
 from schemas import (
@@ -1633,7 +1633,6 @@ async def health_check():
         # Build services status
         services_status = {
             "openai_ai": openai_status,
-            "groq_ai": groq_status,
             "main_database": "connected" if db_status.get("main", {}).get("connected", False) else "disconnected",
             "user_database": "connected" if db_status.get("user", {}).get("connected", False) else "disconnected",
             "nutrition_database": "connected" if db_status.get("nutrition", {}).get("connected", False) else "disconnected",
@@ -2539,3 +2538,4 @@ if __name__ == "__main__":
         port=get_port(),
         log_level=get_log_level().lower()
     )
+

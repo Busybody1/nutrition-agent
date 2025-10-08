@@ -129,14 +129,19 @@ class NutritionBatchManager:
         self.batch_processor_task = None
         self.is_running = False
         
-        # Start the batch processor
-        self._start_batch_processor()
+        # Don't start the batch processor during initialization
+        # It will be started when first needed
     
     def _start_batch_processor(self):
         """Start the background batch processor."""
-        if not self.is_running:
-            self.is_running = True
-            self.batch_processor_task = asyncio.create_task(self._batch_processor())
+        if not self.is_running and self.batch_processor_task is None:
+            try:
+                self.is_running = True
+                self.batch_processor_task = asyncio.create_task(self._batch_processor())
+            except RuntimeError:
+                # No event loop running, will start later
+                self.is_running = False
+                self.batch_processor_task = None
     
     async def _batch_processor(self):
         """Background processor optimized for nutrition management."""
@@ -417,6 +422,10 @@ class NutritionBatchManager:
                                    nutrition_type: str = "general",
                                    dietary_restrictions: bool = False) -> Tuple[str, str]:
         """Get AI response optimized for nutrition management."""
+        
+        # Start batch processor if not already running
+        if not self.is_running:
+            self._start_batch_processor()
         
         # Create nutrition call
         call_id = f"nutrition_{function_name}_{user_id}_{int(time.time() * 1000)}"
