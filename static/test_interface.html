@@ -686,7 +686,7 @@
                 </div>
                 
                 <div class="grid">
-                    <button class="btn" onclick="createMealPlan()">📝 Create Meal Plan</button>
+                    <button class="btn" onclick="createMealPlanDB()">📝 Create Meal Plan (DB)</button>
                     <button class="btn" onclick="getMealPlans()">📋 Get Meal Plans</button>
                     <button class="btn" onclick="createFoodLog()">🍽️ Create Food Log</button>
                     <button class="btn" onclick="getFoodLogs()">📊 Get Food Logs</button>
@@ -935,7 +935,7 @@
         }
 
         // Database Operations Functions
-        async function createMealPlan() {
+        async function createMealPlanDB() {
             const userId = document.getElementById('dbUser').value;
             const name = document.getElementById('mealPlanName').value;
             const startDate = document.getElementById('startDate').value;
