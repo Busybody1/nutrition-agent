@@ -150,8 +150,8 @@ openai_client = None
 
 # Initialize nutrition-specific batching and caching
 nutrition_batch_manager = NutritionBatchManager(
-    max_batch_size=8,  # Optimized for nutrition analysis
-    max_wait_time=0.6,  # Balanced wait time
+    max_batch_size=6,  # Reduced for faster processing
+    max_wait_time=1.0,  # Increased wait time for better batching
     strategy=NutritionBatchStrategy.BALANCED,
     enable_dietary_priority=True,
     enable_nutrition_optimization=True
@@ -392,16 +392,40 @@ async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: floa
                 
                 return response, model
             except Exception as e2:
-                logger.error(f"Legacy batching also failed, falling back to direct call: {e2}")
+                logger.error(f"Legacy batching also failed, falling back to direct OpenAI call: {e2}")
+                
+                # Final fallback: direct OpenAI call
+                try:
+                    response = await openai_client.chat.completions.create(
+                        model=get_openai_model(),
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=max_tokens,
+                        temperature=temperature
+                    )
+                    ai_response = response.choices[0].message.content
+                    model = response.model
+                    
+                    # Cache the response
+                    if use_batching:
+                        nutrition_cache.set(prompt, {"content": ai_response, "model": model}, max_tokens, temperature, function_name, "meal_plan")
+                    
+                    return ai_response, model
+                except Exception as direct_error:
+                    logger.error(f"Direct OpenAI call also failed: {direct_error}")
+                    raise Exception(f"All AI methods failed: nutrition_batch={e}, legacy_batch={e2}, direct_openai={direct_error}")
     
     # Fallback to direct call
-    response, model = await ai_client_func(prompt, max_tokens, temperature)
-    
-    # Cache the response
-    if use_batching:
-        nutrition_cache.set(prompt, {"content": response, "model": model}, max_tokens, temperature, function_name, "meal_plan")
-    
-    return response, model
+    try:
+        response, model = await ai_client_func(prompt, max_tokens, temperature)
+        
+        # Cache the response
+        if use_batching:
+            nutrition_cache.set(prompt, {"content": response, "model": model}, max_tokens, temperature, function_name, "meal_plan")
+        
+        return response, model
+    except Exception as direct_error:
+        logger.error(f"Direct ai_client_func call failed: {direct_error}")
+        raise Exception(f"All AI methods failed: {direct_error}")
 
 # Note: Advanced AI response functions removed - using agent-specific batching instead
 
@@ -1149,7 +1173,12 @@ Rules:
         raise
     except Exception as e:
         logger.error(f"Error creating meal plan: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create meal plan: {str(e)}")
+        # Return a proper JSON error response instead of raising HTTPException
+        return {
+            "error": "Failed to create meal plan",
+            "message": str(e),
+            "status": "error"
+        }
 
 async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
     """Create a single meal with AI recommendations."""
@@ -1312,7 +1341,12 @@ Rules:
         raise
     except Exception as e:
         logger.error(f"Error creating meal: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create meal: {str(e)}")
+        # Return a proper JSON error response instead of raising HTTPException
+        return {
+            "error": "Failed to create meal",
+            "message": str(e),
+            "status": "error"
+        }
 
 async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
     """Create a detailed recipe with AI-powered suggestions."""

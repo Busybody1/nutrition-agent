@@ -47,7 +47,7 @@ class NutritionCall:
     ai_client_func: Callable = None
     retry_count: int = 0
     max_retries: int = 3
-    timeout: float = 25.0  # Longer timeout for complex meal planning
+    timeout: float = 35.0  # Increased timeout for complex meal planning
     nutrition_type: str = "general"  # meal_plan, analysis, suggestion, etc.
     dietary_restrictions: bool = False  # Whether this involves dietary restrictions
     
