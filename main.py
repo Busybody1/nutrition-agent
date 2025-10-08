@@ -343,7 +343,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                 response = openai_client.chat.completions.create(
                     model="gpt-5",
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=max_tokens,
+                    max_completion_tokens=max_tokens,
                     temperature=temperature
                 )
                 return response.choices[0].message.content, "gpt-5"
@@ -378,7 +378,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
             try:
                 response, model = await batch_manager.get_ai_response(
                     prompt=prompt,
-                    max_tokens=max_tokens,
+                    max_completion_tokens=max_tokens,
                     temperature=temperature,
                     function_name=function_name,
                     user_id=user_id,
@@ -399,7 +399,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                     response = await openai_client.chat.completions.create(
                         model=get_openai_model(),
                         messages=[{"role": "user", "content": prompt}],
-                        max_tokens=max_tokens,
+                        max_completion_tokens=max_tokens,
                         temperature=temperature
                     )
                     ai_response = response.choices[0].message.content
@@ -597,7 +597,7 @@ Rules:
 
                 ai_insights, _ = await get_ai_response(
                     insight_prompt, 
-                    max_tokens=16000, 
+                    max_completion_tokens=16000, 
                     temperature=0.7,
                     function_name="log_meal",
                     user_id=user_id
@@ -736,7 +736,7 @@ Make it personalized and actionable based on their description and goals."""
 
                 ai_summary, _ = await get_ai_response(
                     summary_prompt, 
-                    max_tokens=16000, 
+                    max_completion_tokens=16000, 
                     temperature=0.7,
                     function_name="get_nutrition_summary",
                     user_id=user_id
@@ -1621,7 +1621,7 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
 
                 response_text, _ = await get_ai_response(
                     ai_prompt, 
-                    max_tokens=16000, 
+                    max_completion_tokens=16000, 
                     temperature=0.7,
                     function_name="general_nutrition_response",
                     user_id=user_id
