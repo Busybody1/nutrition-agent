@@ -68,15 +68,71 @@ logger = logging.getLogger(__name__)
 
 def simple_json_parse(ai_response: str) -> Dict[str, Any]:
     """
-    Simple and reliable JSON parsing function.
-    Tries to parse the AI response directly, falls back to error response.
+    Enhanced JSON parsing function that handles markdown code blocks and extra text.
+    Tries multiple strategies to extract valid JSON from AI responses.
     """
     try:
         import json
-        parsed = json.loads(ai_response)
-        return parsed
+        import re
+        
+        # Strategy 1: Try direct parsing
+        try:
+            parsed = json.loads(ai_response)
+            return parsed
+        except:
+            pass
+        
+        # Strategy 2: Remove markdown code blocks
+        # Remove ```json ... ``` or ``` ... ```
+        cleaned = ai_response.strip()
+        if cleaned.startswith("```"):
+            # Find the first { and last }
+            start_idx = cleaned.find("{")
+            end_idx = cleaned.rfind("}")
+            if start_idx != -1 and end_idx != -1:
+                cleaned = cleaned[start_idx:end_idx + 1]
+        
+        # Try parsing after removing markdown
+        try:
+            parsed = json.loads(cleaned)
+            return parsed
+        except:
+            pass
+        
+        # Strategy 3: Extract JSON using regex
+        # Look for JSON object pattern
+        json_pattern = r'\{(?:[^{}]|(?:\{(?:[^{}]|(?:\{[^{}]*\}))*\}))*\}'
+        matches = re.findall(json_pattern, ai_response, re.DOTALL)
+        
+        for match in matches:
+            try:
+                parsed = json.loads(match)
+                # If it parses successfully and looks like our expected structure
+                if isinstance(parsed, dict) and len(parsed) > 0:
+                    return parsed
+            except:
+                continue
+        
+        # Strategy 4: Try to find and extract the largest JSON-like structure
+        start_idx = ai_response.find("{")
+        end_idx = ai_response.rfind("}")
+        if start_idx != -1 and end_idx != -1:
+            potential_json = ai_response[start_idx:end_idx + 1]
+            try:
+                parsed = json.loads(potential_json)
+                return parsed
+            except:
+                pass
+        
+        # If all strategies fail, return error with raw text
+        logger.warning(f"Failed to parse AI response as JSON after all strategies")
+        return {
+            "error": "AI response format issue",
+            "ai_response": {"raw_text": ai_response}
+        }
+        
     except Exception as e:
-        logger.warning(f"Failed to parse AI response as JSON: {e}")
+        logger.error(f"Critical error in JSON parsing: {e}")
         return {
             "error": "AI response format issue",
             "ai_response": {"raw_text": ai_response}
@@ -968,12 +1024,16 @@ Rules:
         else:
             ai_meal_plan = "AI meal planning features are currently unavailable."
         
-        # Simple and reliable JSON parsing
+        # Enhanced JSON parsing with markdown stripping
         try:
-            import json
+            # Use enhanced JSON parser that handles markdown blocks
+            parsed = simple_json_parse(ai_meal_plan)
+            logger.info(f"JSON parsing successful. Parsed keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'Not a dict'}")
             
-            # Try to parse the AI response directly
-            parsed = json.loads(ai_meal_plan)
+            # Check if parsing returned an error
+            if isinstance(parsed, dict) and "error" in parsed:
+                logger.warning(f"JSON parser returned error: {parsed.get('error')}")
+                return parsed
             
             # Step 2: Verify ingredients and calculate accurate macros using nutrition database
             try:
@@ -1219,22 +1279,9 @@ Rules:
         else:
             ai_meal = "AI meal creation features are currently unavailable."
         
-        # Simple and reliable JSON parsing
-        try:
-            import json
-            
-            # Try to parse the AI response directly
-            parsed = json.loads(ai_meal)
-            return parsed
-            
-        except Exception as e:
-            logger.warning(f"Failed to parse AI meal as JSON: {e}")
-            logger.warning(f"AI response content: {ai_meal[:500]}...")
-            # Fallback to original response
-            return {
-                "error": "AI response format issue",
-                "ai_response": {"raw_text": ai_meal}
-            }
+        # Enhanced JSON parsing with markdown stripping
+        parsed = simple_json_parse(ai_meal)
+        return parsed
         
     except HTTPException:
         raise
