@@ -78,7 +78,7 @@ def get_openai_timeout() -> int:
 
 def get_openai_max_tokens() -> int:
     """Get OpenAI max tokens for responses."""
-    return int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
+    return int(os.getenv("OPENAI_MAX_TOKENS", "16000"))
 
 # Database Configuration
 def get_database_pool_size() -> int:

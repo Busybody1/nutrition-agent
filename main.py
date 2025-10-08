@@ -324,7 +324,7 @@ async def require_valid_user(user_id: str):
 # AI HELPER FUNCTIONS
 # =============================================================================
 
-async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: float = 0.7, 
+async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: float = 0.7, 
                          function_name: str = "", user_id: str = "", use_batching: bool = True) -> tuple[str, str]:
     """Get AI response using GPT-4o with nutrition-specific batching support."""
     
@@ -341,12 +341,12 @@ async def get_ai_response(prompt: str, max_tokens: int = 1000, temperature: floa
         if openai_client:
             try:
                 response = openai_client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-5",
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=max_tokens,
                     temperature=temperature
                 )
-                return response.choices[0].message.content, "gpt-4o"
+                return response.choices[0].message.content, "gpt-5"
             except Exception as e:
                 logger.error(f"OpenAI request failed: {e}")
         
@@ -597,7 +597,7 @@ Rules:
 
                 ai_insights, _ = await get_ai_response(
                     insight_prompt, 
-                    max_tokens=3000, 
+                    max_tokens=16000, 
                     temperature=0.7,
                     function_name="log_meal",
                     user_id=user_id
@@ -736,7 +736,7 @@ Make it personalized and actionable based on their description and goals."""
 
                 ai_summary, _ = await get_ai_response(
                     summary_prompt, 
-                    max_tokens=3000, 
+                    max_tokens=16000, 
                     temperature=0.7,
                     function_name="get_nutrition_summary",
                     user_id=user_id
@@ -1621,7 +1621,7 @@ Keep it concise but comprehensive, and always include serving guidelines and exp
 
                 response_text, _ = await get_ai_response(
                     ai_prompt, 
-                    max_tokens=3000, 
+                    max_tokens=16000, 
                     temperature=0.7,
                     function_name="general_nutrition_response",
                     user_id=user_id
