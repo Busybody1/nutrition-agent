@@ -8,7 +8,7 @@ This agent provides intelligent nutrition functionality using OpenAI AI.
 import logging
 import os
 import time
-from datetime import datetime, timezone, timedelta, date, time
+from datetime import datetime, timezone, timedelta, date
 from typing import Any, Dict, Optional, List
 from contextlib import asynccontextmanager
 from uuid import UUID
