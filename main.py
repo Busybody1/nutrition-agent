@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
-from openai import OpenAI
+import requests
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -233,27 +233,46 @@ async def get_db():
 # =============================================================================
 
 async def initialize_ai():
-    """Initialize AI clients on startup."""
+    """Initialize AI clients on startup using direct HTTP requests (OpenAI only)."""
     global openai_client
     
     try:
-        # Initialize OpenAI AI
+        # Initialize OpenAI API key
         openai_api_key = get_openai_api_key()
-        if openai_api_key:
-            try:
-                openai_client = OpenAI(api_key=openai_api_key)
-                # Test connection with a simple request
-                test_response = openai_client.chat.completions.create(
-                    model=get_openai_model(),
-                    messages=[{"role": "user", "content": "Hello"}],
-                    max_tokens=10
-                )
-                logger.info("✅ OpenAI AI client initialized and tested successfully")
-            except Exception as e:
-                logger.error(f"❌ OpenAI AI initialization failed: {e}")
+        
+        if not openai_api_key:
+            logger.error("❌ OPENAI_API_KEY not set, AI nutrition features will not work")
+            openai_client = None
+            return
+        
+        try:
+            # Test connection with a simple request using HTTP API
+            headers = {
+                "Authorization": f"Bearer {openai_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            test_data = {
+                "model": "gpt-5",
+                "messages": [{"role": "user", "content": "Hello"}]
+            }
+            
+            test_response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=test_data,
+                timeout=15
+            )
+            
+            if test_response.status_code == 200:
+                logger.info("✅ OpenAI connection test successful")
+                openai_client = openai_api_key  # Store API key, not client object
+            else:
+                logger.error(f"❌ OpenAI test failed with status {test_response.status_code}")
                 openai_client = None
-        else:
-            logger.warning("⚠️ OPENAI_API_KEY not set, OpenAI AI features will not work")
+                
+        except Exception as e:
+            logger.error(f"❌ OpenAI initialization failed: {e}")
             openai_client = None
             
     except Exception as e:
@@ -337,14 +356,31 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
     
     # Define the AI client function for batching
     async def ai_client_func(prompt: str, max_tokens: int, temperature: float) -> tuple[str, str]:
-        # Use OpenAI only
+        # Use OpenAI HTTP API directly
         if openai_client:
             try:
-                response = openai_client.chat.completions.create(
-                    model="gpt-5",
-                    messages=[{"role": "user", "content": prompt}]
+                headers = {
+                    "Authorization": f"Bearer {openai_client}",
+                    "Content-Type": "application/json"
+                }
+                
+                data = {
+                    "model": "gpt-5",
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+                
+                response = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30
                 )
-                return response.choices[0].message.content, "gpt-5"
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return result["choices"][0]["message"]["content"], "gpt-5"
+                else:
+                    logger.error(f"OpenAI request failed with status {response.status_code}")
             except Exception as e:
                 logger.error(f"OpenAI request failed: {e}")
         
@@ -390,14 +426,31 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
             except Exception as e2:
                 logger.error(f"Legacy batching also failed, falling back to direct OpenAI call: {e2}")
                 
-                # Final fallback: direct OpenAI call
+                # Final fallback: direct OpenAI HTTP API call
                 try:
-                    response = await openai_client.chat.completions.create(
-                        model=get_openai_model(),
-                        messages=[{"role": "user", "content": prompt}],
+                    headers = {
+                        "Authorization": f"Bearer {openai_client}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    data = {
+                        "model": "gpt-5",
+                        "messages": [{"role": "user", "content": prompt}]
+                    }
+                    
+                    response = requests.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30
                     )
-                    ai_response = response.choices[0].message.content
-                    model = response.model
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        ai_response = result["choices"][0]["message"]["content"]
+                        model = "gpt-5"
+                    else:
+                        raise Exception(f"OpenAI API error: {response.status_code}")
                     
                     # Cache the response
                     if use_batching:
@@ -1024,16 +1077,34 @@ Rules:
 9. Include daily_nutrition_summary and weekly_summary
 10. Provide a shopping list in the weekly_summary"""
 
-                # Use direct OpenAI call to avoid Heroku 30s timeout with batching
-                logger.info("Using direct OpenAI call for create_meal_plan to avoid timeout")
+                # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
+                logger.info("Using direct OpenAI HTTP API for create_meal_plan to avoid timeout")
                 try:
-                    response = await openai_client.chat.completions.create(
-                        model="gpt-5",
-                        messages=[{"role": "user", "content": meal_prompt}]
+                    headers = {
+                        "Authorization": f"Bearer {openai_client}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    data = {
+                        "model": "gpt-5",
+                        "messages": [{"role": "user", "content": meal_prompt}]
+                    }
+                    
+                    response = requests.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=28  # Just under Heroku's 30s limit
                     )
-                    ai_meal_plan = response.choices[0].message.content
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        ai_meal_plan = result["choices"][0]["message"]["content"]
+                    else:
+                        logger.error(f"OpenAI API returned status {response.status_code}: {response.text}")
+                        raise Exception(f"OpenAI API error: {response.status_code}")
                 except Exception as openai_error:
-                    logger.error(f"Direct OpenAI call failed: {openai_error}")
+                    logger.error(f"Direct OpenAI HTTP API call failed: {openai_error}")
                     raise
                 
             except Exception as e:
@@ -1316,16 +1387,34 @@ Rules:
 6. Add prep_time, cooking_time, and total_time
 7. Provide clear cooking instructions and helpful tips"""
                 
-                # Use direct OpenAI call to avoid Heroku 30s timeout with batching
-                logger.info("Using direct OpenAI call for create_meal to avoid timeout")
+                # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
+                logger.info("Using direct OpenAI HTTP API for create_meal to avoid timeout")
                 try:
-                    response = await openai_client.chat.completions.create(
-                        model="gpt-5",
-                        messages=[{"role": "user", "content": meal_prompt}]
+                    headers = {
+                        "Authorization": f"Bearer {openai_client}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    data = {
+                        "model": "gpt-5",
+                        "messages": [{"role": "user", "content": meal_prompt}]
+                    }
+                    
+                    response = requests.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=28  # Just under Heroku's 30s limit
                     )
-                    ai_meal = response.choices[0].message.content
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        ai_meal = result["choices"][0]["message"]["content"]
+                    else:
+                        logger.error(f"OpenAI API returned status {response.status_code}: {response.text}")
+                        raise Exception(f"OpenAI API error: {response.status_code}")
                 except Exception as openai_error:
-                    logger.error(f"Direct OpenAI call failed: {openai_error}")
+                    logger.error(f"Direct OpenAI HTTP API call failed: {openai_error}")
                     raise
                 
             except Exception as e:
@@ -1715,46 +1804,81 @@ async def root():
 
 @app.post("/test-gpt5")
 async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
-    """Test GPT-5 directly without batching - for troubleshooting."""
+    """Test GPT-5 directly without batching using HTTP API - for troubleshooting."""
     start_time = time.time()
     
     try:
         logger.info(f"Testing GPT-5 with prompt: {prompt[:100]}...")
         
-        # Direct OpenAI call - no batching, no processing overhead
-        response = await openai_client.chat.completions.create(
-            model="gpt-5",
-            messages=[{"role": "user", "content": prompt}]
+        # Check if OpenAI client is available
+        if not openai_client:
+            return {
+                "status": "error",
+                "error": "OpenAI API key not initialized",
+                "duration_seconds": 0,
+                "test_type": "direct_http_call",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        
+        # Direct OpenAI HTTP API call - no SDK, no batching, no processing overhead
+        headers = {
+            "Authorization": f"Bearer {openai_client}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-5",
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=28  # Just under Heroku's 30s limit
         )
         
         end_time = time.time()
         duration = end_time - start_time
         
-        content = response.choices[0].message.content
-        
-        logger.info(f"GPT-5 direct test completed in {duration:.2f}s")
-        
-        return {
-            "status": "success",
-            "response": content,
-            "response_length": len(content),
-            "duration_seconds": round(duration, 2),
-            "model": "gpt-5",
-            "test_type": "direct_call",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+        if response.status_code == 200:
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
+            
+            logger.info(f"GPT-5 direct test completed in {duration:.2f}s")
+            
+            return {
+                "status": "success",
+                "response": content,
+                "response_length": len(content),
+                "duration_seconds": round(duration, 2),
+                "model": "gpt-5",
+                "test_type": "direct_http_call",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            logger.error(f"OpenAI API error {response.status_code}: {response.text}")
+            return {
+                "status": "error",
+                "error": f"OpenAI API returned status {response.status_code}",
+                "error_details": response.text[:500],
+                "duration_seconds": round(duration, 2),
+                "test_type": "direct_http_call",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
         
     except Exception as e:
         end_time = time.time()
         duration = end_time - start_time
         
-        logger.error(f"GPT-5 direct test failed: {e}")
+        logger.error(f"GPT-5 direct test failed: {e}", exc_info=True)
         
         return {
             "status": "error",
             "error": str(e),
+            "error_type": type(e).__name__,
             "duration_seconds": round(duration, 2),
-            "test_type": "direct_call",
+            "test_type": "direct_http_call",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
