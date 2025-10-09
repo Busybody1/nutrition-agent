@@ -1713,6 +1713,51 @@ async def root():
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Test interface not found</h1>", status_code=404)
 
+@app.post("/test-gpt5")
+async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
+    """Test GPT-5 directly without batching - for troubleshooting."""
+    start_time = time.time()
+    
+    try:
+        logger.info(f"Testing GPT-5 with prompt: {prompt[:100]}...")
+        
+        # Direct OpenAI call - no batching, no processing overhead
+        response = await openai_client.chat.completions.create(
+            model="gpt-5",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        content = response.choices[0].message.content
+        
+        logger.info(f"GPT-5 direct test completed in {duration:.2f}s")
+        
+        return {
+            "status": "success",
+            "response": content,
+            "response_length": len(content),
+            "duration_seconds": round(duration, 2),
+            "model": "gpt-5",
+            "test_type": "direct_call",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        logger.error(f"GPT-5 direct test failed: {e}")
+        
+        return {
+            "status": "error",
+            "error": str(e),
+            "duration_seconds": round(duration, 2),
+            "test_type": "direct_call",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
 @app.get("/health")
 async def health_check():
     """Comprehensive health check with all service statuses."""
