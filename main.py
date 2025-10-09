@@ -1024,12 +1024,17 @@ Rules:
 9. Include daily_nutrition_summary and weekly_summary
 10. Provide a shopping list in the weekly_summary"""
 
-                ai_meal_plan, _ = await get_ai_response(
-                    meal_prompt, 
-                    max_tokens=get_openai_max_tokens(), 
-                    function_name="create_meal_plan",
-                    user_id=user_id
-                )
+                # Use direct OpenAI call to avoid Heroku 30s timeout with batching
+                logger.info("Using direct OpenAI call for create_meal_plan to avoid timeout")
+                try:
+                    response = await openai_client.chat.completions.create(
+                        model="gpt-5",
+                        messages=[{"role": "user", "content": meal_prompt}]
+                    )
+                    ai_meal_plan = response.choices[0].message.content
+                except Exception as openai_error:
+                    logger.error(f"Direct OpenAI call failed: {openai_error}")
+                    raise
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI meal plan: {e}")
@@ -1311,12 +1316,17 @@ Rules:
 6. Add prep_time, cooking_time, and total_time
 7. Provide clear cooking instructions and helpful tips"""
                 
-                ai_meal, _ = await get_ai_response(
-                    meal_prompt, 
-                    max_tokens=get_openai_max_tokens(), 
-                    function_name="create_meal",
-                    user_id=user_id
-                )
+                # Use direct OpenAI call to avoid Heroku 30s timeout with batching
+                logger.info("Using direct OpenAI call for create_meal to avoid timeout")
+                try:
+                    response = await openai_client.chat.completions.create(
+                        model="gpt-5",
+                        messages=[{"role": "user", "content": meal_prompt}]
+                    )
+                    ai_meal = response.choices[0].message.content
+                except Exception as openai_error:
+                    logger.error(f"Direct OpenAI call failed: {openai_error}")
+                    raise
                 
             except Exception as e:
                 logger.warning(f"Failed to generate AI meal: {e}")
