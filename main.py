@@ -368,7 +368,8 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                 data = {
                     "model": "gpt-4o",
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7
+                    "temperature": 0.7,
+                    "max_tokens": 16000
                 }
                 
                 response = requests.post(
