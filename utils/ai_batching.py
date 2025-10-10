@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AICall:
     """Represents a single AI call request."""
     prompt: str
-    max_tokens: int = 1000
+    max_tokens: int = 16000
     temperature: float = 0.7
     function_name: str = ""
     user_id: str = ""
@@ -68,7 +68,7 @@ class AIBatchManager:
     
     async def get_ai_response(self, 
                             prompt: str, 
-                            max_tokens: int = 1000, 
+                            max_tokens: int = 16000, 
                             temperature: float = 0.7,
                             function_name: str = "",
                             user_id: str = "",
