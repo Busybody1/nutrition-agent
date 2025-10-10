@@ -622,7 +622,8 @@
                     <textarea id="gpt5TestPrompt" rows="3" placeholder="Enter a simple prompt to test GPT-5 (e.g., 'Give me a quick breakfast idea')">Give me a quick healthy breakfast idea</textarea>
                 </div>
                 
-                <button class="btn" onclick="testGPT5Direct()">🚀 Test GPT-5 Direct</button>
+                <button class="btn" onclick="testGPT5Direct()">🚀 Test GPT-5 Simple</button>
+                <button class="btn btn-secondary" onclick="testGPT5MealPlan()">🍳 Test GPT-5 Meal Plan Prompt</button>
                 <div id="gpt5TestResult" class="result" style="display: none;"></div>
             </div>
 
@@ -881,6 +882,58 @@
                 showResult('gpt5TestResult', { 
                     error: error.message,
                     test_duration_seconds: duration
+                });
+            }
+        }
+
+        async function testGPT5MealPlan() {
+            // Test with the actual meal plan prompt
+            const mealPlanPrompt = `Create a 3-day meal plan with 2 meals per day (breakfast, lunch).
+
+Dietary: none. Calories: 1100 calories per day. Cuisine: any.
+
+Respond with JSON only:
+{
+  "meal_plan": {
+    "days": [
+      {
+        "day": 1,
+        "meals": {
+          "breakfast": {"name": "Meal", "calories": 400, "macros": {"protein": 20, "carbs": 50, "fat": 12}, "ingredients": ["item1", "item2"]},
+          "lunch": {"name": "Meal", "calories": 500, "macros": {"protein": 35, "carbs": 45, "fat": 18}, "ingredients": ["item1", "item2"]}
+        }
+      }
+    ],
+    "shopping_list": ["proteins", "vegetables", "grains"]
+  }
+}
+
+Include 3 days with 2 meals each.`;
+
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(`${API_BASE}/test-gpt5`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: mealPlanPrompt })
+                });
+                
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                
+                const result = await response.json();
+                result.test_duration_seconds = duration;
+                result.test_note = "This uses the actual meal plan prompt format";
+                
+                showResult('gpt5TestResult', result);
+            } catch (error) {
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                showResult('gpt5TestResult', { 
+                    error: error.message,
+                    test_duration_seconds: duration,
+                    test_note: "Meal plan prompt test"
                 });
             }
         }

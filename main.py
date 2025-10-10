@@ -881,201 +881,29 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
                 
                 meal_types_text = ", ".join(meal_types)
                 
-                meal_prompt = f"""Create a detailed {plan_type} meal plan with the following requirements:
+                meal_prompt = f"""Create a {days_per_week}-day meal plan with {meals_per_day} meals per day ({meal_types_text}).
 
-REQUIREMENTS:
-- Plan Type: {plan_type}
-- Days Per Week: {days_per_week} days
-- Meals Per Day: {meals_per_day} meals ({meal_types_text})
-- User Request: {description if description else "No specific request"}
-- Dietary Restrictions: {restrictions_text}
-- Calorie Target: {calorie_text}
-- Cuisine Preference: {cuisine_preference}
-- Cooking Time: {cooking_time}
-- Skill Level: {skill_level}
-- Budget: {budget}
+{description if description else ''}
+Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
 
-IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "3 days" or "2 meals per day"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
-
-IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
-
+Respond with JSON only:
 {{
   "meal_plan": {{
-    "plan_info": {{
-      "plan_type": "{plan_type}",
-      "days_per_week": {days_per_week},
-      "meals_per_day": {meals_per_day},
-      "total_meals": {days_per_week * meals_per_day}
-    }},
     "days": [
       {{
         "day": 1,
-        "day_name": "Monday",
         "meals": {{
-          "breakfast": {{
-            "name": "Meal Name",
-            "serving_info": {{
-              "serving_size": "1 bowl",
-              "quantity": "1 serving",
-              "portion_description": "Standard breakfast portion"
-            }},
-            "calories": 350,
-            "macros": {{
-              "protein": 12,
-              "carbs": 45,
-              "fat": 14
-            }},
-            "nutrients_summary": [
-              {{
-                "nutrient": "Protein",
-                "amount": 12,
-                "unit": "g",
-              }},
-              {{
-                "nutrient": "Fiber",
-                "amount": 6,
-                "unit": "g"
-              }},
-              {{
-                "nutrient": "Iron",
-                "amount": 2.5,
-                "unit": "mg"
-              }},
-              {{
-                "nutrient": "B Vitamins",
-                "amount": "Various",
-                "unit": "mg"
-              }}
-            ],
-            "ingredients": [
-              "1/2 cup rolled oats",
-              "1 cup almond milk"
-            ],
-            "prep_time": "5 minutes",
-            "cooking_time": "10 minutes"
-          }},
-          "lunch": {{
-            "name": "Meal Name",
-            "serving_info": {{
-              "serving_size": "1 plate",
-              "quantity": "1 serving",
-              "portion_description": "Standard lunch portion"
-            }},
-            "calories": 500,
-            "macros": {{
-              "protein": 40,
-              "carbs": 20,
-              "fat": 25
-            }},
-            "nutrients_summary": [
-              {{
-                "nutrient": "Protein",
-                "amount": 40,
-                "unit": "g"
-              }},
-              {{
-                "nutrient": "Vitamin C",
-                "amount": 35,
-                "unit": "mg"
-              }},
-              {{
-                "nutrient": "Folate",
-                "amount": 120,
-                "unit": "mcg"
-              }},
-              {{
-                "nutrient": "Potassium",
-                "amount": 450,
-                "unit": "mg"
-              }}
-            ],
-            "ingredients": [
-              "150g grilled chicken breast",
-              "2 cups mixed greens"
-            ],
-            "prep_time": "15 minutes",
-            "cooking_time": "20 minutes"
-          }},
-          "dinner": {{
-            "name": "Meal Name",
-            "serving_info": {{
-              "serving_size": "1 plate",
-              "quantity": "1 serving",
-              "portion_description": "Standard dinner portion"
-            }},
-            "calories": 600,
-                "macros": {{
-              "protein": 45,
-              "carbs": 50,
-              "fat": 22
-            }},
-            "nutrients_summary": [
-              {{
-                "nutrient": "Protein",
-                "amount": 45,
-                "unit": "g"
-              }},
-              {{
-                "nutrient": "Omega-3",
-                "amount": 1.2,
-                "unit": "g"
-              }},
-              {{
-                "nutrient": "Vitamin D",
-                "amount": 8,
-                "unit": "mcg"
-              }},
-              {{
-                "nutrient": "Selenium",
-                "amount": 45,
-                "unit": "mcg"
-              }}
-            ],
-            "ingredients": [
-              "150g baked salmon",
-              "1/2 cup quinoa (cooked)"
-            ],
-            "prep_time": "20 minutes",
-            "cooking_time": "25 minutes"
-          }}
-        }},
-        "total_calories": 1450,
-        "daily_nutrition_summary": {{
-          "total_protein": 97,
-          "total_carbs": 115,
-          "total_fat": 61,
-          "total_fiber": 25,
-          "key_nutrients": ["High protein", "Good fiber", "Balanced macros"]
+          "breakfast": {{"name": "Meal", "calories": 400, "macros": {{"protein": 20, "carbs": 50, "fat": 12}}, "ingredients": ["item1", "item2"]}},
+          "lunch": {{"name": "Meal", "calories": 500, "macros": {{"protein": 35, "carbs": 45, "fat": 18}}, "ingredients": ["item1", "item2"]}},
+          "dinner": {{"name": "Meal", "calories": 600, "macros": {{"protein": 40, "carbs": 55, "fat": 20}}, "ingredients": ["item1", "item2"]}}
         }}
       }}
     ],
-    "weekly_summary": {{
-      "total_calories": {days_per_week * 1450},
-      "average_daily_calories": 1450,
-      "nutrition_goals": "Balanced macronutrients with focus on protein",
-      "shopping_list": [
-        "Proteins: chicken breast, salmon, eggs, tuna",
-        "Vegetables: spinach, mixed greens, bell peppers",
-        "Grains: quinoa, oats, whole grain bread",
-        "Dairy: almond milk, Greek yogurt"
-      ]
-    }}
+    "shopping_list": ["proteins", "vegetables", "grains"]
   }}
 }}
 
-IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
-
-Rules:
-1. Include exactly {days_per_week} days based on days_per_week parameter
-2. Each day must have exactly {meals_per_day} meals based on meals_per_day parameter
-3. All meals must include name, serving_info (serving_size, quantity, portion_description), calories, macros (protein, carbs, fat), nutrients_summary with expanded micronutrients, ingredients, prep_time, and cooking_time
-4. Calculate total_calories for each day and weekly totals
-5. Always include serving_info with serving_size, quantity, and portion_description
-6. Expand nutrients_summary to include important micronutrients beyond just macros
-7. Focus on essential nutrient information
-8. Add prep_time and cooking_time for each meal
-9. Include daily_nutrition_summary and weekly_summary
-10. Provide a shopping list in the weekly_summary"""
+Include {days_per_week} days with {meals_per_day} meals each."""
 
                 # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
                 logger.info("Using direct OpenAI HTTP API for create_meal_plan to avoid timeout")
@@ -1290,102 +1118,19 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
                 restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories" if calorie_target > 0 else "no specific calorie target"
                 
-                meal_prompt = f"""Create a detailed single {meal_type} meal with the following requirements:
+                meal_prompt = f"""Create a {meal_type} meal. {description if description else ''}
+Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
 
-REQUIREMENTS:
-- Meal Type: {meal_type}
-- User Request: {description if description else "No specific request"}
-- Dietary Restrictions: {restrictions_text}
-- Calorie Target: {calorie_text}
-- Cuisine Preference: {cuisine_preference}
-- Cooking Time: {cooking_time}
-- Skill Level: {skill_level}
-- Budget: {budget}
-
-IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "high protein" or "quick meal"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
-
-IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
-
+Respond with JSON only:
 {{
   "meal": {{
-    "meal_info": {{
-      "meal_type": "{meal_type}",
-      "cuisine": "{cuisine_preference}",
-      "difficulty": "{skill_level}",
-      "budget": "{budget}"
-    }},
-    "meal_details": {{
       "name": "Meal Name",
-      "serving_info": {{
-        "serving_size": "1 plate",
-        "quantity": "1 serving",
-        "portion_description": "Standard {meal_type} portion"
-      }},
-      "calories": 450,
-      "macros": {{
-        "protein": 35,
-        "carbs": 25,
-        "fat": 20
-      }},
-      "nutrients_summary": [
-        {{
-          "nutrient": "Protein",
-          "amount": 35,
-          "unit": "g"
-        }},
-        {{
-          "nutrient": "Fiber",
-          "amount": 8,
-          "unit": "g"
-        }},
-        {{
-          "nutrient": "Vitamin C",
-          "amount": 45,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Iron",
-          "amount": 3.5,
-          "unit": "mg"
-        }}
-      ],
-      "ingredients": [
-        "150g protein source",
-        "2 cups vegetables",
-        "1/2 cup grains"
-      ],
-      "prep_time": "15 minutes",
-      "cooking_time": "20 minutes",
-      "total_time": "35 minutes"
-    }},
-    "cooking_instructions": [
-      "Step 1: Prepare ingredients",
-      "Step 2: Cook protein",
-      "Step 3: Add vegetables",
-      "Step 4: Season and serve"
-    ],
-    "tips": [
-      "Use fresh ingredients for best flavor",
-      "Don't overcook the protein"
-    ],
-    "variations": [
-      "Substitute with different protein",
-      "Add more vegetables for fiber"
-    ],
-    "nutrition_notes": "This meal provides a good balance of protein, carbs, and healthy fats"
+    "calories": 500,
+    "macros": {{"protein": 30, "carbs": 45, "fat": 18}},
+    "ingredients": ["ingredient1", "ingredient2", "ingredient3"],
+    "instructions": ["step1", "step2", "step3"]
   }}
-}}
-
-IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
-
-Rules:
-1. Create a single, complete meal suitable for {meal_type}
-2. Include comprehensive serving_info, nutrition details, and cooking instructions
-3. Always include serving_info with serving_size, quantity, and portion_description
-4. Expand nutrients_summary to include important micronutrients beyond just macros
-5. Focus on essential nutrient information
-6. Add prep_time, cooking_time, and total_time
-7. Provide clear cooking instructions and helpful tips"""
+}}"""
                 
                 # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
                 logger.info("Using direct OpenAI HTTP API for create_meal to avoid timeout")
