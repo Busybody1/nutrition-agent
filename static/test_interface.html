@@ -887,7 +887,7 @@
         }
 
         async function testGPT5MealPlan() {
-            // Test with the actual meal plan prompt
+            // Test with the actual simplified meal plan prompt (using GPT-4o)
             const mealPlanPrompt = `Create a 3-day meal plan with 2 meals per day (breakfast, lunch).
 
 Dietary: none. Calories: 1100 calories per day. Cuisine: any.
@@ -899,8 +899,8 @@ Respond with JSON only:
       {
         "day": 1,
         "meals": {
-          "breakfast": {"name": "Meal", "calories": 400, "macros": {"protein": 20, "carbs": 50, "fat": 12}, "ingredients": ["item1", "item2"]},
-          "lunch": {"name": "Meal", "calories": 500, "macros": {"protein": 35, "carbs": 45, "fat": 18}, "ingredients": ["item1", "item2"]}
+          "breakfast": {"name": "Meal", "calories": 550, "macros": {"protein": 25, "carbs": 60, "fat": 15}, "ingredients": ["item1", "item2"]},
+          "lunch": {"name": "Meal", "calories": 550, "macros": {"protein": 30, "carbs": 50, "fat": 20}, "ingredients": ["item1", "item2"]}
         }
       }
     ],
@@ -908,7 +908,9 @@ Respond with JSON only:
   }
 }
 
-Include 3 days with 2 meals each.`;
+Include 3 days with 2 meals each.
+
+NOTE: This test uses GPT-4o (faster and more reliable than GPT-5 for complex prompts).`;
 
             const startTime = Date.now();
             

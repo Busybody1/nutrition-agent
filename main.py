@@ -1566,14 +1566,16 @@ async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
             }
         
         # Direct OpenAI HTTP API call - no SDK, no batching, no processing overhead
+        # Using GPT-4o for test endpoint (faster and more reliable)
         headers = {
             "Authorization": f"Bearer {openai_client}",
             "Content-Type": "application/json"
         }
         
         data = {
-            "model": "gpt-5",
-            "messages": [{"role": "user", "content": prompt}]
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7
         }
         
         response = requests.post(
@@ -1597,7 +1599,7 @@ async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
                 "response": content,
                 "response_length": len(content),
                 "duration_seconds": round(duration, 2),
-                "model": "gpt-5",
+                "model": "gpt-4o",
                 "test_type": "direct_http_call",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
