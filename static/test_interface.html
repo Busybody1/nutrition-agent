@@ -614,16 +614,16 @@
             </div>
 
             <div class="section">
-                <h2>🤖 Direct GPT-5 Test</h2>
-                <p>Test GPT-5 directly without batching to verify response time and functionality.</p>
+                <h2>🤖 Direct GPT-4o Test</h2>
+                <p>Test GPT-4o directly without batching to verify response time and functionality.</p>
                 
                 <div class="form-group">
                     <label for="gpt5TestPrompt">Test Prompt:</label>
-                    <textarea id="gpt5TestPrompt" rows="3" placeholder="Enter a simple prompt to test GPT-5 (e.g., 'Give me a quick breakfast idea')">Give me a quick healthy breakfast idea</textarea>
+                    <textarea id="gpt5TestPrompt" rows="3" placeholder="Enter a simple prompt to test GPT-4o (e.g., 'Give me a quick breakfast idea')">Give me a quick healthy breakfast idea</textarea>
                 </div>
                 
-                <button class="btn" onclick="testGPT5Direct()">🚀 Test GPT-5 Simple</button>
-                <button class="btn btn-secondary" onclick="testGPT5MealPlan()">🍳 Test GPT-5 Meal Plan Prompt</button>
+                <button class="btn" onclick="testGPT5Direct()">🚀 Test GPT-4o Simple</button>
+                <button class="btn btn-secondary" onclick="testGPT5MealPlan()">🍳 Test GPT-4o Meal Plan Prompt</button>
                 <div id="gpt5TestResult" class="result" style="display: none;"></div>
             </div>
 
@@ -888,7 +888,8 @@
 
         async function testGPT5MealPlan() {
             // Test with the actual simplified meal plan prompt (using GPT-4o)
-            const mealPlanPrompt = `Create a 3-day meal plan with 2 meals per day (breakfast, lunch).
+            const 
+            mealPlanPrompt = `Create a 3-day meal plan with 2 meals per day (breakfast, lunch).
 
 Dietary: none. Calories: 1100 calories per day. Cuisine: any.
 

@@ -438,7 +438,9 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                     
                     data = {
                         "model": "gpt-4o",
-                        "messages": [{"role": "user", "content": prompt}]
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": temperature,
+                        "max_tokens": max_tokens
                     }
                     
                     response = requests.post(
@@ -451,7 +453,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                     if response.status_code == 200:
                         result = response.json()
                         ai_response = result["choices"][0]["message"]["content"]
-                        model = "gpt-5"
+                        model = "gpt-4o"
                     else:
                         raise Exception(f"OpenAI API error: {response.status_code}")
                     
@@ -918,7 +920,9 @@ Include {days_per_week} days with {meals_per_day} meals each."""
                     
                     data = {
                         "model": "gpt-4o",
-                        "messages": [{"role": "user", "content": meal_prompt}]
+                        "messages": [{"role": "user", "content": meal_prompt}],
+                        "temperature": 0.7,
+                        "max_tokens": 16000
                     }
                     
                     response = requests.post(
@@ -1145,7 +1149,9 @@ Respond with JSON only:
                     
                     data = {
                         "model": "gpt-4o",
-                        "messages": [{"role": "user", "content": meal_prompt}]
+                        "messages": [{"role": "user", "content": meal_prompt}],
+                        "temperature": 0.7,
+                        "max_tokens": 16000
                     }
                     
                     response = requests.post(
@@ -1552,11 +1558,11 @@ async def root():
 
 @app.post("/test-gpt5")
 async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
-    """Test GPT-5 directly without batching using HTTP API - for troubleshooting."""
+    """Test GPT-4o directly without batching using HTTP API - for troubleshooting."""
     start_time = time.time()
     
     try:
-        logger.info(f"Testing GPT-5 with prompt: {prompt[:100]}...")
+        logger.info(f"Testing GPT-4o with prompt: {prompt[:100]}...")
         
         # Check if OpenAI client is available
         if not openai_client:
@@ -1578,7 +1584,8 @@ async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
         data = {
             "model": "gpt-4o",
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7
+            "temperature": 0.7,
+            "max_tokens": 16000
         }
         
         response = requests.post(
@@ -1595,7 +1602,7 @@ async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
             result = response.json()
             content = result["choices"][0]["message"]["content"]
             
-            logger.info(f"GPT-5 direct test completed in {duration:.2f}s")
+            logger.info(f"GPT-4o direct test completed in {duration:.2f}s")
             
             return {
                 "status": "success",
@@ -1621,7 +1628,7 @@ async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
         end_time = time.time()
         duration = end_time - start_time
         
-        logger.error(f"GPT-5 direct test failed: {e}", exc_info=True)
+        logger.error(f"GPT-4o direct test failed: {e}", exc_info=True)
         
         return {
             "status": "error",
