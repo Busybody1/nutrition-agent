@@ -253,8 +253,9 @@ async def initialize_ai():
             }
             
             test_data = {
-                "model": "gpt-5",
-                "messages": [{"role": "user", "content": "Hello"}]
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "temperature": 0.7
             }
             
             test_response = requests.post(
@@ -365,8 +366,9 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                 }
                 
                 data = {
-                    "model": "gpt-5",
-                    "messages": [{"role": "user", "content": prompt}]
+                    "model": "gpt-4o",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.7
                 }
                 
                 response = requests.post(
