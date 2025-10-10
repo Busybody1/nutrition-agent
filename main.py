@@ -381,7 +381,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                 
                 if response.status_code == 200:
                     result = response.json()
-                    return result["choices"][0]["message"]["content"], "gpt-5"
+                    return result["choices"][0]["message"]["content"], "gpt-4o"
                 else:
                     logger.error(f"OpenAI request failed with status {response.status_code}")
             except Exception as e:
@@ -437,7 +437,7 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                     }
                     
                     data = {
-                        "model": "gpt-5",
+                        "model": "gpt-4o",
                         "messages": [{"role": "user", "content": prompt}]
                     }
                     
@@ -917,7 +917,7 @@ Include {days_per_week} days with {meals_per_day} meals each."""
                     }
                     
                     data = {
-                        "model": "gpt-5",
+                        "model": "gpt-4o",
                         "messages": [{"role": "user", "content": meal_prompt}]
                     }
                     
@@ -1144,7 +1144,7 @@ Respond with JSON only:
                     }
                     
                     data = {
-                        "model": "gpt-5",
+                        "model": "gpt-4o",
                         "messages": [{"role": "user", "content": meal_prompt}]
                     }
                     
