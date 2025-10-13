@@ -1556,8 +1556,8 @@ async def root():
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Test interface not found</h1>", status_code=404)
 
-@app.post("/test-gpt5")
-async def test_gpt5_direct(prompt: str = Body(..., embed=True)):
+@app.post("/test-gpt4o")
+async def test_gpt4o_direct(prompt: str = Body(..., embed=True)):
     """Test GPT-4o directly without batching using HTTP API - for troubleshooting."""
     start_time = time.time()
     

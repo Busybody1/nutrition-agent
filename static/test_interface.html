@@ -618,13 +618,13 @@
                 <p>Test GPT-4o directly without batching to verify response time and functionality.</p>
                 
                 <div class="form-group">
-                    <label for="gpt5TestPrompt">Test Prompt:</label>
-                    <textarea id="gpt5TestPrompt" rows="3" placeholder="Enter a simple prompt to test GPT-4o (e.g., 'Give me a quick breakfast idea')">Give me a quick healthy breakfast idea</textarea>
+                    <label for="gpt4oTestPrompt">Test Prompt:</label>
+                    <textarea id="gpt4oTestPrompt" rows="3" placeholder="Enter a simple prompt to test GPT-4o (e.g., 'Give me a quick breakfast idea')">Give me a quick healthy breakfast idea</textarea>
                 </div>
                 
                 <button class="btn" onclick="testGPT5Direct()">🚀 Test GPT-4o Simple</button>
                 <button class="btn btn-secondary" onclick="testGPT5MealPlan()">🍳 Test GPT-4o Meal Plan Prompt</button>
-                <div id="gpt5TestResult" class="result" style="display: none;"></div>
+                <div id="gpt4oTestResult" class="result" style="display: none;"></div>
             </div>
 
             <div class="section">
@@ -859,11 +859,11 @@
         }
 
         async function testGPT5Direct() {
-            const prompt = document.getElementById('gpt5TestPrompt').value.trim();
+            const prompt = document.getElementById('gpt4oTestPrompt').value.trim();
             const startTime = Date.now();
             
             try {
-                const response = await fetch(`${API_BASE}/test-gpt5`, {
+                const response = await fetch(`${API_BASE}/test-gpt4o`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt })
@@ -875,11 +875,11 @@
                 const result = await response.json();
                 result.test_duration_seconds = duration;
                 
-                showResult('gpt5TestResult', result);
+                showResult('gpt4oTestResult', result);
             } catch (error) {
                 const endTime = Date.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
-                showResult('gpt5TestResult', { 
+                showResult('gpt4oTestResult', { 
                     error: error.message,
                     test_duration_seconds: duration
                 });
@@ -916,7 +916,7 @@ NOTE: This test uses GPT-4o (faster and more reliable than GPT-5 for complex pro
             const startTime = Date.now();
             
             try {
-                const response = await fetch(`${API_BASE}/test-gpt5`, {
+                const response = await fetch(`${API_BASE}/test-gpt4o`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: mealPlanPrompt })
@@ -929,11 +929,11 @@ NOTE: This test uses GPT-4o (faster and more reliable than GPT-5 for complex pro
                 result.test_duration_seconds = duration;
                 result.test_note = "This uses the actual meal plan prompt format";
                 
-                showResult('gpt5TestResult', result);
+                showResult('gpt4oTestResult', result);
             } catch (error) {
                 const endTime = Date.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
-                showResult('gpt5TestResult', { 
+                showResult('gpt4oTestResult', { 
                     error: error.message,
                     test_duration_seconds: duration,
                     test_note: "Meal plan prompt test"
