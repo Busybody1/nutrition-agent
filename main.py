@@ -922,14 +922,14 @@ Include {days_per_week} days with {meals_per_day} meals each."""
                         "model": "gpt-4o",
                         "messages": [{"role": "user", "content": meal_prompt}],
                         "temperature": 0.7,
-                        "max_tokens": 16000
+                        "max_tokens": 12000
                     }
                     
                     response = requests.post(
                         "https://api.openai.com/v1/chat/completions",
                         headers=headers,
                         json=data,
-                        timeout=28  # Just under Heroku's 30s limit
+                        timeout=20  # Reduced timeout to prevent cascading timeouts
                     )
                     
                     if response.status_code == 200:
@@ -1151,14 +1151,14 @@ Respond with JSON only:
                         "model": "gpt-4o",
                         "messages": [{"role": "user", "content": meal_prompt}],
                         "temperature": 0.7,
-                        "max_tokens": 16000
+                        "max_tokens": 12000
                     }
                     
                     response = requests.post(
                         "https://api.openai.com/v1/chat/completions",
                         headers=headers,
                         json=data,
-                        timeout=28  # Just under Heroku's 30s limit
+                        timeout=20  # Reduced timeout to prevent cascading timeouts
                     )
                     
                     if response.status_code == 200:
@@ -1592,7 +1592,7 @@ async def test_gpt4o_direct(prompt: str = Body(..., embed=True)):
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=28  # Just under Heroku's 30s limit
+            timeout=20  # Reduced timeout to prevent cascading timeouts
         )
         
         end_time = time.time()
