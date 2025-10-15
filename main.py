@@ -2570,5 +2570,263 @@ if __name__ == "__main__":
         log_level=get_log_level().lower()
     )
 
-# Async endpoints are now integrated directly into main.py
+# =============================================================================
+# ASYNC ENDPOINTS FOR BACKGROUND PROCESSING
+# =============================================================================
+
+@app.post("/generate-meal-plan-async")
+async def generate_meal_plan_async(request: dict):
+    """
+    Generate meal plan asynchronously.
+    Returns immediately with job ID for polling.
+    """
+    try:
+        user_id = request.get("user_id")
+        preferences = request.get("preferences", {})
+        dietary_restrictions = request.get("dietary_restrictions", [])
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        
+        logger.info(f"Creating async meal plan generation task for user: {user_id}")
+        
+        # Import here to avoid circular imports
+        from tasks import generate_meal_plan_task
+        
+        # Create Celery task
+        task = generate_meal_plan_task.delay(
+            user_id=user_id,
+            preferences=preferences,
+            dietary_restrictions=dietary_restrictions
+        )
+        
+        # Return immediate response with job ID
+        return {
+            "status": "processing",
+            "job_id": task.id,
+            "message": "Meal plan generation is being processed. This may take 20-40 seconds.",
+            "estimated_time": 40,
+            "poll_url": f"/meal-plan/job/{task.id}",
+            "user_id": user_id
+        }
+    
+    except Exception as e:
+        logger.error(f"Async meal plan generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create meal plan generation task: {str(e)}"
+        )
+
+@app.post("/analyze-nutrition-async")
+async def analyze_nutrition_async(request: dict):
+    """
+    Analyze nutrition data asynchronously.
+    Returns immediately with job ID for polling.
+    """
+    try:
+        user_id = request.get("user_id")
+        nutrition_data = request.get("nutrition_data", {})
+        date_range = request.get("date_range", "week")
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        
+        if not nutrition_data:
+            raise HTTPException(status_code=400, detail="nutrition_data is required")
+        
+        logger.info(f"Creating async nutrition analysis task for user: {user_id}")
+        
+        # Import here to avoid circular imports
+        from tasks import analyze_nutrition_data_task
+        
+        # Create Celery task
+        task = analyze_nutrition_data_task.delay(
+            user_id=user_id,
+            nutrition_data=nutrition_data,
+            date_range=date_range
+        )
+        
+        # Return immediate response with job ID
+        return {
+            "status": "processing",
+            "job_id": task.id,
+            "message": "Nutrition analysis is being processed. This may take 15-30 seconds.",
+            "estimated_time": 30,
+            "poll_url": f"/nutrition-analysis/job/{task.id}",
+            "user_id": user_id
+        }
+    
+    except Exception as e:
+        logger.error(f"Async nutrition analysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create nutrition analysis task: {str(e)}"
+        )
+
+@app.post("/generate-nutrition-recommendations-async")
+async def generate_nutrition_recommendations_async(request: dict):
+    """
+    Generate nutrition recommendations asynchronously.
+    Returns immediately with job ID for polling.
+    """
+    try:
+        user_id = request.get("user_id")
+        goals = request.get("goals", {})
+        current_diet = request.get("current_diet", {})
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        
+        logger.info(f"Creating async nutrition recommendations task for user: {user_id}")
+        
+        # Import here to avoid circular imports
+        from tasks import generate_nutrition_recommendations_task
+        
+        # Create Celery task
+        task = generate_nutrition_recommendations_task.delay(
+            user_id=user_id,
+            goals=goals,
+            current_diet=current_diet
+        )
+        
+        # Return immediate response with job ID
+        return {
+            "status": "processing",
+            "job_id": task.id,
+            "message": "Nutrition recommendations are being generated. This may take 15-25 seconds.",
+            "estimated_time": 25,
+            "poll_url": f"/nutrition-recommendations/job/{task.id}",
+            "user_id": user_id
+        }
+    
+    except Exception as e:
+        logger.error(f"Async nutrition recommendations failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create nutrition recommendations task: {str(e)}"
+        )
+
+# =============================================================================
+# JOB STATUS POLLING ENDPOINTS
+# =============================================================================
+
+@app.get("/meal-plan/job/{job_id}")
+async def get_meal_plan_job_status(job_id: str):
+    """Get status of meal plan generation job."""
+    try:
+        task_result = AsyncResult(job_id)
+        
+        if task_result.state == 'PENDING':
+            return {
+                "status": "processing",
+                "job_id": job_id,
+                "message": "Meal plan generation is still in progress..."
+            }
+        elif task_result.state == 'SUCCESS':
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "result": task_result.result,
+                "message": "Meal plan generated successfully!"
+            }
+        elif task_result.state == 'FAILURE':
+            return {
+                "status": "failed",
+                "job_id": job_id,
+                "error": str(task_result.result),
+                "message": "Meal plan generation failed."
+            }
+        else:
+            return {
+                "status": task_result.state,
+                "job_id": job_id,
+                "message": f"Job is in {task_result.state} state"
+            }
+    
+    except Exception as e:
+        logger.error(f"Error checking meal plan job status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check job status: {str(e)}"
+        )
+
+@app.get("/nutrition-analysis/job/{job_id}")
+async def get_nutrition_analysis_job_status(job_id: str):
+    """Get status of nutrition analysis job."""
+    try:
+        task_result = AsyncResult(job_id)
+        
+        if task_result.state == 'PENDING':
+            return {
+                "status": "processing",
+                "job_id": job_id,
+                "message": "Nutrition analysis is still in progress..."
+            }
+        elif task_result.state == 'SUCCESS':
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "result": task_result.result,
+                "message": "Nutrition analysis completed successfully!"
+            }
+        elif task_result.state == 'FAILURE':
+            return {
+                "status": "failed",
+                "job_id": job_id,
+                "error": str(task_result.result),
+                "message": "Nutrition analysis failed."
+            }
+        else:
+            return {
+                "status": task_result.state,
+                "job_id": job_id,
+                "message": f"Job is in {task_result.state} state"
+            }
+    
+    except Exception as e:
+        logger.error(f"Error checking nutrition analysis job status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check job status: {str(e)}"
+        )
+
+@app.get("/nutrition-recommendations/job/{job_id}")
+async def get_nutrition_recommendations_job_status(job_id: str):
+    """Get status of nutrition recommendations job."""
+    try:
+        task_result = AsyncResult(job_id)
+        
+        if task_result.state == 'PENDING':
+            return {
+                "status": "processing",
+                "job_id": job_id,
+                "message": "Nutrition recommendations are still being generated..."
+            }
+        elif task_result.state == 'SUCCESS':
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "result": task_result.result,
+                "message": "Nutrition recommendations generated successfully!"
+            }
+        elif task_result.state == 'FAILURE':
+            return {
+                "status": "failed",
+                "job_id": job_id,
+                "error": str(task_result.result),
+                "message": "Nutrition recommendations generation failed."
+            }
+        else:
+            return {
+                "status": task_result.state,
+                "job_id": job_id,
+                "message": f"Job is in {task_result.state} state"
+            }
+    
+    except Exception as e:
+        logger.error(f"Error checking nutrition recommendations job status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check job status: {str(e)}"
+        )
 
