@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
+from celery.result import AsyncResult
 import requests
 
 # Load environment variables
@@ -2568,4 +2569,6 @@ if __name__ == "__main__":
         port=get_port(),
         log_level=get_log_level().lower()
     )
+
+# Async endpoints are now integrated directly into main.py
 
