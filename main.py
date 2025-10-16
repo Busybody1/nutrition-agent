@@ -127,16 +127,20 @@ def simple_json_parse(ai_response: str) -> Dict[str, Any]:
         
         # If all strategies fail, return error with raw text
         logger.warning(f"Failed to parse AI response as JSON after all strategies")
+        # Return raw AI response for supervisor to process
         return {
-            "error": "AI response format issue",
-            "ai_response": {"raw_text": ai_response}
+            "response": ai_response,
+            "format_issue": True,
+            "raw_ai_response": True
         }
         
     except Exception as e:
         logger.error(f"Critical error in JSON parsing: {e}")
+        # Return raw AI response for supervisor to process
         return {
-            "error": "AI response format issue",
-            "ai_response": {"raw_text": ai_response}
+            "response": ai_response,
+            "format_issue": True,
+            "raw_ai_response": True
         }
 
 # =============================================================================
