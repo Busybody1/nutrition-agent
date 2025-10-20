@@ -677,8 +677,9 @@ Rules:
             logger.warning(f"AI response content: {ai_insights[:500]}...")
             # Fallback to original response
             return {
-                "error": "AI response format issue",
-                "ai_response": {"raw_text": ai_insights}
+                "response": ai_insights,
+                "format_issue": True,
+                "raw_ai_response": True
             }
         
     except HTTPException:
@@ -814,9 +815,10 @@ Make it personalized and actionable based on their description and goals."""
             logger.warning(f"AI response content: {ai_summary[:500]}...")
             # Fallback to original response
         return {
-                "error": "AI response format issue",
-                "ai_response": {"raw_text": ai_summary}
-        }
+                "response": ai_summary,
+                "format_issue": True,
+                "raw_ai_response": True
+            }
         
     except HTTPException:
         raise
@@ -1091,10 +1093,11 @@ IMPORTANT: Always include a comprehensive grocery_list with categorized items an
         except Exception as e:
             logger.warning(f"Failed to parse AI meal plan as JSON: {e}")
             logger.warning(f"AI response content: {ai_meal_plan[:500]}...")
-            # Fallback to original response
+            # Return raw AI response for supervisor to process
             return {
-                "error": "AI response format issue",
-                "ai_response": {"raw_text": ai_meal_plan}
+                "response": ai_meal_plan,
+                "format_issue": True,
+                "raw_ai_response": True
             }
         
     except HTTPException:
@@ -1405,8 +1408,9 @@ Rules:
             logger.warning(f"AI response content: {ai_recipe[:500]}...")
             # Fallback to original response
             return {
-                "error": "AI response format issue",
-                "ai_response": {"raw_text": ai_recipe}
+                "response": ai_recipe,
+                "format_issue": True,
+                "raw_ai_response": True
             }
         
     except HTTPException:
