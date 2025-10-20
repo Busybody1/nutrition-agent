@@ -1406,131 +1406,6 @@ Rules:
         logger.error(f"Error creating recipe: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create recipe: {str(e)}")
 
-async def general_nutrition_response(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """General nutrition response with AI."""
-    try:
-        # Validate user exists first
-        await require_valid_user(user_id)
-        
-        # Get description/message (required)
-        message = parameters.get("description", "") or parameters.get("message", "")
-        if not message:
-            raise HTTPException(status_code=400, detail="Description or message parameter is required.")
-        
-        # Generate AI response if OpenAI is available
-        if openai_client:
-            try:
-                ai_prompt = f"""You are a nutrition and health expert. The user asks: {message}
-
-🚨 CRITICAL: STRICT NUMBER ADHERENCE REQUIRED 🚨
-- If user specifies exact numbers (calories, protein amounts, serving sizes), stick to EXACTLY those numbers
-- If user says "200 calories", provide EXACTLY 200 calories, not approximations
-- If user says "50g protein", provide EXACTLY 50g protein, not 45g or 55g
-- If user specifies quantities (e.g., "2 cups", "500ml"), use EXACTLY those amounts
-- NEVER approximate or round user-specified numbers - use them EXACTLY as given
-- Only use estimates when user doesn't specify exact numbers
-
-IMPORTANT: The user's description takes priority over any other considerations. Focus on exactly what they're asking for and provide the most relevant, specific response to their question.
-
-Provide a helpful, encouraging response that:
-1. Addresses their specific nutrition question or concern
-2. Offers practical advice and tips
-3. Motivates them to make healthy choices
-4. Suggests next steps or alternatives
-5. Maintains a positive, supportive tone
-6. Uses EXACT numbers when user specifies them
-
-IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
-
-{{
-  "nutrition_response": {{
-    "user_question": "{message}",
-    "expert_analysis": "Comprehensive analysis of the user's nutrition question",
-    "practical_advice": "Actionable tips and recommendations",
-    "serving_guidelines": {{
-      "portion_recommendations": "Specific serving size suggestions",
-      "meal_timing": "Optimal timing for meals and snacks",
-      "frequency_guidance": "How often to eat for best results"
-    }},
-    "nutrient_focus": {{
-      "key_nutrients": "Most important nutrients for this concern",
-      "nutrients_summary": [
-        {{
-          "nutrient": "Protein",
-          "recommendation": "Specific protein guidance",
-          "food_sources": "Best food sources for this need"
-        }},
-        {{
-          "nutrient": "Fiber",
-          "recommendation": "Specific fiber guidance",
-          "food_sources": "Best food sources for this need"
-        }},
-        {{
-          "nutrient": "Vitamins",
-          "recommendation": "Specific vitamin guidance",
-          "food_sources": "Best food sources for this need"
-        }},
-        {{
-          "nutrient": "Minerals",
-          "recommendation": "Specific mineral guidance",
-          "food_sources": "Best food sources for this need"
-        }}
-      ]
-    }},
-    "motivation": "Encouraging words to inspire healthy choices",
-    "next_steps": [
-      "Immediate actions they can take",
-      "Short-term goals to work toward",
-      "Long-term strategies for success"
-    ],
-    "additional_resources": "Suggestions for further learning or support",
-    "generated_at": "{datetime.now(timezone.utc).isoformat()}"
-  }}
-}}
-
-IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
-
-Keep it concise but comprehensive, and always include serving guidelines and expanded nutrient information."""
-
-                response_text, _ = await get_ai_response(
-                    ai_prompt, 
-                    function_name="general_nutrition_response",
-                    user_id=user_id
-                )
-                
-            except Exception as e:
-                logger.warning(f"Failed to generate AI response: {e}")
-                response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
-        else:
-            response_text = "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
-        
-        # Simple and reliable JSON parsing
-        try:
-            import json
-            
-            # Try to parse the AI response directly
-            parsed = json.loads(response_text)
-            return parsed
-            
-        except Exception as e:
-            logger.warning(f"Failed to parse AI nutrition response as JSON: {e}")
-            logger.warning(f"AI response content: {response_text[:500]}...")
-            # Fallback to original response
-        return {
-                "error": "AI response format issue",
-                "ai_response": {"raw_text": response_text}
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error generating nutrition response: {e}")
-        # Fallback to basic response if AI fails
-        return {
-            "error": "AI service unavailable",
-            "message": "I'm here to help with nutrition! I can log meals, get summaries, and plan meals. Please provide a description of what you need."
-        }
-
 # =============================================================================
 # FASTAPI APP INITIALIZATION
 # =============================================================================
@@ -1769,9 +1644,7 @@ async def execute_tool(
             return await create_meal(parameters, user_id)
         elif tool_name == "create_recipe":
             return await create_recipe(parameters, user_id)
-        elif tool_name == "general_nutrition":
-            # General nutrition response with AI
-            return await general_nutrition_response(parameters, user_id)
+        # Note: general_nutrition tool removed - handled by supervisor agent
         else:
             raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
             
