@@ -918,13 +918,22 @@ Respond with JSON only:
         }}
       }}
     ],
-    "shopping_list": ["proteins", "vegetables", "grains"]
+    "grocery_list": {{
+      "proteins": ["chicken breast", "salmon", "eggs", "greek yogurt"],
+      "vegetables": ["broccoli", "spinach", "bell peppers", "carrots"],
+      "grains": ["brown rice", "quinoa", "oatmeal"],
+      "dairy": ["milk", "cheese", "butter"],
+      "pantry_items": ["olive oil", "spices", "herbs"],
+      "total_estimated_cost": "$45-65"
+    }}
   }}
 }}
 
 Include {days_per_week} days with {meals_per_day} meals each.
 
-🚨 FINAL REMINDER: Use EXACT numbers specified by the user. If they say "{calorie_target} calories", provide EXACTLY {calorie_target} calories per day."""
+🚨 FINAL REMINDER: Use EXACT numbers specified by the user. If they say "{calorie_target} calories", provide EXACTLY {calorie_target} calories per day.
+
+IMPORTANT: Always include a comprehensive grocery_list with categorized items and estimated cost. If the user specifically asks for a grocery list, make it detailed and practical for shopping."""
 
                 # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
                 logger.info("Using direct OpenAI HTTP API for create_meal_plan to avoid timeout")
