@@ -896,6 +896,15 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
 {description if description else ''}
 Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
 
+🚨 CRITICAL: STRICT NUMBER ADHERENCE REQUIRED 🚨
+- If user specifies "{calorie_target} calories", you MUST stick to EXACTLY {calorie_target} calories per day
+- If user says "200 calories", provide EXACTLY 200 calories, not 180 or 220
+- If user says "1800 calories", provide EXACTLY 1800 calories, not 1750 or 1850
+- If user specifies protein amounts (e.g., "150g protein"), stick to EXACTLY that amount
+- If user specifies meal counts (e.g., "3 meals"), provide EXACTLY that number
+- NEVER approximate or round user-specified numbers - use them EXACTLY as given
+- Only use estimates when user doesn't specify exact numbers
+
 Respond with JSON only:
 {{
   "meal_plan": {{
@@ -913,7 +922,9 @@ Respond with JSON only:
   }}
 }}
 
-Include {days_per_week} days with {meals_per_day} meals each."""
+Include {days_per_week} days with {meals_per_day} meals each.
+
+🚨 FINAL REMINDER: Use EXACT numbers specified by the user. If they say "{calorie_target} calories", provide EXACTLY {calorie_target} calories per day."""
 
                 # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
                 logger.info("Using direct OpenAI HTTP API for create_meal_plan to avoid timeout")
@@ -1132,6 +1143,14 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
                 
                 meal_prompt = f"""Create a {meal_type} meal. {description if description else ''}
 Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
+
+🚨 CRITICAL: STRICT NUMBER ADHERENCE REQUIRED 🚨
+- If user specifies "{calorie_target} calories", you MUST stick to EXACTLY {calorie_target} calories
+- If user says "200 calories", provide EXACTLY 200 calories, not 180 or 220
+- If user says "500 calories", provide EXACTLY 500 calories, not 480 or 520
+- If user specifies protein amounts (e.g., "30g protein"), stick to EXACTLY that amount
+- NEVER approximate or round user-specified numbers - use them EXACTLY as given
+- Only use estimates when user doesn't specify exact numbers
 
 Respond with JSON only:
 {{
@@ -1403,6 +1422,14 @@ async def general_nutrition_response(parameters: Dict[str, Any], user_id: str) -
             try:
                 ai_prompt = f"""You are a nutrition and health expert. The user asks: {message}
 
+🚨 CRITICAL: STRICT NUMBER ADHERENCE REQUIRED 🚨
+- If user specifies exact numbers (calories, protein amounts, serving sizes), stick to EXACTLY those numbers
+- If user says "200 calories", provide EXACTLY 200 calories, not approximations
+- If user says "50g protein", provide EXACTLY 50g protein, not 45g or 55g
+- If user specifies quantities (e.g., "2 cups", "500ml"), use EXACTLY those amounts
+- NEVER approximate or round user-specified numbers - use them EXACTLY as given
+- Only use estimates when user doesn't specify exact numbers
+
 IMPORTANT: The user's description takes priority over any other considerations. Focus on exactly what they're asking for and provide the most relevant, specific response to their question.
 
 Provide a helpful, encouraging response that:
@@ -1411,6 +1438,7 @@ Provide a helpful, encouraging response that:
 3. Motivates them to make healthy choices
 4. Suggests next steps or alternatives
 5. Maintains a positive, supportive tone
+6. Uses EXACT numbers when user specifies them
 
 IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
 
