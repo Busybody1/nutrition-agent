@@ -837,10 +837,10 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
         
         # Required and optional parameters for meal planning
         plan_type = parameters.get("plan_type", "weekly")  # single_meal, daily, weekly
-        days_per_week = parameters.get("days_per_week", 5)  # 1-7 days, default 5
-        meals_per_day = parameters.get("meals_per_day", 3)  # 1-5 meals, default 3
+        days_per_week = int(parameters.get("days_per_week", 5))  # 1-7 days, default 5
+        meals_per_day = int(parameters.get("meals_per_day", 3))  # 1-5 meals, default 3
         dietary_restrictions = parameters.get("dietary_restrictions", [])  # vegetarian, vegan, gluten-free, etc.
-        calorie_target = parameters.get("calorie_target", 0)  # 0 means no specific target
+        calorie_target = int(parameters.get("calorie_target", 0))  # 0 means no specific target
         cuisine_preference = parameters.get("cuisine_preference", "any")  # italian, asian, mediterranean, etc.
         cooking_time = parameters.get("cooking_time", "medium")  # quick (<30min), medium (30-60min), long (>60min)
         skill_level = parameters.get("skill_level", "intermediate")  # beginner, intermediate, advanced
@@ -875,7 +875,10 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
         if openai_client:
             try:
                 # Build detailed prompt based on parameters
-                restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                if isinstance(dietary_restrictions, list):
+                    restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                else:
+                    restrictions_text = dietary_restrictions if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories per day" if calorie_target > 0 else "no specific calorie target"
                 
                 # Determine meal types based on meals_per_day
@@ -1150,7 +1153,10 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
         if openai_client:
             try:
                 # Build detailed prompt based on parameters
-                restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                if isinstance(dietary_restrictions, list):
+                    restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                else:
+                    restrictions_text = dietary_restrictions if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories" if calorie_target > 0 else "no specific calorie target"
                 
                 meal_prompt = f"""Create a {meal_type} meal. {description if description else ''}
@@ -1259,7 +1265,10 @@ async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, A
         
         if openai_client:
             try:
-                restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                if isinstance(dietary_restrictions, list):
+                    restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+                else:
+                    restrictions_text = dietary_restrictions if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories per serving" if calorie_target > 0 else "no specific calorie target"
                 
                 recipe_prompt = f"""Create a detailed recipe with the following requirements:
