@@ -133,9 +133,7 @@ class NutritionDatabaseService:
                     n.id as nutrient_id,
                     n.name as nutrient_name,
                     n.unit as nutrient_unit,
-                    n.description as nutrient_description,
-                    fn.amount,
-                    fn.created_at
+                    fn.amount
                 FROM food_nutrients fn
                 JOIN nutrients n ON fn.nutrient_id = n.id
                 WHERE fn.food_id = %s
