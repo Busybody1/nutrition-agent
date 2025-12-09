@@ -840,7 +840,12 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
         days_per_week = int(parameters.get("days_per_week", 5))  # 1-7 days, default 5
         meals_per_day = int(parameters.get("meals_per_day", 3))  # 1-5 meals, default 3
         dietary_restrictions = parameters.get("dietary_restrictions", [])  # vegetarian, vegan, gluten-free, etc.
-        calorie_target = int(parameters.get("calorie_target", 0))  # 0 means no specific target
+        # Handle None values for calorie_target - convert to int safely
+        calorie_target_raw = parameters.get("calorie_target", 0)
+        try:
+            calorie_target = int(calorie_target_raw) if calorie_target_raw is not None else 0
+        except (ValueError, TypeError):
+            calorie_target = 0  # Default to 0 if conversion fails
         cuisine_preference = parameters.get("cuisine_preference", "any")  # italian, asian, mediterranean, etc.
         cooking_time = parameters.get("cooking_time", "medium")  # quick (<30min), medium (30-60min), long (>60min)
         skill_level = parameters.get("skill_level", "intermediate")  # beginner, intermediate, advanced
@@ -879,7 +884,7 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
                     restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
                 else:
                     restrictions_text = dietary_restrictions if dietary_restrictions else "none"
-                calorie_text = f"{calorie_target} calories per day" if calorie_target > 0 else "no specific calorie target"
+                calorie_text = f"{calorie_target} calories per day" if (calorie_target is not None and calorie_target > 0) else "no specific calorie target"
                 
                 # Determine meal types based on meals_per_day
                 meal_types = []
@@ -1126,7 +1131,12 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
         # Required and optional parameters for single meal
         meal_type = parameters.get("meal_type", "dinner")  # breakfast, lunch, dinner, snack
         dietary_restrictions = parameters.get("dietary_restrictions", [])  # vegetarian, vegan, gluten-free, etc.
-        calorie_target = parameters.get("calorie_target", 0)  # 0 means no specific target
+        # Handle None values for calorie_target - convert to int safely
+        calorie_target_raw = parameters.get("calorie_target", 0)
+        try:
+            calorie_target = int(calorie_target_raw) if calorie_target_raw is not None else 0
+        except (ValueError, TypeError):
+            calorie_target = 0  # Default to 0 if conversion fails
         cuisine_preference = parameters.get("cuisine_preference", "any")  # italian, asian, mediterranean, etc.
         cooking_time = parameters.get("cooking_time", "medium")  # quick (<30min), medium (30-60min), long (>60min)
         skill_level = parameters.get("skill_level", "intermediate")  # beginner, intermediate, advanced
@@ -1157,7 +1167,7 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
                     restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
                 else:
                     restrictions_text = dietary_restrictions if dietary_restrictions else "none"
-                calorie_text = f"{calorie_target} calories" if calorie_target > 0 else "no specific calorie target"
+                calorie_text = f"{calorie_target} calories" if (calorie_target is not None and calorie_target > 0) else "no specific calorie target"
                 
                 meal_prompt = f"""Create a {meal_type} meal. {description if description else ''}
 Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
@@ -1246,7 +1256,12 @@ async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, A
         cooking_time = parameters.get("cooking_time", "30 minutes")
         skill_level = parameters.get("skill_level", "intermediate")
         servings = parameters.get("servings", 4)
-        calorie_target = parameters.get("calorie_target", 0)
+        # Handle None values for calorie_target - convert to int safely
+        calorie_target_raw = parameters.get("calorie_target", 0)
+        try:
+            calorie_target = int(calorie_target_raw) if calorie_target_raw is not None else 0
+        except (ValueError, TypeError):
+            calorie_target = 0  # Default to 0 if conversion fails
         
         recipe_data = {
             "user_id": user_id,
@@ -1269,7 +1284,7 @@ async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, A
                     restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
                 else:
                     restrictions_text = dietary_restrictions if dietary_restrictions else "none"
-                calorie_text = f"{calorie_target} calories per serving" if calorie_target > 0 else "no specific calorie target"
+                calorie_text = f"{calorie_target} calories per serving" if (calorie_target is not None and calorie_target > 0) else "no specific calorie target"
                 
                 recipe_prompt = f"""Create a detailed recipe with the following requirements:
 
