@@ -1419,12 +1419,30 @@ Rules:
         else:
             ai_recipe = "AI recipe creation features are currently unavailable."
         
-        # Simple and reliable JSON parsing
+        # Enhanced JSON parsing - handles markdown code blocks
         try:
             import json
+            import re
             
-            # Try to parse the AI response directly
-            parsed = json.loads(ai_recipe)
+            # Clean the response - remove markdown code blocks if present
+            cleaned_response = ai_recipe.strip()
+            
+            # Check if response is wrapped in markdown code blocks (```json ... ```)
+            markdown_json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+            match = re.search(markdown_json_pattern, cleaned_response, re.DOTALL)
+            if match:
+                cleaned_response = match.group(1).strip()
+                logger.info("Extracted JSON from markdown code block")
+            
+            # Try to find JSON object in the response (handles cases where there's extra text)
+            json_pattern = r'\{.*\}'
+            json_match = re.search(json_pattern, cleaned_response, re.DOTALL)
+            if json_match:
+                cleaned_response = json_match.group(0)
+            
+            # Parse the JSON
+            parsed = json.loads(cleaned_response)
+            logger.info("Successfully parsed recipe JSON")
             return parsed
             
         except Exception as e:
