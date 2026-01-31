@@ -1,0 +1,64 @@
+{
+  "name": "fitness-nutrition-agent",
+  "description": "Nutrition Agent for Fitness AI Framework - Food tracking and meal planning",
+  "repository": "https://github.com/your-username/fitness-nutrition-agent",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["python", "fastapi", "ai", "fitness", "nutrition", "food"],
+  "env": {
+    "ENVIRONMENT": {
+      "description": "Application environment",
+      "value": "production"
+    },
+    "GROQ_API_KEY": {
+      "description": "Groq API key for LLM integration",
+      "required": true
+    },
+    "JWT_SECRET_KEY": {
+      "description": "JWT secret key for authentication",
+      "generator": "secret"
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL database URL",
+      "required": true
+    },
+    "REDIS_URL": {
+      "description": "Redis cache URL",
+      "required": true
+    },
+    "NUTRITION_DB_URI": {
+      "description": "Nutrition database URI",
+      "required": true
+    },
+    "WORKOUT_DB_URI": {
+      "description": "Workout database URI",
+      "required": true
+    },
+    "CACHE_TTL_SHORT": {
+      "description": "Short cache TTL in seconds",
+      "value": "300"
+    },
+    "CACHE_TTL_MEDIUM": {
+      "description": "Medium cache TTL in seconds",
+      "value": "3600"
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "value": "INFO"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-2x"
+    }
+  },
+    "addons": [],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "echo 'Database initialization handled by main.py startup'"
+  }
+} 

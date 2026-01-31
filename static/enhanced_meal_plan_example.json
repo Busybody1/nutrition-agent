@@ -1,0 +1,329 @@
+{
+  "enhanced_meal_plan_example": {
+    "status": "success",
+    "user_id": "e589fb61-6cd0-4ccd-8a9c-ee8a8dd85e8a",
+    "meal_plan": {
+      "id": "plan_e589fb61-6cd0-4ccd-8a9c-ee8a8dd85e8a_1756152522",
+      "description": "Give me a grocery list for a high-protein week of meals under 1,800 calories/day. Main ingredient is Tuna, egg and spinach",
+      "plan_type": "weekly",
+      "days_per_week": 5,
+      "meals_per_day": 3,
+      "dietary_restrictions": "none",
+      "calorie_target": 1800,
+      "cuisine_preference": "any",
+      "cooking_time": "medium",
+      "skill_level": "intermediate",
+      "budget": "medium",
+      "structured_plan": {
+        "meal_plan": {
+          "plan_info": {
+            "plan_type": "weekly",
+            "days_per_week": 5,
+            "meals_per_day": 3,
+            "total_meals": 15
+          },
+          "days": [
+            {
+              "day": 1,
+              "day_name": "Monday",
+              "meals": {
+                "breakfast": {
+                  "name": "Spinach and Egg White Omelette",
+                  "serving_info": {
+                    "serving_size": "1 plate",
+                    "quantity": "1 serving",
+                    "portion_description": "Standard breakfast portion"
+                  },
+                  "calories": 350,
+                  "macros": {
+                    "protein": 28,
+                    "carbs": 15,
+                    "fat": 18
+                  },
+                  "nutrients_summary": [
+                    {
+                      "nutrient": "Protein",
+                      "amount": 28,
+                      "unit": "g",
+                      "daily_value_percent": 56,
+                      "importance": "Essential for muscle building and repair"
+                    },
+                    {
+                      "nutrient": "Iron",
+                      "amount": 4.2,
+                      "unit": "mg",
+                      "daily_value_percent": 23,
+                      "importance": "Oxygen transport and energy production"
+                    },
+                    {
+                      "nutrient": "Vitamin C",
+                      "amount": 25,
+                      "unit": "mg",
+                      "daily_value_percent": 28,
+                      "importance": "Antioxidant and immune support"
+                    }
+                  ],
+                  "ingredients": [
+                    "4 egg whites",
+                    "1 cup fresh spinach",
+                    "1/4 cup diced bell peppers",
+                    "1 tbsp olive oil"
+                  ],
+                  "prep_time": "5 minutes",
+                  "cooking_time": "8 minutes"
+                },
+                "lunch": {
+                  "name": "Tuna Spinach Salad",
+                  "serving_info": {
+                    "serving_size": "1 large bowl",
+                    "quantity": "1 serving",
+                    "portion_description": "Standard lunch portion"
+                  },
+                  "calories": 450,
+                  "macros": {
+                    "protein": 42,
+                    "carbs": 20,
+                    "fat": 22
+                  },
+                  "nutrients_summary": [
+                    {
+                      "nutrient": "Protein",
+                      "amount": 42,
+                      "unit": "g",
+                      "daily_value_percent": 84,
+                      "importance": "Essential for muscle building and repair"
+                    },
+                    {
+                      "nutrient": "Omega-3",
+                      "amount": 0.8,
+                      "unit": "g",
+                      "daily_value_percent": "N/A",
+                      "importance": "Heart health and brain function"
+                    },
+                    {
+                      "nutrient": "Folate",
+                      "amount": 180,
+                      "unit": "mcg",
+                      "daily_value_percent": 45,
+                      "importance": "Cell division and DNA synthesis"
+                    }
+                  ],
+                  "ingredients": [
+                    "1 can tuna (drained)",
+                    "2 cups fresh spinach",
+                    "1/2 cup cherry tomatoes",
+                    "1/4 cup red onion",
+                    "2 tbsp olive oil"
+                  ],
+                  "prep_time": "10 minutes",
+                  "cooking_time": "0 minutes"
+                },
+                "dinner": {
+                  "name": "Tuna and Egg Stir-Fry",
+                  "serving_info": {
+                    "serving_size": "1 plate",
+                    "quantity": "1 serving",
+                    "portion_description": "Standard dinner portion"
+                  },
+                  "calories": 520,
+                  "macros": {
+                    "protein": 38,
+                    "carbs": 35,
+                    "fat": 25
+                  },
+                  "nutrients_summary": [
+                    {
+                      "nutrient": "Protein",
+                      "amount": 38,
+                      "unit": "g",
+                      "daily_value_percent": 76,
+                      "importance": "Essential for muscle building and repair"
+                    },
+                    {
+                      "nutrient": "B Vitamins",
+                      "amount": "Various",
+                      "unit": "mg",
+                      "daily_value_percent": "20-35",
+                      "importance": "Energy metabolism and brain function"
+                    },
+                    {
+                      "nutrient": "Selenium",
+                      "amount": 65,
+                      "unit": "mcg",
+                      "daily_value_percent": 118,
+                      "importance": "Antioxidant and thyroid function"
+                    }
+                  ],
+                  "ingredients": [
+                    "1 can tuna (drained)",
+                    "2 eggs",
+                    "1 cup brown rice (cooked)",
+                    "1 cup spinach",
+                    "2 tbsp soy sauce"
+                  ],
+                  "prep_time": "15 minutes",
+                  "cooking_time": "12 minutes"
+                }
+              },
+              "total_calories": 1320,
+              "daily_nutrition_summary": {
+                "total_protein": 108,
+                "total_carbs": 70,
+                "total_fat": 65,
+                "total_fiber": 18,
+                "key_nutrients": ["High protein", "Good fiber", "Balanced macros"]
+              }
+            },
+            {
+              "day": 2,
+              "day_name": "Tuesday",
+              "meals": {
+                "breakfast": {
+                  "name": "Spinach Protein Smoothie",
+                  "serving_info": {
+                    "serving_size": "1 large glass",
+                    "quantity": "1 serving",
+                    "portion_description": "Standard breakfast portion"
+                  },
+                  "calories": 380,
+                  "macros": {
+                    "protein": 32,
+                    "carbs": 28,
+                    "fat": 16
+                  },
+                  "nutrients_summary": [
+                    {
+                      "nutrient": "Protein",
+                      "amount": 32,
+                      "unit": "g",
+                      "daily_value_percent": 64,
+                      "importance": "Essential for muscle building and repair"
+                    },
+                    {
+                      "nutrient": "Calcium",
+                      "amount": 280,
+                      "unit": "mg",
+                      "daily_value_percent": 28,
+                      "importance": "Bone health and muscle function"
+                    }
+                  ],
+                  "ingredients": [
+                    "1 scoop protein powder",
+                    "1 cup spinach",
+                    "1 banana",
+                    "1 cup almond milk",
+                    "1 tbsp almond butter"
+                  ],
+                  "prep_time": "5 minutes",
+                  "cooking_time": "0 minutes"
+                },
+                "lunch": {
+                  "name": "Egg and Spinach Wrap",
+                  "serving_info": {
+                    "serving_size": "1 wrap",
+                    "quantity": "1 serving",
+                    "portion_description": "Standard lunch portion"
+                  },
+                  "calories": 420,
+                  "macros": {
+                    "protein": 25,
+                    "carbs": 45,
+                    "fat": 18
+                  },
+                  "nutrients_summary": [
+                    {
+                      "nutrient": "Protein",
+                      "amount": 25,
+                      "unit": "g",
+                      "daily_value_percent": 50,
+                      "importance": "Essential for muscle building and repair"
+                    },
+                    {
+                      "nutrient": "Fiber",
+                      "amount": 8,
+                      "unit": "g",
+                      "daily_value_percent": 32,
+                      "importance": "Promotes digestive health and satiety"
+                    }
+                  ],
+                  "ingredients": [
+                    "2 eggs",
+                    "1 whole grain tortilla",
+                    "1 cup spinach",
+                    "1/4 cup cheese",
+                    "1 tbsp olive oil"
+                  ],
+                  "prep_time": "8 minutes",
+                  "cooking_time": "5 minutes"
+                },
+                "dinner": {
+                  "name": "Tuna Spinach Pasta",
+                  "serving_info": {
+                    "serving_size": "1 plate",
+                    "quantity": "1 serving",
+                    "portion_description": "Standard dinner portion"
+                  },
+                  "calories": 580,
+                  "macros": {
+                    "protein": 35,
+                    "carbs": 65,
+                    "fat": 22
+                  },
+                  "nutrients_summary": [
+                    {
+                      "nutrient": "Protein",
+                      "amount": 35,
+                      "unit": "g",
+                      "daily_value_percent": 70,
+                      "importance": "Essential for muscle building and repair"
+                    },
+                    {
+                      "nutrient": "Complex Carbs",
+                      "amount": 65,
+                      "unit": "g",
+                      "daily_value_percent": "N/A",
+                      "importance": "Sustained energy release"
+                    }
+                  ],
+                  "ingredients": [
+                    "1 cup whole grain pasta",
+                    "1 can tuna (drained)",
+                    "2 cups spinach",
+                    "2 tbsp olive oil",
+                    "1/4 cup parmesan cheese"
+                  ],
+                  "prep_time": "10 minutes",
+                  "cooking_time": "15 minutes"
+                }
+              },
+              "total_calories": 1380,
+              "daily_nutrition_summary": {
+                "total_protein": 92,
+                "total_carbs": 138,
+                "total_fat": 56,
+                "total_fiber": 22,
+                "key_nutrients": ["High protein", "Good fiber", "Balanced carbs"]
+              }
+            }
+          ],
+          "weekly_summary": {
+            "total_calories": 6750,
+            "average_daily_calories": 1350,
+            "nutrition_goals": "High protein diet with focus on tuna, eggs, and spinach",
+            "shopping_list": [
+              "Proteins: 5 cans tuna, 2 dozen eggs, 1 lb chicken breast",
+              "Vegetables: 5 large spinach bunches, 2 bell peppers, 1 red onion, 2 cups cherry tomatoes",
+              "Grains: 1 lb brown rice, 1 package whole grain pasta, 1 package whole grain tortillas",
+              "Dairy: 1 block parmesan cheese, 1 package shredded cheese, 1 carton almond milk",
+              "Other: 1 jar olive oil, 1 bottle soy sauce, 1 jar almond butter, 1 scoop protein powder"
+            ]
+          }
+        }
+      },
+      "created_at": "2025-08-25T20:08:41.063650+00:00"
+    },
+    "agent": "nutrition",
+    "timestamp": "2025-08-25T20:08:42.032304+00:00",
+    "message": "Personalized weekly meal plan created successfully"
+  }
+}

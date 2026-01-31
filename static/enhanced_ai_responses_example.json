@@ -1,0 +1,403 @@
+{
+  "enhanced_ai_responses_examples": {
+    "meal_analysis_example": {
+      "meal_analysis": {
+        "meal_name": "Grilled Chicken Salad",
+        "serving_info": {
+          "serving_size": "1 large bowl",
+          "quantity": "1 serving",
+          "portion_description": "Medium portion appropriate for lunch"
+        },
+        "estimated_nutrition": {
+          "calories": 450,
+          "macros": {
+            "protein_g": 35,
+            "carbs_g": 25,
+            "fat_g": 20
+          },
+          "nutrients_summary": [
+            {
+              "nutrient": "Protein",
+              "amount": 35,
+              "unit": "g",
+              "daily_value_percent": 70,
+              "importance": "Essential for muscle building and repair"
+            },
+            {
+              "nutrient": "Fiber",
+              "amount": 8,
+              "unit": "g",
+              "daily_value_percent": 32,
+              "importance": "Promotes digestive health and satiety"
+            },
+            {
+              "nutrient": "Vitamin A",
+              "amount": 1200,
+              "unit": "mcg",
+              "daily_value_percent": 133,
+              "importance": "Supports vision and immune function"
+            },
+            {
+              "nutrient": "Vitamin C",
+              "amount": 45,
+              "unit": "mg",
+              "daily_value_percent": 50,
+              "importance": "Antioxidant and immune support"
+            },
+            {
+              "nutrient": "Iron",
+              "amount": 3.5,
+              "unit": "mg",
+              "daily_value_percent": 19,
+              "importance": "Oxygen transport and energy production"
+            },
+            {
+              "nutrient": "Calcium",
+              "amount": 120,
+              "unit": "mg",
+              "daily_value_percent": 12,
+              "importance": "Bone health and muscle function"
+            },
+            {
+              "nutrient": "Potassium",
+              "amount": 600,
+              "unit": "mg",
+              "daily_value_percent": 13,
+              "importance": "Electrolyte balance and heart health"
+            }
+          ]
+        },
+        "key_nutrients": [
+          "High in protein",
+          "Good source of fiber",
+          "Rich in vitamins A and C"
+        ],
+        "health_assessment": {
+          "benefits": [
+            "Excellent protein source for muscle building",
+            "High fiber content for digestive health",
+            "Low glycemic index for stable blood sugar"
+          ],
+          "concerns": [
+            "May be high in sodium if using store-bought dressing"
+          ]
+        },
+        "satisfaction_analysis": {
+          "hunger_satisfaction": "High - protein and fiber combination",
+          "nutritional_completeness": "Good - covers multiple food groups",
+          "portion_appropriateness": "Appropriate for lunch"
+        },
+        "timing_insights": "Good timing for lunch",
+        "mood_connection": "Protein-rich meals often improve mood and energy",
+        "recommendations": [
+          "Consider adding healthy fats like avocado",
+          "Include more colorful vegetables for variety"
+        ],
+        "balance_suggestions": "Pair with complex carbs for sustained energy"
+      }
+    },
+    "meal_plan_example": {
+      "meal_plan": {
+        "days": [
+          {
+            "day": 1,
+            "meals": {
+              "breakfast": {
+                "name": "Oatmeal with Berries and Nuts",
+                "serving_info": {
+                  "serving_size": "1 bowl",
+                  "quantity": "1 serving",
+                  "portion_description": "Standard breakfast portion"
+                },
+                "calories": 350,
+                "macros": {
+                  "protein": 12,
+                  "carbs": 45,
+                  "fat": 14
+                },
+                "nutrients_summary": [
+                  {
+                    "nutrient": "Protein",
+                    "amount": 12,
+                    "unit": "g",
+                    "daily_value_percent": 24,
+                    "importance": "Essential for muscle building and repair"
+                  },
+                  {
+                    "nutrient": "Fiber",
+                    "amount": 6,
+                    "unit": "g",
+                    "daily_value_percent": 24,
+                    "importance": "Promotes digestive health and satiety"
+                  },
+                  {
+                    "nutrient": "Iron",
+                    "amount": 2.5,
+                    "unit": "mg",
+                    "daily_value_percent": 14,
+                    "importance": "Oxygen transport and energy production"
+                  },
+                  {
+                    "nutrient": "B Vitamins",
+                    "amount": "Various",
+                    "unit": "mg",
+                    "daily_value_percent": "15-25",
+                    "importance": "Energy metabolism and brain function"
+                  }
+                ],
+                "ingredients": [
+                  "1/2 cup rolled oats",
+                  "1 cup almond milk",
+                  "1/4 cup mixed berries",
+                  "2 tbsp chopped nuts"
+                ]
+              },
+              "lunch": {
+                "name": "Grilled Chicken Quinoa Bowl",
+                "serving_info": {
+                  "serving_size": "1 plate",
+                  "quantity": "1 serving",
+                  "portion_description": "Standard lunch portion"
+                },
+                "calories": 500,
+                "macros": {
+                  "protein": 40,
+                  "carbs": 20,
+                  "fat": 25
+                },
+                "nutrients_summary": [
+                  {
+                    "nutrient": "Protein",
+                    "amount": 40,
+                    "unit": "g",
+                    "daily_value_percent": 80,
+                    "importance": "Essential for muscle building and repair"
+                  },
+                  {
+                    "nutrient": "Vitamin C",
+                    "amount": 35,
+                    "unit": "mg",
+                    "daily_value_percent": 39,
+                    "importance": "Antioxidant and immune support"
+                  },
+                  {
+                    "nutrient": "Folate",
+                    "amount": 120,
+                    "unit": "mcg",
+                    "daily_value_percent": 30,
+                    "importance": "Cell division and DNA synthesis"
+                  },
+                  {
+                    "nutrient": "Potassium",
+                    "amount": 450,
+                    "unit": "mg",
+                    "daily_value_percent": 10,
+                    "importance": "Electrolyte balance and heart health"
+                  }
+                ],
+                "ingredients": [
+                  "150g grilled chicken breast",
+                  "1/2 cup quinoa (cooked)",
+                  "2 cups mixed greens",
+                  "1/4 cup cherry tomatoes"
+                ]
+              }
+            },
+            "total_calories": 850
+          }
+        ]
+      }
+    },
+    "recipe_example": {
+      "recipe": {
+        "name": "Mediterranean Salmon with Roasted Vegetables",
+        "cuisine": "Mediterranean",
+        "prep_time": "15 minutes",
+        "cook_time": "25 minutes",
+        "total_time": "40 minutes",
+        "servings": 4,
+        "serving_info": {
+          "serving_size": "1 plate",
+          "quantity": "1 serving",
+          "portion_description": "Standard dinner portion"
+        },
+        "difficulty": "intermediate",
+        "nutrition_per_serving": {
+          "calories": 380,
+          "macros": {
+            "protein_g": 28,
+            "carbs_g": 18,
+            "fat_g": 22
+          },
+          "nutrients_summary": [
+            {
+              "nutrient": "Protein",
+              "amount": 28,
+              "unit": "g",
+              "daily_value_percent": 56,
+              "importance": "Essential for muscle building and repair"
+            },
+            {
+              "nutrient": "Omega-3",
+              "amount": 1.8,
+              "unit": "g",
+              "daily_value_percent": "N/A",
+              "importance": "Heart health and brain function"
+            },
+            {
+              "nutrient": "Vitamin D",
+              "amount": 12,
+              "unit": "mcg",
+              "daily_value_percent": 60,
+              "importance": "Bone health and immune function"
+            },
+            {
+              "nutrient": "Selenium",
+              "amount": 55,
+              "unit": "mcg",
+              "daily_value_percent": 100,
+              "importance": "Antioxidant and thyroid function"
+            },
+            {
+              "nutrient": "Vitamin C",
+              "amount": 42,
+              "unit": "mg",
+              "daily_value_percent": 47,
+              "importance": "Antioxidant and immune support"
+            }
+          ]
+        },
+        "ingredients": [
+          {
+            "item": "4 salmon fillets",
+            "category": "protein",
+            "quantity": "4 fillets (6 oz each)",
+            "notes": "Wild-caught salmon preferred for better omega-3 content"
+          },
+          {
+            "item": "2 cups mixed vegetables",
+            "category": "vegetables",
+            "quantity": "2 cups",
+            "notes": "Bell peppers, zucchini, cherry tomatoes work well"
+          }
+        ],
+        "instructions": [
+          "Preheat oven to 400°F",
+          "Season salmon with herbs and lemon",
+          "Roast vegetables for 20 minutes",
+          "Add salmon and cook for 8-10 minutes"
+        ],
+        "tips": [
+          "Don't overcook salmon - it should be slightly pink in center",
+          "Use fresh herbs for best flavor"
+        ],
+        "variations": [
+          "Substitute trout for salmon",
+          "Add olives and feta for Greek twist"
+        ],
+        "storage": "Store leftovers in airtight container for up to 2 days",
+        "dietary_notes": "Naturally gluten-free, can be made dairy-free"
+      }
+    },
+    "nutrition_summary_example": {
+      "nutrition_summary": {
+        "period_days": 7,
+        "user_goals": "muscle building and weight management",
+        "summary_analysis": "Comprehensive analysis of nutrition patterns and recommendations for muscle building",
+        "serving_guidelines": {
+          "general_serving_sizes": "Protein: palm-sized portions, Carbs: fist-sized portions, Fats: thumb-sized portions",
+          "meal_frequency": "5-6 meals per day with protein at each meal",
+          "portion_control_tips": "Use smaller plates, measure portions, eat slowly"
+        },
+        "nutrient_analysis": {
+          "macros_overview": "High protein (1.6g/kg), moderate carbs (3-4g/kg), moderate fats (0.8g/kg)",
+          "micronutrients_focus": "Key vitamins and minerals for muscle building and recovery",
+          "nutrients_summary": [
+            {
+              "nutrient": "Protein",
+              "daily_target": "1.6g per kg body weight",
+              "importance": "Essential for muscle building and repair",
+              "food_sources": "Lean meats, fish, eggs, legumes, dairy"
+            },
+            {
+              "nutrient": "Creatine",
+              "daily_target": "3-5g",
+              "importance": "Improves strength and power output",
+              "food_sources": "Red meat, fish, can be supplemented"
+            },
+            {
+              "nutrient": "Vitamin D",
+              "daily_target": "20-25mcg",
+              "importance": "Bone health and muscle function",
+              "food_sources": "Fatty fish, egg yolks, fortified dairy, sunlight"
+            },
+            {
+              "nutrient": "Magnesium",
+              "daily_target": "400-420mg",
+              "importance": "Muscle relaxation and recovery",
+              "food_sources": "Nuts, seeds, whole grains, dark chocolate"
+            }
+          ]
+        },
+        "goal_assessment": "Good protein intake, need to increase vitamin D and magnesium",
+        "personalized_recommendations": [
+          "Increase protein to 2.0g/kg for muscle building",
+          "Add vitamin D supplementation if limited sun exposure",
+          "Include more magnesium-rich foods in diet"
+        ],
+        "meal_planning_suggestions": "Plan protein-rich meals every 3-4 hours",
+        "next_steps": "Start tracking micronutrient intake, adjust meal timing",
+        "generated_at": "2024-01-15T10:30:00Z"
+      }
+    },
+    "nutrition_response_example": {
+      "nutrition_response": {
+        "user_question": "How can I improve my energy levels throughout the day?",
+        "expert_analysis": "Energy levels are influenced by meal timing, nutrient balance, and blood sugar stability",
+        "practical_advice": "Focus on balanced meals with protein, complex carbs, and healthy fats every 3-4 hours",
+        "serving_guidelines": {
+          "portion_recommendations": "Protein: palm-sized, Carbs: fist-sized, Fats: thumb-sized",
+          "meal_timing": "Eat within 1 hour of waking, then every 3-4 hours",
+          "frequency_guidance": "3 main meals + 2-3 snacks for stable energy"
+        },
+        "nutrient_focus": {
+          "key_nutrients": "Protein, complex carbs, B vitamins, iron, and magnesium",
+          "nutrients_summary": [
+            {
+              "nutrient": "Protein",
+              "recommendation": "Include 20-30g protein at each meal",
+              "food_sources": "Eggs, Greek yogurt, lean meats, legumes",
+              "importance": "Provides sustained energy and prevents blood sugar crashes"
+            },
+            {
+              "nutrient": "Complex Carbohydrates",
+              "recommendation": "Choose whole grains and fiber-rich carbs",
+              "food_sources": "Oatmeal, quinoa, sweet potatoes, brown rice",
+              "importance": "Provides steady glucose release for sustained energy"
+            },
+            {
+              "nutrient": "B Vitamins",
+              "recommendation": "Include B-vitamin rich foods daily",
+              "food_sources": "Whole grains, meat, eggs, leafy greens",
+              "importance": "Essential for energy metabolism and ATP production"
+            },
+            {
+              "nutrient": "Iron",
+              "recommendation": "Ensure adequate iron intake",
+              "food_sources": "Red meat, spinach, legumes, fortified cereals",
+              "importance": "Prevents fatigue and supports oxygen transport"
+            }
+          ]
+        },
+        "motivation": "Small changes in your eating pattern can make a big difference in your daily energy levels!",
+        "next_steps": [
+          "Start with a protein-rich breakfast within 1 hour of waking",
+          "Plan 3 balanced meals with 2-3 healthy snacks",
+          "Track your energy levels for 1 week to see improvements"
+        ],
+        "additional_resources": "Consider consulting a registered dietitian for personalized meal planning",
+        "generated_at": "2024-01-15T10:30:00Z"
+      }
+    }
+  }
+}
