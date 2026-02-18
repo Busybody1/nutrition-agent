@@ -29,7 +29,7 @@ load_dotenv()
 # Import from new utils structure
 from utils.database import (
     get_main_db, get_user_db, get_nutrition_db, get_workout_db,
-    test_database_connection, get_database_status, Base
+    test_database_connection, get_database_status, get_database_status_async, Base
 )
 from utils.config import (
     get_database_url, get_user_database_uri, get_nutrition_db_uri, get_workout_db_uri,
@@ -1606,8 +1606,8 @@ async def test_gpt4o_direct(prompt: str = Body(..., embed=True)):
 async def health_check():
     """Comprehensive health check with all service statuses."""
     try:
-        # Get database status using utils
-        db_status = get_database_status()
+        # Get database status (async + cached — won't block event loop)
+        db_status = await get_database_status_async()
         
         # Check AI status
         openai_status = "connected" if openai_client else "disconnected"

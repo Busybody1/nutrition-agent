@@ -15,6 +15,8 @@ FIXES:
 
 import os
 import logging
+import time
+import asyncio
 from sqlalchemy import create_engine, text, MetaData
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from typing import Optional, Tuple
@@ -79,7 +81,7 @@ def get_user_db() -> Session:
             max_overflow=10,
             pool_pre_ping=True,
             pool_recycle=3600,
-            connect_args={"connect_timeout": 10}
+            connect_args={"connect_timeout": 3}
         )
         
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -105,7 +107,7 @@ def get_main_db() -> Session:
             max_overflow=20,
             pool_pre_ping=True,
             pool_recycle=3600,
-            connect_args={"connect_timeout": 10}
+            connect_args={"connect_timeout": 3}
         )
         
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -132,7 +134,7 @@ def get_nutrition_db() -> Optional[Session]:
             max_overflow=10,
             pool_pre_ping=True,
             pool_recycle=3600,
-            connect_args={"connect_timeout": 10}
+            connect_args={"connect_timeout": 3}
         )
         
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -159,7 +161,7 @@ def get_workout_db() -> Optional[Session]:
             max_overflow=10,
             pool_pre_ping=True,
             pool_recycle=3600,
-            connect_args={"connect_timeout": 10}
+            connect_args={"connect_timeout": 3}
         )
         
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -215,7 +217,7 @@ def test_database_connection(db_type: str) -> Tuple[bool, str]:
 
 def get_database_status() -> dict:
     """
-    Get real-time status of all database connections.
+    Get real-time status of all database connections (synchronous — blocks up to 12s).
     
     Returns:
         dict: Status of all databases with connection details
@@ -231,4 +233,28 @@ def get_database_status() -> dict:
             "timestamp": str(os.getenv("DATABASE_URL" if db_type == "main" else f"{db_type.upper()}_DATABASE_URI", "Not configured"))[:20] + "..."
         }
     
+    return status
+
+# ---------------------------------------------------------------------------
+# Async / cached wrapper — safe for use inside async health endpoints
+# ---------------------------------------------------------------------------
+_db_status_cache: dict = {"status": None, "timestamp": 0.0}
+_DB_STATUS_CACHE_TTL = 60  # seconds
+
+async def get_database_status_async() -> dict:
+    """Non-blocking cached database status for async health endpoints.
+    
+    Returns cached result if fresh (< 60s).  Otherwise runs the
+    synchronous tests in a thread-pool so the event loop stays free.
+    """
+    now = time.time()
+    if (
+        _db_status_cache["status"] is not None
+        and (now - _db_status_cache["timestamp"]) < _DB_STATUS_CACHE_TTL
+    ):
+        return _db_status_cache["status"]
+
+    status = await asyncio.to_thread(get_database_status)
+    _db_status_cache["status"] = status
+    _db_status_cache["timestamp"] = time.time()
     return status
