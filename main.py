@@ -1489,21 +1489,27 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services on startup."""
+    """Initialize services on startup. Heavy work runs in thread so we bind to PORT quickly (avoids H99)."""
+    import asyncio
+
     logger.info("🚀 Starting Nutrition Agent...")
-    
-    # Log environment info
     logger.info(f"🔍 Environment: {get_environment()}")
     logger.info(f"🔍 Log Level: {get_log_level()}")
     logger.info(f"🔍 Port: {get_port()}")
-    
-    # Initialize databases
-    initialize_databases()
-    
-    # Initialize AI
-    await initialize_ai()
-    
-    logger.info("✅ Nutrition Agent startup complete")
+
+    def _sync_init():
+        initialize_databases()
+
+    async def _async_init():
+        await initialize_ai()
+
+    async def _init():
+        await asyncio.to_thread(_sync_init)
+        await _async_init()
+        logger.info("✅ Nutrition Agent startup complete")
+
+    # Run init in background so uvicorn can bind to PORT immediately; avoids Heroku H99
+    asyncio.create_task(_init())
 
 # =============================================================================
 # API ENDPOINTS
