@@ -350,8 +350,10 @@ async def require_valid_user(user_id: str):
 # =============================================================================
 
 async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: float = 0.7, 
-                         function_name: str = "", user_id: str = "", use_batching: bool = True) -> tuple[str, str]:
-    """Get AI response using GPT-4o with nutrition-specific batching support."""
+                         function_name: str = "", user_id: str = "", use_batching: bool = True,
+                         system_message: str = "") -> tuple[str, str]:
+    """Get AI response using GPT-4o with nutrition-specific batching support and system message."""
+    from utils.prompts import SYSTEM_PROMPT
     
     # Check nutrition-specific cache first
     if use_batching:
@@ -360,9 +362,10 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
             logger.info(f"Nutrition cache hit for {function_name}")
             return cached_response.get("content", ""), cached_response.get("model", "cached")
     
+    effective_system_message = system_message or SYSTEM_PROMPT
+    
     # Define the AI client function for batching
     async def ai_client_func(prompt: str, max_tokens: int, temperature: float) -> tuple[str, str]:
-        # Use OpenAI HTTP API directly
         if openai_client:
             try:
                 headers = {
@@ -370,11 +373,16 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                     "Content-Type": "application/json"
                 }
                 
+                messages = [
+                    {"role": "system", "content": effective_system_message},
+                    {"role": "user", "content": prompt}
+                ]
+                
                 data = {
                     "model": "gpt-4o",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                    "max_tokens": 16000
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
                 }
                 
                 response = requests.post(
@@ -538,119 +546,16 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         # Add AI nutrition insights if OpenAI is available
         if openai_client:
             try:
-                insight_prompt = f"""Analyze this meal that was already eaten and provide nutrition insights:
-
-MEAL DETAILS:
-- Food Items: {food_items}
-- Meal Type: {meal_type}
-- Portion Size: {portion_size}
-- Eating Time: {eating_time}
-- Location: {location}
-- Mood Before: {mood_before}
-- Mood After: {mood_after}
-- Hunger Level: {hunger_level}
-- Satisfaction Level: {satisfaction_level}
-- User's Calorie Estimate: {estimated_calories if estimated_calories > 0 else 'not provided'}
-- Additional Notes: {notes if notes else 'none'}
-- User Description: {description if description else 'none'}
-
-IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different details about the meal (e.g., "large portion" or "high protein meal"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
-
-IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
-
-{{
-  "meal_analysis": {{
-    "meal_name": "Grilled Chicken Salad",
-    "serving_info": {{
-      "serving_size": "1 large bowl",
-      "quantity": "1 serving",
-      "portion_description": "Medium portion appropriate for {meal_type}"
-    }},
-    "estimated_nutrition": {{
-      "calories": 450,
-      "macros": {{
-        "protein_g": 35,
-        "carbs_g": 25,
-        "fat_g": 20
-      }},
-      "nutrients_summary": [
-        {{
-          "nutrient": "Protein",
-          "amount": 35,
-          "unit": "g"
-        }},
-        {{
-          "nutrient": "Fiber",
-          "amount": 8,
-          "unit": "g"
-        }},
-        {{
-          "nutrient": "Vitamin A",
-          "amount": 1200,
-          "unit": "mcg"
-        }},
-        {{
-          "nutrient": "Vitamin C",
-          "amount": 45,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Iron",
-          "amount": 3.5,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Calcium",
-          "amount": 120,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Potassium",
-          "amount": 600,
-          "unit": "mg"
-        }}
-      ],
-      "key_nutrients": [
-        "High in protein",
-        "Good source of fiber",
-        "Rich in vitamins A and C"
-      ]
-    }},
-    "health_assessment": {{
-      "benefits": [
-        "Excellent protein source for muscle building",
-        "High fiber content for digestive health",
-        "Low glycemic index for stable blood sugar"
-      ],
-      "concerns": [
-        "May be high in sodium if using store-bought dressing"
-      ]
-    }},
-    "satisfaction_analysis": {{
-      "hunger_satisfaction": "High - protein and fiber combination",
-      "nutritional_completeness": "Good - covers multiple food groups",
-      "portion_appropriateness": "Appropriate for {meal_type}"
-    }},
-    "timing_insights": "Good timing for {eating_time}",
-    "mood_connection": "Protein-rich meals often improve mood and energy",
-    "recommendations": [
-        "Consider adding healthy fats like avocado",
-        "Include more colorful vegetables for variety"
-    ],
-    "balance_suggestions": "Pair with complex carbs for sustained energy"
-  }}
-}}
-
-IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
-
-Rules:
-1. Provide realistic calorie and macro estimates based on the food items
-2. Include specific, actionable recommendations
-3. Make it supportive and educational
-4. Base analysis on the actual meal details provided
-5. Always include serving_info with serving_size and quantity
-6. Expand nutrients_summary to include important micronutrients beyond just macros
-7. Focus on essential nutrient information"""
+                from utils.prompts import build_log_meal_prompt
+                insight_prompt = build_log_meal_prompt(
+                    food_items=food_items, meal_type=meal_type,
+                    portion_size=portion_size, eating_time=eating_time,
+                    location=location, mood_before=mood_before,
+                    mood_after=mood_after, hunger_level=hunger_level,
+                    satisfaction_level=satisfaction_level,
+                    estimated_calories=estimated_calories,
+                    notes=notes, description=description
+                )
 
                 ai_insights, _ = await get_ai_response(
                     insight_prompt, 
@@ -706,89 +611,10 @@ async def get_nutrition_summary(parameters: Dict[str, Any], user_id: str) -> Dic
         # Generate AI-powered summary if OpenAI is available
         if openai_client:
             try:
-                summary_prompt = f"""Based on this user request, provide a comprehensive nutrition summary:
-- User request: {description}
-- Time period: {days} days
-- User goals: {goals}
-
-IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "focus on protein" or "quick summary"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
-
-Provide a structured response with:
-1. Summary of typical nutrition patterns
-2. Nutrient balance analysis with expanded micronutrients
-3. Goal achievement assessment
-4. Personalized recommendations
-5. Meal planning suggestions
-6. Next steps for improvement
-
-IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
-
-{{
-  "nutrition_summary": {{
-    "period_days": {days},
-    "user_goals": "{goals}",
-    "summary_analysis": "Comprehensive analysis of nutrition patterns and recommendations",
-    "serving_guidelines": {{
-      "general_serving_sizes": "Standard portion recommendations",
-      "meal_frequency": "Optimal meal timing and frequency",
-      "portion_control_tips": "Practical portion management strategies"
-    }},
-    "nutrient_analysis": {{
-      "macros_overview": "Protein, carbs, and fat balance analysis",
-      "micronutrients_focus": "Key vitamins and minerals for {goals}",
-      "nutrients_summary": [
-        {{
-          "nutrient": "Protein",
-          "daily_target": "1.2-1.6g per kg body weight",
-          "food_sources": "Lean meats, fish, eggs, legumes"
-        }},
-        {{
-          "nutrient": "Fiber",
-          "daily_target": "25-35g",
-          "food_sources": "Whole grains, fruits, vegetables, legumes"
-        }},
-        {{
-          "nutrient": "Vitamin D",
-          "daily_target": "15-20mcg",
-          "food_sources": "Fatty fish, egg yolks, fortified dairy"
-        }},
-        {{
-          "nutrient": "Iron",
-          "daily_target": "8-18mg",
-          "food_sources": "Red meat, spinach, legumes, fortified cereals"
-        }},
-        {{
-          "nutrient": "Calcium",
-          "daily_target": "1000-1300mg",
-          "food_sources": "Dairy products, leafy greens, fortified foods"
-        }},
-        {{
-          "nutrient": "Omega-3",
-          "daily_target": "1.1-1.6g",
-          "food_sources": "Fatty fish, flaxseeds, walnuts, chia seeds"
-        }},
-        {{
-          "nutrient": "B Vitamins",
-          "daily_target": "Various",
-          "food_sources": "Whole grains, meat, eggs, dairy, leafy greens"
-        }}
-      ]
-    }},
-    "goal_assessment": "Current progress and areas for improvement",
-    "personalized_recommendations": [
-      "Specific action items for {goals}",
-      "Meal timing and portion strategies",
-      "Nutrient-dense food suggestions"
-    ],
-    "meal_planning_suggestions": "Practical meal planning approaches",
-    "next_steps": "Immediate actions to take for improvement",
-    "generated_at": "{datetime.now(timezone.utc).isoformat()}"
-  }}
-}}
-
-IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
-
-Make it personalized and actionable based on their description and goals."""
+                from utils.prompts import build_nutrition_summary_prompt
+                summary_prompt = build_nutrition_summary_prompt(
+                    description=description, days=days, goals=goals
+                )
 
                 ai_summary, _ = await get_ai_response(
                     summary_prompt, 
@@ -901,51 +727,14 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
                 
                 meal_types_text = ", ".join(meal_types)
                 
-                meal_prompt = f"""Create a {days_per_week}-day meal plan with {meals_per_day} meals per day ({meal_types_text}).
+                from utils.prompts import build_meal_plan_prompt, SYSTEM_PROMPT
+                meal_prompt = build_meal_plan_prompt(
+                    days_per_week=days_per_week, meals_per_day=meals_per_day,
+                    meal_types_text=meal_types_text, description=description,
+                    restrictions_text=restrictions_text, calorie_text=calorie_text,
+                    calorie_target=calorie_target, cuisine_preference=cuisine_preference
+                )
 
-{description if description else ''}
-Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
-
-🚨 CRITICAL: STRICT NUMBER ADHERENCE REQUIRED 🚨
-- If user specifies "{calorie_target} calories", you MUST stick to EXACTLY {calorie_target} calories per day
-- If user says "200 calories", provide EXACTLY 200 calories, not 180 or 220
-- If user says "1800 calories", provide EXACTLY 1800 calories, not 1750 or 1850
-- If user specifies protein amounts (e.g., "150g protein"), stick to EXACTLY that amount
-- If user specifies meal counts (e.g., "3 meals"), provide EXACTLY that number
-- NEVER approximate or round user-specified numbers - use them EXACTLY as given
-- Only use estimates when user doesn't specify exact numbers
-
-Respond with JSON only:
-{{
-  "meal_plan": {{
-    "days": [
-      {{
-        "day": 1,
-        "meals": {{
-          "breakfast": {{"name": "Meal", "calories": 400, "macros": {{"protein": 20, "carbs": 50, "fat": 12}}, "ingredients": ["item1", "item2"]}},
-          "lunch": {{"name": "Meal", "calories": 500, "macros": {{"protein": 35, "carbs": 45, "fat": 18}}, "ingredients": ["item1", "item2"]}},
-          "dinner": {{"name": "Meal", "calories": 600, "macros": {{"protein": 40, "carbs": 55, "fat": 20}}, "ingredients": ["item1", "item2"]}}
-        }}
-      }}
-    ],
-    "grocery_list": {{
-      "proteins": ["chicken breast", "salmon", "eggs", "greek yogurt"],
-      "vegetables": ["broccoli", "spinach", "bell peppers", "carrots"],
-      "grains": ["brown rice", "quinoa", "oatmeal"],
-      "dairy": ["milk", "cheese", "butter"],
-      "pantry_items": ["olive oil", "spices", "herbs"],
-      "total_estimated_cost": "$45-65"
-    }}
-  }}
-}}
-
-Include {days_per_week} days with {meals_per_day} meals each.
-
-🚨 FINAL REMINDER: Use EXACT numbers specified by the user. If they say "{calorie_target} calories", provide EXACTLY {calorie_target} calories per day.
-
-IMPORTANT: Always include a comprehensive grocery_list with categorized items and estimated cost. If the user specifically asks for a grocery list, make it detailed and practical for shopping."""
-
-                # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
                 logger.info("Using direct OpenAI HTTP API for create_meal_plan to avoid timeout")
                 try:
                     headers = {
@@ -955,7 +744,10 @@ IMPORTANT: Always include a comprehensive grocery_list with categorized items an
                     
                     data = {
                         "model": "gpt-4o",
-                        "messages": [{"role": "user", "content": meal_prompt}],
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": meal_prompt}
+                        ],
                         "temperature": 0.7,
                         "max_tokens": 12000
                     }
@@ -1169,29 +961,13 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
                     restrictions_text = dietary_restrictions if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories" if (calorie_target is not None and calorie_target > 0) else "no specific calorie target"
                 
-                meal_prompt = f"""Create a {meal_type} meal. {description if description else ''}
-Dietary: {restrictions_text}. Calories: {calorie_text}. Cuisine: {cuisine_preference}.
-
-🚨 CRITICAL: STRICT NUMBER ADHERENCE REQUIRED 🚨
-- If user specifies "{calorie_target} calories", you MUST stick to EXACTLY {calorie_target} calories
-- If user says "200 calories", provide EXACTLY 200 calories, not 180 or 220
-- If user says "500 calories", provide EXACTLY 500 calories, not 480 or 520
-- If user specifies protein amounts (e.g., "30g protein"), stick to EXACTLY that amount
-- NEVER approximate or round user-specified numbers - use them EXACTLY as given
-- Only use estimates when user doesn't specify exact numbers
-
-Respond with JSON only:
-{{
-  "meal": {{
-      "name": "Meal Name",
-    "calories": 500,
-    "macros": {{"protein": 30, "carbs": 45, "fat": 18}},
-    "ingredients": ["ingredient1", "ingredient2", "ingredient3"],
-    "instructions": ["step1", "step2", "step3"]
-  }}
-}}"""
+                from utils.prompts import build_single_meal_prompt, SYSTEM_PROMPT
+                meal_prompt = build_single_meal_prompt(
+                    meal_type=meal_type, description=description,
+                    restrictions_text=restrictions_text, calorie_text=calorie_text,
+                    calorie_target=calorie_target, cuisine_preference=cuisine_preference
+                )
                 
-                # Use direct OpenAI HTTP API call to avoid Heroku 30s timeout with batching
                 logger.info("Using direct OpenAI HTTP API for create_meal to avoid timeout")
                 try:
                     headers = {
@@ -1201,7 +977,10 @@ Respond with JSON only:
                     
                     data = {
                         "model": "gpt-4o",
-                        "messages": [{"role": "user", "content": meal_prompt}],
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": meal_prompt}
+                        ],
                         "temperature": 0.7,
                         "max_tokens": 12000
                     }
@@ -1286,125 +1065,13 @@ async def create_recipe(parameters: Dict[str, Any], user_id: str) -> Dict[str, A
                     restrictions_text = dietary_restrictions if dietary_restrictions else "none"
                 calorie_text = f"{calorie_target} calories per serving" if (calorie_target is not None and calorie_target > 0) else "no specific calorie target"
                 
-                recipe_prompt = f"""Create a detailed recipe with the following requirements:
-
-REQUIREMENTS:
-- Recipe Name: {recipe_name if recipe_name else "Create a creative name"}
-- User Request: {description if description else "No specific request"}
-- Cuisine Type: {cuisine_type}
-- Dietary Restrictions: {restrictions_text}
-- Cooking Time: {cooking_time}
-- Skill Level: {skill_level}
-- Servings: {servings}
-- Calorie Target: {calorie_text}
-
-IMPORTANT: The user's description takes priority over individual parameters. If the description specifies different requirements (e.g., "quick recipe" or "high protein"), use those values instead of the parameters above. Only use the parameters when they align with the description or when the description is unclear.
-
-IMPORTANT: You must respond with ONLY a valid JSON object in this exact structure:
-
-{{
-  "recipe": {{
-    "name": "Recipe Name",
-    "cuisine": "Cuisine Type",
-    "prep_time": "15 minutes",
-    "cook_time": "30 minutes",
-    "total_time": "45 minutes",
-    "servings": 4,
-    "serving_info": {{
-      "serving_size": "1 plate",
-      "quantity": "1 serving",
-      "portion_description": "Standard dinner portion"
-    }},
-    "difficulty": "intermediate",
-    "nutrition_per_serving": {{
-      "calories": 350,
-      "macros": {{
-      "protein_g": 25,
-      "carbs_g": 30,
-        "fat_g": 15
-      }},
-      "nutrients_summary": [
-        {{
-          "nutrient": "Protein",
-          "amount": 25,
-          "unit": "g"
-        }},
-        {{
-          "nutrient": "Fiber",
-          "amount": 8,
-          "unit": "g"
-        }},
-        {{
-          "nutrient": "Iron",
-          "amount": 3.2,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Vitamin C",
-          "amount": 28,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Folate",
-          "amount": 85,
-          "unit": "mcg"
-        }},
-        {{
-          "nutrient": "Potassium",
-          "amount": 420,
-          "unit": "mg"
-        }},
-        {{
-          "nutrient": "Calcium",
-          "amount": 95,
-          "unit": "mg"
-        }}
-      ]
-    }},
-    "ingredients": [
-      {{
-        "item": "2 cups all-purpose flour",
-        "category": "dry ingredients",
-        "quantity": "2 cups",
-        "notes": "Can substitute with whole wheat flour for more fiber"
-      }},
-      {{
-        "item": "1 cup milk",
-        "category": "wet ingredients",
-        "quantity": "1 cup",
-        "notes": "Can use almond milk for dairy-free option"
-      }}
-    ],
-    "instructions": [
-      "Step 1: Mix dry ingredients",
-      "Step 2: Add wet ingredients",
-      "Step 3: Bake at 350°F for 30 minutes"
-    ],
-    "tips": [
-      "Use room temperature ingredients",
-      "Don't overmix the batter"
-    ],
-    "variations": [
-      "Add chocolate chips for sweetness",
-      "Use whole wheat flour for more fiber"
-    ],
-    "storage": "Store in airtight container for up to 3 days",
-    "dietary_notes": "Can be made gluten-free by using gluten-free flour"
-  }}
-}}
-
-IMPORTANT: Return ONLY a valid JSON object. Do not include markdown, explanations, or extra text. JSON must start with '{' and end with '}' with no other content.
-
-Rules:
-1. Make the recipe practical and delicious
-2. Include realistic cooking times and difficulty levels
-3. Provide accurate nutritional estimates
-4. Include helpful tips and variations
-5. Consider the dietary restrictions specified
-6. Always include serving_info with serving_size, quantity, and portion_description
-7. Expand nutrients_summary to include important micronutrients beyond just macros
-8. Focus on essential nutrient information
-9. Add quantity and notes to ingredients for better clarity"""
+                from utils.prompts import build_recipe_prompt
+                recipe_prompt = build_recipe_prompt(
+                    recipe_name=recipe_name, description=description,
+                    cuisine_type=cuisine_type, restrictions_text=restrictions_text,
+                    cooking_time=cooking_time, skill_level=skill_level,
+                    servings=servings, calorie_text=calorie_text
+                )
                 
                 ai_recipe, _ = await get_ai_response(
                     recipe_prompt, 

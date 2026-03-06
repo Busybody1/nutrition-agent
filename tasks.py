@@ -59,22 +59,8 @@ def generate_meal_plan_task(self, user_id: str, preferences: dict, dietary_restr
             meta={'status': 'Generating meal options', 'progress': 40}
         )
         
-        # Create prompt for meal planning
-        prompt = f"""
-        Create a personalized meal plan for a user with the following preferences:
-        - Preferences: {preferences}
-        - Dietary restrictions: {dietary_restrictions}
-        
-        Please provide a detailed meal plan with:
-        1. Breakfast options
-        2. Lunch options  
-        3. Dinner options
-        4. Snack options
-        5. Nutritional information for each meal
-        6. Shopping list
-        
-        Format the response as a structured JSON.
-        """
+        from utils.prompts import build_celery_meal_plan_prompt
+        prompt = build_celery_meal_plan_prompt(preferences, dietary_restrictions)
         
         # Get AI response (no timeout concern in worker!)
         ai_response, model = asyncio.run(get_ai_response(prompt, max_tokens=2000, temperature=0.7))
@@ -172,20 +158,8 @@ def analyze_nutrition_task(self, user_id: str, food_items: list) -> dict:
         # Import here to avoid circular imports
         from main import get_ai_response
         
-        # Create prompt for nutrition analysis
-        prompt = f"""
-        Analyze the nutritional content of the following food items:
-        {food_items}
-        
-        Please provide:
-        1. Total calories
-        2. Macronutrients (protein, carbs, fat)
-        3. Key micronutrients
-        4. Health recommendations
-        5. Portion size suggestions
-        
-        Format the response as structured JSON.
-        """
+        from utils.prompts import build_celery_nutrition_analysis_prompt
+        prompt = build_celery_nutrition_analysis_prompt(food_items)
         
         self.update_state(
             state='PROGRESS',
@@ -269,19 +243,8 @@ def generate_shopping_list_task(self, user_id: str, meal_plan: dict) -> dict:
         # Import here to avoid circular imports
         from main import get_ai_response
         
-        # Create prompt for shopping list
-        prompt = f"""
-        Generate a comprehensive shopping list based on this meal plan:
-        {meal_plan}
-        
-        Please provide:
-        1. Organized by grocery store sections
-        2. Quantities needed
-        3. Estimated costs
-        4. Tips for shopping
-        
-        Format as structured JSON.
-        """
+        from utils.prompts import build_celery_shopping_list_prompt
+        prompt = build_celery_shopping_list_prompt(meal_plan)
         
         # Get AI response
         ai_response, model = asyncio.run(get_ai_response(prompt, max_tokens=1000, temperature=0.7))
