@@ -309,24 +309,28 @@ async def validate_user_exists(user_id: str) -> bool:
             
         # Check against the user database using USER_DATABASE_URI
         try:
-            db = get_user_db()
-            try:
+            from utils.database import user_db_session
+            with user_db_session() as db:
                 # Check if user exists in users table using correct schema
                 result = db.execute(
-                    text("SELECT user_id, email, account_status FROM users WHERE user_id = :user_id AND account_status = 'active'"),
-                    {"user_id": user_id}
+                    text(
+                        "SELECT user_id, email, account_status FROM users "
+                        "WHERE user_id = :user_id AND account_status = 'active'"
+                    ),
+                    {"user_id": user_id},
                 ).fetchone()
-                
+
                 if not result:
-                    logger.warning(f"User validation failed: User {user_id} does not exist or is inactive")
+                    logger.warning(
+                        f"User validation failed: User {user_id} does not exist or is inactive"
+                    )
                     return False
-                    
-                logger.info(f"User validation successful: User {user_id} ({result.email}) is valid")
+
+                logger.info(
+                    f"User validation successful: User {user_id} ({result.email}) is valid"
+                )
                 return True
-                
-            finally:
-                db.close()
-                
+
         except Exception as db_error:
             logger.error(f"Database error during user validation: {db_error}")
             # If database fails, allow the user to proceed for now

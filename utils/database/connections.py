@@ -17,6 +17,7 @@ import os
 import logging
 import time
 import asyncio
+from contextlib import contextmanager
 from sqlalchemy import create_engine, text, MetaData
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from typing import Optional, Tuple
@@ -92,12 +93,16 @@ def get_user_db() -> Session:
     try:
         global _user_engine, _user_session_factory
         if _user_engine is None or _user_session_factory is None:
+            pool_size = int(os.getenv("USER_DB_POOL_SIZE", "2"))
+            max_overflow = int(os.getenv("USER_DB_MAX_OVERFLOW", "2"))
+            pool_timeout = int(os.getenv("USER_DB_POOL_TIMEOUT", "10"))
             _user_engine = create_engine(
                 fixed_uri,
-                pool_size=5,  # Smaller pool for user database
-                max_overflow=10,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
                 pool_pre_ping=True,
                 pool_recycle=3600,
+                pool_timeout=pool_timeout,
                 connect_args={"connect_timeout": 3}
             )
             _user_session_factory = sessionmaker(autocommit=False, autoflush=False, bind=_user_engine)
@@ -237,6 +242,18 @@ def test_database_connection(db_type: str) -> Tuple[bool, str]:
             
     except Exception as e:
         return False, f"Connection failed: {str(e)}"
+
+@contextmanager
+def user_db_session() -> Session:
+    """
+    Context manager for USER_DATABASE_URI sessions.
+    Ensures sessions are always closed and connections returned to the pool.
+    """
+    db = get_user_db()
+    try:
+        yield db
+    finally:
+        db.close()
 
 def get_database_status() -> dict:
     """
