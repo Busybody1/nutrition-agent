@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, List
 from contextlib import asynccontextmanager
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form, Query
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -349,6 +349,31 @@ async def require_valid_user(user_id: str):
 # AI HELPER FUNCTIONS
 # =============================================================================
 
+def _openai_post_with_retry(url: str, headers: dict, json_data: dict, timeout: int = 30, max_attempts: int = 3):
+    """POST to OpenAI API with exponential backoff on 429/500/503 and connection errors."""
+    delay = 1.0
+    last_response = None
+    for attempt in range(max_attempts):
+        try:
+            r = requests.post(url, headers=headers, json=json_data, timeout=timeout)
+            last_response = r
+            if r.status_code == 200:
+                return r
+            if r.status_code in (429, 500, 503) and attempt < max_attempts - 1:
+                logger.warning(f"OpenAI returned {r.status_code}, retrying in {delay}s (attempt {attempt + 1}/{max_attempts})")
+                time.sleep(delay)
+                delay *= 2
+                continue
+            return r
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_attempts - 1:
+                logger.warning(f"OpenAI request failed ({e}), retrying in {delay}s (attempt {attempt + 1}/{max_attempts})")
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise
+    return last_response
+
 async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: float = 0.7, 
                          function_name: str = "", user_id: str = "", use_batching: bool = True,
                          system_message: str = "") -> tuple[str, str]:
@@ -385,17 +410,16 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                     "max_tokens": max_tokens
                 }
                 
-                response = requests.post(
+                response = _openai_post_with_retry(
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
-                    json=data,
+                    json_data=data,
                     timeout=30
                 )
-                
-                if response.status_code == 200:
+                if response and response.status_code == 200:
                     result = response.json()
                     return result["choices"][0]["message"]["content"], "gpt-4o"
-                else:
+                if response:
                     logger.error(f"OpenAI request failed with status {response.status_code}")
             except Exception as e:
                 logger.error(f"OpenAI request failed: {e}")
@@ -456,14 +480,13 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
                         "max_tokens": max_tokens
                     }
                     
-                    response = requests.post(
+                    response = _openai_post_with_retry(
                         "https://api.openai.com/v1/chat/completions",
                         headers=headers,
-                        json=data,
+                        json_data=data,
                         timeout=30
                     )
-                    
-                    if response.status_code == 200:
+                    if response and response.status_code == 200:
                         result = response.json()
                         ai_response = result["choices"][0]["message"]["content"]
                         model = "gpt-4o"
@@ -783,19 +806,20 @@ async def create_meal_plan(parameters: Dict[str, Any], user_id: str) -> Dict[str
                         "max_tokens": 12000
                     }
                     
-                    response = requests.post(
+                    response = _openai_post_with_retry(
                         "https://api.openai.com/v1/chat/completions",
                         headers=headers,
-                        json=data,
-                        timeout=20  # Reduced timeout to prevent cascading timeouts
+                        json_data=data,
+                        timeout=20,
+                        max_attempts=3
                     )
-                    
-                    if response.status_code == 200:
+                    if response and response.status_code == 200:
                         result = response.json()
                         ai_meal_plan = result["choices"][0]["message"]["content"]
                     else:
-                        logger.error(f"OpenAI API returned status {response.status_code}: {response.text}")
-                        raise Exception(f"OpenAI API error: {response.status_code}")
+                        status = response.status_code if response else "no response"
+                        logger.error(f"OpenAI API returned status {status}: {getattr(response, 'text', '')}")
+                        raise Exception(f"OpenAI API error: {status}")
                 except Exception as openai_error:
                     logger.error(f"Direct OpenAI HTTP API call failed: {openai_error}")
                     raise
@@ -1016,19 +1040,20 @@ async def create_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any
                         "max_tokens": 12000
                     }
                     
-                    response = requests.post(
+                    response = _openai_post_with_retry(
                         "https://api.openai.com/v1/chat/completions",
                         headers=headers,
-                        json=data,
-                        timeout=20  # Reduced timeout to prevent cascading timeouts
+                        json_data=data,
+                        timeout=20,
+                        max_attempts=3
                     )
-                    
-                    if response.status_code == 200:
+                    if response and response.status_code == 200:
                         result = response.json()
                         ai_meal = result["choices"][0]["message"]["content"]
                     else:
-                        logger.error(f"OpenAI API returned status {response.status_code}: {response.text}")
-                        raise Exception(f"OpenAI API error: {response.status_code}")
+                        status = response.status_code if response else "no response"
+                        logger.error(f"OpenAI API returned status {status}: {getattr(response, 'text', '')}")
+                        raise Exception(f"OpenAI API error: {status}")
                 except Exception as openai_error:
                     logger.error(f"Direct OpenAI HTTP API call failed: {openai_error}")
                     raise
@@ -1255,17 +1280,18 @@ async def test_gpt4o_direct(prompt: str = Body(..., embed=True)):
             "max_tokens": 16000
         }
         
-        response = requests.post(
+        response = _openai_post_with_retry(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
-            json=data,
-            timeout=20  # Reduced timeout to prevent cascading timeouts
+            json_data=data,
+            timeout=20,
+            max_attempts=3
         )
         
         end_time = time.time()
         duration = end_time - start_time
         
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
             
@@ -1281,11 +1307,13 @@ async def test_gpt4o_direct(prompt: str = Body(..., embed=True)):
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         else:
-            logger.error(f"OpenAI API error {response.status_code}: {response.text}")
+            status = response.status_code if response else "no response"
+            text = getattr(response, "text", "") or ""
+            logger.error(f"OpenAI API error {status}: {text}")
             return {
                 "status": "error",
-                "error": f"OpenAI API returned status {response.status_code}",
-                "error_details": response.text[:500],
+                "error": f"OpenAI API returned status {status}",
+                "error_details": (text or str(response))[:500],
                 "duration_seconds": round(duration, 2),
                 "test_type": "direct_http_call",
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -1383,12 +1411,23 @@ async def test_database():
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
+def _verify_internal_token(request: Request) -> None:
+    """Require X-Internal-Token to match INTERNAL_SERVICE_TOKEN when set (inter-service auth)."""
+    expected = os.getenv("INTERNAL_SERVICE_TOKEN")
+    if not expected:
+        return
+    token = request.headers.get("X-Internal-Token") or ""
+    if token != expected:
+        raise HTTPException(status_code=401, detail="Missing or invalid internal service token")
+
 @app.post("/execute-tool")
 async def execute_tool(
+    request: Request,
     tool_name: str = Body(...),
     parameters: Dict[str, Any] = Body(...)
 ):
     """Execute a nutrition tool."""
+    _verify_internal_token(request)
     try:
         user_id = parameters.get("user_id", "default_user")
         

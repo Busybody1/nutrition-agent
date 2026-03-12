@@ -29,6 +29,21 @@ metadata = MetaData()
 # Set up logging
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Module-level engine/session singletons to enable real connection pooling
+# ---------------------------------------------------------------------------
+_user_engine = None
+_user_session_factory = None
+
+_main_engine = None
+_main_session_factory = None
+
+_nutrition_engine = None
+_nutrition_session_factory = None
+
+_workout_engine = None
+_workout_session_factory = None
+
 def fix_database_url(url: str) -> str:
     """
     Fix database URL protocol from postgres:// to postgresql://
@@ -75,17 +90,19 @@ def get_user_db() -> Session:
     fixed_uri = fix_database_url(user_db_uri)
     
     try:
-        engine = create_engine(
-            fixed_uri,
-            pool_size=5,  # Smaller pool for user database
-            max_overflow=10,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-            connect_args={"connect_timeout": 3}
-        )
+        global _user_engine, _user_session_factory
+        if _user_engine is None or _user_session_factory is None:
+            _user_engine = create_engine(
+                fixed_uri,
+                pool_size=5,  # Smaller pool for user database
+                max_overflow=10,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                connect_args={"connect_timeout": 3}
+            )
+            _user_session_factory = sessionmaker(autocommit=False, autoflush=False, bind=_user_engine)
         
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        return SessionLocal()
+        return _user_session_factory()
     except Exception as e:
         logger.error(f"Failed to create user database connection: {e}")
         raise
@@ -101,17 +118,19 @@ def get_main_db() -> Session:
     fixed_url = fix_database_url(database_url)
     
     try:
-        engine = create_engine(
-            fixed_url,
-            pool_size=10,  # Reasonable pool size for 20-30 users
-            max_overflow=20,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-            connect_args={"connect_timeout": 3}
-        )
+        global _main_engine, _main_session_factory
+        if _main_engine is None or _main_session_factory is None:
+            _main_engine = create_engine(
+                fixed_url,
+                pool_size=10,  # Reasonable pool size for 20-30 users
+                max_overflow=20,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                connect_args={"connect_timeout": 3}
+            )
+            _main_session_factory = sessionmaker(autocommit=False, autoflush=False, bind=_main_engine)
         
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        return SessionLocal()
+        return _main_session_factory()
     except Exception as e:
         logger.error(f"Failed to create main database connection: {e}")
         raise
@@ -128,17 +147,19 @@ def get_nutrition_db() -> Optional[Session]:
     fixed_uri = fix_database_url(nutrition_db_uri)
     
     try:
-        engine = create_engine(
-            fixed_uri,
-            pool_size=5,  # Read-only, smaller pool
-            max_overflow=10,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-            connect_args={"connect_timeout": 3}
-        )
+        global _nutrition_engine, _nutrition_session_factory
+        if _nutrition_engine is None or _nutrition_session_factory is None:
+            _nutrition_engine = create_engine(
+                fixed_uri,
+                pool_size=5,  # Read-only, smaller pool
+                max_overflow=10,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                connect_args={"connect_timeout": 3}
+            )
+            _nutrition_session_factory = sessionmaker(autocommit=False, autoflush=False, bind=_nutrition_engine)
         
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        return SessionLocal()
+        return _nutrition_session_factory()
     except Exception as e:
         logger.error(f"Failed to create nutrition database connection: {e}")
         return None
@@ -155,17 +176,19 @@ def get_workout_db() -> Optional[Session]:
     fixed_uri = fix_database_url(workout_db_uri)
     
     try:
-        engine = create_engine(
-            fixed_uri,
-            pool_size=5,  # Read-only, smaller pool
-            max_overflow=10,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-            connect_args={"connect_timeout": 3}
-        )
+        global _workout_engine, _workout_session_factory
+        if _workout_engine is None or _workout_session_factory is None:
+            _workout_engine = create_engine(
+                fixed_uri,
+                pool_size=5,  # Read-only, smaller pool
+                max_overflow=10,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                connect_args={"connect_timeout": 3}
+            )
+            _workout_session_factory = sessionmaker(autocommit=False, autoflush=False, bind=_workout_engine)
         
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        return SessionLocal()
+        return _workout_session_factory()
     except Exception as e:
         logger.error(f"Failed to create workout database connection: {e}")
         return None
