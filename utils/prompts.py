@@ -164,7 +164,7 @@ def build_log_meal_prompt(food_items, meal_type, portion_size, eating_time,
 - Mood After: {mood_after}
 - Hunger Level: {hunger_level}
 - Satisfaction Level: {satisfaction_level}
-- User's Calorie Estimate: {estimated_calories if estimated_calories > 0 else 'not provided'}
+- User's Calorie Estimate: {estimated_calories if estimated_calories not in (None, '', 0) else 'not provided'}
 - Additional Notes: {notes if notes else 'none'}
 - User Description: {description if description else 'none'}
 

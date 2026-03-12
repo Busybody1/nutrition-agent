@@ -500,6 +500,29 @@ async def get_ai_response(prompt: str, max_tokens: int = 16000, temperature: flo
 # NUTRITION FUNCTIONS WITH AI
 # =============================================================================
 
+def _normalize_estimated_calories(value: Any) -> int:
+    """
+    Normalize an estimated_calories value to a safe integer.
+
+    - None, empty string, or invalid values become 0
+    - Numeric strings are parsed to int
+    - Floats are truncated to int
+    """
+    try:
+        if value is None or value == "":
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return 0
+            return int(float(stripped))
+    except (TypeError, ValueError):
+        logger.warning(f"Unexpected estimated_calories value '{value}', defaulting to 0")
+    return 0
+
+
 async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
     """Log a meal that was already eaten with AI nutrition analysis."""
     try:
@@ -519,7 +542,7 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         mood_after = parameters.get("mood_after", "satisfied")  # mood after eating
         hunger_level = parameters.get("hunger_level", "moderate")  # low, moderate, high
         satisfaction_level = parameters.get("satisfaction_level", "satisfied")  # unsatisfied, satisfied, very_satisfied
-        estimated_calories = parameters.get("estimated_calories", 0)  # user's calorie estimate
+        estimated_calories = _normalize_estimated_calories(parameters.get("estimated_calories", 0))  # user's calorie estimate
         notes = parameters.get("notes", "")  # additional notes
         
         # Create meal log entry
@@ -543,6 +566,8 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         # Store meal log in memory (in future, this would be saved to database)
         nutrition_data[f"meal_log_{user_id}_{datetime.now().timestamp()}"] = meal_log
         
+        error_code: Optional[str] = None
+        
         # Add AI nutrition insights if OpenAI is available
         if openai_client:
             try:
@@ -564,10 +589,15 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
                 )
                 
             except Exception as e:
-                logger.warning(f"Failed to generate AI insights: {e}")
+                logger.warning(f"Failed to generate AI insights: {e}", exc_info=True)
+                if isinstance(e, TypeError):
+                    error_code = "log_meal_ai_type_error"
+                else:
+                    error_code = "log_meal_ai_insights_error"
                 ai_insights = "AI nutrition analysis temporarily unavailable. Please try again later."
         else:
             ai_insights = "AI nutrition insights are currently unavailable."
+            error_code = "log_meal_ai_unavailable"
         
         # Simple and reliable JSON parsing
         try:
@@ -584,7 +614,8 @@ async def log_meal(parameters: Dict[str, Any], user_id: str) -> Dict[str, Any]:
             return {
                 "response": ai_insights,
                 "format_issue": True,
-                "raw_ai_response": True
+                "raw_ai_response": True,
+                "error_code": error_code or "log_meal_ai_parse_error"
             }
         
     except HTTPException:
